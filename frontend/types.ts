@@ -21,3 +21,10 @@ export interface DesktopRoute {
   reason: string;
   confirm: boolean;
 }
+
+export interface CatalogInput { key: string; label: string; placeholder?: string }
+export interface CatalogSecret { key: string; label: string; hint?: string }
+export interface CatalogEntry {
+  id: string; label: string; publisher: string; summary: string; caution: string;
+  inputs: CatalogInput[]; secrets: CatalogSecret[]; preview: string;
+}

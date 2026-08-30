@@ -8,6 +8,7 @@ import { CodexAppServer } from './codexAppServer.js';
 import { ClaudeAgent } from './claudeAgent.js';
 import { McpHost, connectionSchema, createActionMcp } from './mcpHost.js';
 import { optionalDesktopAgent } from './desktopAgent.js';
+import { CONNECTION_CATALOG, buildFromCatalog } from './connectionCatalog.js';
 import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildService.js';
 import { executeAction } from './sandbox.js';
 import { safeFetch } from './network.js';
@@ -90,6 +91,23 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       console.log(JSON.stringify({ trace: 'desktop:route:failed', error: normalizeError(e).message }));
       res.json({ route: { intent: 'create', prompt: req.body?.prompt || '', reply: '', reason: '', appId: null, confirm: false } });
     }
+  });
+  // The catalog never ships secrets or accepts them back; it describes what a
+  // server is, who publishes it, and what it will need.
+  app.get('/api/connections/catalog', (_req, res) => {
+    res.json({ catalog: CONNECTION_CATALOG.map(({ id, label, publisher, summary, command, args, inputs, secrets, caution }) => ({
+      id, label, publisher, summary, caution, inputs, secrets,
+      // Shown before anything is spawned, so a person can see what will run.
+      preview: [command, ...args].join(' '),
+    })) });
+  });
+  app.post('/api/connections/catalog/:id', async (req, res, next) => {
+    try {
+      const { values, secrets } = parse(z.object({ values: z.record(z.string(), z.string()).default({}), secrets: z.record(z.string(), z.string()).default({}) }), req.body || {});
+      const definition = await mcp.add(buildFromCatalog(req.params.id, { values, secrets }));
+      const described = await mcp.describe([definition.id]);
+      res.status(201).json({ connection: { id: definition.id, label: definition.label }, tools: described[0]?.tools || [], error: described[0]?.error || null });
+    } catch (e) { e.statusCode ||= 400; next(e); }
   });
   app.get('/api/connections', async (_req, res, next) => { try { res.json({ connections: await mcp.list() }); } catch (e) { next(e); } });
   app.post('/api/connections', async (req, res, next) => {

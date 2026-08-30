@@ -1,6 +1,6 @@
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import type { AgentState, BuildEvent, BuildQuestion, Connection, DesktopRoute, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { AgentState, BuildEvent, BuildQuestion, CatalogEntry, Connection, DesktopRoute, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
 const STARTERS = [
   ['Daily pulse', 'Build a daily habit tracker with streaks and a calm weekly view'],
@@ -61,6 +61,7 @@ export function Workshop() {
   const [proposal, setProposal] = useState<DesktopRoute | null>(null);
   const maxZ = useRef(Math.max(2, ...windows.map((win) => win.z)));
   const streams = useRef(new Map<string, EventSource>());
+  const detailsLoaded = useRef(new Set<string>());
 
   const inspectorApp = apps.find((app) => app.id === inspectorAppId) || null;
   const currentEvents = inspectorAppId ? builds[inspectorAppId] || [] : [];
@@ -90,6 +91,10 @@ export function Workshop() {
     window.addEventListener('keydown', onKey);
     return () => { mounted = false; clearInterval(timer); clearInterval(reconciler); window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); streams.current.forEach((stream) => stream.close()); };
   }, []);
+
+  useEffect(() => {
+    windows.forEach((win) => { if (!detailsLoaded.current.has(win.id)) loadDetails(win.id); });
+  }, [windows]);
 
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('workshop-theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('workshop-sounds', String(sounds)); }, [sounds]);
@@ -251,6 +256,7 @@ export function Workshop() {
   }
 
   async function loadDetails(id: string) {
+    detailsLoaded.current.add(id);
     try {
       const result = await api.app(id);
       setApps((items) => items.map((app) => app.id === id ? result.app : app));
@@ -292,7 +298,7 @@ export function Workshop() {
   async function togglePin(app: WorkshopApp) { const result = await api.patch(app.id, { pinned: !app.pinned }); setApps((items) => items.map((item) => item.id === app.id ? result.app : item)); }
   async function archive(app: WorkshopApp) { await api.patch(app.id, { archived: true }); closeWindow(app.id); refresh(); showToast('Moved to archive'); }
   async function duplicate(app: WorkshopApp) { const result = await api.duplicate(app.id); setApps((items) => [result.app, ...items]); openApp(result.app); showToast('App duplicated'); }
-  async function restoreRevision(app: WorkshopApp, revision: number) { await api.restore(app.id, revision); refresh(); windowPatch(app.id, { z: ++maxZ.current }); showToast(`Restored version ${revision}`); }
+  async function restoreRevision(app: WorkshopApp, revision: number) { await api.restore(app.id, revision); refresh(); loadDetails(app.id); windowPatch(app.id, { z: ++maxZ.current }); showToast(`Restored version ${revision}`); }
 
   const activeWindowId = useMemo(() => [...windows].filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]?.id || null, [windows]);
   const minimized = useMemo(() => windows.filter((win) => win.minimized), [windows]);
@@ -509,11 +515,32 @@ function Settings({ status, theme, setTheme, sounds, setSounds, onClose }: { sta
 function Connections() {
   const [items, setItems] = useState<Connection[]>([]);
   const [adding, setAdding] = useState(false);
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [picked, setPicked] = useState<CatalogEntry | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState({ id: '', label: '', command: '', args: '', env: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { api.connections().then((result) => setItems(result.connections)).catch(() => setError('Could not read connections.')); }, []);
+  useEffect(() => {
+    api.connections().then((result) => setItems(result.connections)).catch(() => setError('Could not read connections.'));
+    api.catalog().then((result) => setCatalog(result.catalog)).catch(() => {});
+  }, []);
+
+  async function install(event: FormEvent) {
+    event.preventDefault();
+    if (!picked) return;
+    setBusy(true); setError('');
+    try {
+      const values = Object.fromEntries(picked.inputs.map((input) => [input.key, answers[input.key] || '']));
+      const secrets = Object.fromEntries(picked.secrets.map((secret) => [secret.key, answers[secret.key] || '']));
+      const result = await api.addFromCatalog(picked.id, values, secrets);
+      if (result.error) setError(result.error);
+      setItems((await api.connections()).connections);
+      setPicked(null); setAnswers({});
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not connect that.'); }
+    finally { setBusy(false); }
+  }
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -538,7 +565,7 @@ function Connections() {
   }
 
   return <section className="connections">
-    <header><div><strong>Connections</strong><small>Services your apps can reach. Added once here, granted per app.</small></div><button onClick={() => setAdding((value) => !value)}>{adding ? 'Cancel' : 'Add'}</button></header>
+    <header><div><strong>Connections</strong><small>Services your apps can reach. Added once here, granted per app.</small></div><button onClick={() => { setAdding((value) => !value); setPicked(null); setError(''); }}>{adding ? 'Cancel' : 'Add'}</button></header>
     {items.map((item) => <div key={item.id} className="connection-row">
       <div><strong>{item.label}</strong><small>{item.tools.length ? `${item.tools.length} tools · ${item.tools.slice(0, 3).join(', ')}${item.tools.length > 3 ? '…' : ''}` : item.error || 'Not started yet'}</small>
       {item.secrets?.length ? <small className="connection-secrets">{item.secrets.map((secret) => <span key={secret.key} className={secret.missing ? 'missing' : ''}>{secret.key} · {secret.missing ? `${secret.from} not set` : secret.from}</span>)}</small> : null}</div>
@@ -546,7 +573,24 @@ function Connections() {
       <button className="danger" onClick={() => remove(item.id)}>Remove</button>
     </div>)}
     {!items.length && !adding && <p className="connections-empty">No connections yet. Apps can still use the web and the model.</p>}
-    {adding && <form className="connection-form" onSubmit={add}>
+    {adding && !picked && <div className="catalog">
+      {catalog.filter((entry) => !items.some((item) => item.id === entry.id)).map((entry) => <button key={entry.id} type="button" className="catalog-entry" onClick={() => { setPicked(entry); setAnswers({}); setError(''); }}>
+        <div><strong>{entry.label}</strong><small>{entry.summary}</small></div>
+        <code title="Published under an npm scope only this vendor can publish to">{entry.publisher}</code>
+      </button>)}
+      <button type="button" className="catalog-manual" onClick={() => setPicked({ id: '', label: '', publisher: '', summary: '', caution: '', inputs: [], secrets: [], preview: '' })}>Add something else manually…</button>
+    </div>}
+
+    {adding && picked && picked.id && <form className="connection-form catalog-install" onSubmit={install}>
+      <div className="catalog-head"><strong>{picked.label}</strong><small>{picked.summary}</small></div>
+      {picked.inputs.map((input) => <label key={input.key}><span>{input.label}</span><input value={answers[input.key] || ''} placeholder={input.placeholder} onChange={(event) => setAnswers({ ...answers, [input.key]: event.target.value })} required /></label>)}
+      {picked.secrets.map((secret) => <label key={secret.key}><span>{secret.label}</span><input type="password" value={answers[secret.key] || ''} placeholder={`or $${secret.key} to read it from your .env`} onChange={(event) => setAnswers({ ...answers, [secret.key]: event.target.value })} required />{secret.hint && <small>{secret.hint}</small>}</label>)}
+      {picked.caution && <p className="catalog-caution">{picked.caution}</p>}
+      <code className="catalog-preview">{picked.preview}</code>
+      <div className="catalog-actions"><button type="button" onClick={() => setPicked(null)}>Back</button><button className="primary" disabled={busy}>{busy ? 'Connecting…' : `Connect ${picked.label}`}</button></div>
+    </form>}
+
+    {adding && picked && !picked.id && <form className="connection-form" onSubmit={add}>
       <input placeholder="id (e.g. files)" value={draft.id} onChange={(event) => setDraft({ ...draft, id: event.target.value })} required />
       <input placeholder="Name (e.g. Local Files)" value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} />
       <input placeholder="command (e.g. npx)" value={draft.command} onChange={(event) => setDraft({ ...draft, command: event.target.value })} required />

@@ -1,4 +1,4 @@
-import type { BuildSummary, Connection, DesktopRoute, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { BuildSummary, CatalogEntry, Connection, DesktopRoute, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
 async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -95,6 +95,9 @@ export const api = {
   answerBuild: (id: string, answers: Record<string, string>) => request<{ build: BuildSummary }>(`/api/builds/${id}/answers`, { method: 'POST', body: JSON.stringify({ answers }) }),
   cancelBuild: (id: string) => request<{ build: BuildSummary }>(`/api/builds/${id}/cancel`, { method: 'POST', body: '{}' }),
   connections: () => request<{ connections: Connection[] }>('/api/connections'),
+  catalog: () => request<{ catalog: CatalogEntry[] }>('/api/connections/catalog'),
+  addFromCatalog: (id: string, values: Record<string, string>, secrets: Record<string, string>) =>
+    request<{ connection: { id: string; label: string }; tools: string[]; error: string | null }>(`/api/connections/catalog/${id}`, { method: 'POST', body: JSON.stringify({ values, secrets }), timeoutMs: 120_000 }),
   // Starting a server can mean npx downloading a package first, which is far
   // past the default budget.
   addConnection: (definition: { id: string; label: string; command: string; args: string[]; env?: Record<string, string> }) =>

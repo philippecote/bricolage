@@ -247,3 +247,35 @@ describe('build feed labels', () => {
     expect(build.events.map((event) => event.message)).toEqual(['Same thing.']);
   });
 });
+
+describe('connection catalog', () => {
+  it('only lists servers under a scope their vendor controls, at pinned versions', async () => {
+    const { CONNECTION_CATALOG } = await import('../src/connectionCatalog.js');
+    for (const entry of CONNECTION_CATALOG) {
+      // The gateway is a first-party docker subcommand, not an npm install.
+      if (entry.command === 'docker') { expect(entry.args[0]).toBe('mcp'); continue; }
+      const pkg = entry.args.find((arg) => arg.startsWith('@'));
+      // An unscoped npm name is claimable by anyone, so it never belongs here.
+      expect(pkg, `${entry.id} must install a scoped package`).toBeTruthy();
+      expect(pkg.startsWith(`${entry.publisher}/`), `${entry.id} claims ${entry.publisher} but installs ${pkg}`).toBe(true);
+      // @latest would let a future compromised release execute on the next add.
+      expect(pkg, `${entry.id} must pin a version`).toMatch(/@[\w.-]+$/);
+      expect(pkg).not.toContain('@latest');
+    }
+  });
+
+  it('builds a definition from answers and refuses an incomplete one', async () => {
+    const { buildFromCatalog } = await import('../src/connectionCatalog.js');
+    const files = buildFromCatalog('files', { values: { directory: '/tmp/notes' } });
+    expect(files).toMatchObject({ id: 'files', command: 'npx' });
+    expect(files.args.at(-1)).toBe('/tmp/notes');
+
+    const notion = buildFromCatalog('notion', { secrets: { NOTION_TOKEN: '$NOTION_TOKEN' } });
+    // A bare $NAME stays a reference, so the token is never copied into config.
+    expect(notion.env).toEqual({ NOTION_TOKEN: '$NOTION_TOKEN' });
+
+    expect(() => buildFromCatalog('files', {})).toThrow(/folder to share/i);
+    expect(() => buildFromCatalog('notion', {})).toThrow(/token/i);
+    expect(() => buildFromCatalog('nope', {})).toThrow(/no catalog entry/i);
+  });
+});

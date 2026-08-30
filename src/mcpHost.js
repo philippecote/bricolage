@@ -55,7 +55,14 @@ class McpConnection {
       this.process = child;
       child.once('error', (error) => { this.lastError = error.message; this.process = null; this.ready = null; this.rejectAll(error); });
       child.stderr.on('data', (chunk) => { this.lastError = String(chunk).trim().slice(0, 400) || this.lastError; });
-      child.once('exit', (code) => { this.process = null; this.ready = null; this.rejectAll(new Error(`${this.definition.label} exited (${code}).`)); });
+      // The server's own stderr says why far better than an exit code does:
+      // "Docker Desktop is not running" beats "exited (1)".
+      child.once('exit', (code) => {
+        this.process = null;
+        this.ready = null;
+        const detail = (this.lastError || '').split('\n').filter(Boolean).at(-1);
+        this.rejectAll(new Error(detail ? `${this.definition.label}: ${detail}` : `${this.definition.label} exited (${code}).`));
+      });
       readline.createInterface({ input: child.stdout }).on('line', (line) => this.onLine(line));
 
       await this.request('initialize', {
