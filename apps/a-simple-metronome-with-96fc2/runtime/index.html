@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tempo Tap</title>
+  <style>
+    :root {
+      --paper: #f5f1e8;
+      --paper-deep: #ebe5da;
+      --ink: #202824;
+      --muted: #7c837b;
+      --faint: #b8b9af;
+      --line: #d8d4c9;
+      --accent: #e45d3f;
+      --accent-dark: #bb442e;
+      --accent-wash: #f6d0c4;
+      --green: #829786;
+      --shadow: rgba(31, 38, 34, .12);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      color: var(--ink);
+      background: #ded9cf;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(228, 93, 63, .34); outline-offset: 3px; }
+
+    .app-shell {
+      width: min(100%, 1080px);
+      height: min(680px, calc(100vh - 32px));
+      min-height: 600px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid rgba(32, 40, 36, .1);
+      border-radius: 24px;
+      background: var(--paper);
+      box-shadow: 0 26px 70px var(--shadow);
+    }
+
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 11px; color: var(--ink); font-size: 12px; font-weight: 760; letter-spacing: .12em; text-transform: uppercase; }
+    .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; color: #fffaf4; background: var(--accent); font-size: 15px; line-height: 1; box-shadow: 0 5px 12px rgba(228, 93, 63, .24); }
+    .topbar-note { display: flex; align-items: center; gap: 8px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(130, 151, 134, .15); transition: background .2s ease, box-shadow .2s ease; }
+    .is-playing .live-dot { background: var(--accent); box-shadow: 0 0 0 4px rgba(228, 93, 63, .15); animation: breathe 1s ease-in-out infinite; }
+    .reset-button { border: 0; padding: 6px 0; color: var(--muted); background: transparent; font-size: 12px; transition: color .18s ease; }
+    .reset-button:hover { color: var(--accent-dark); }
+
+    .workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 275px; }
+    .primary-panel { min-width: 0; display: flex; flex-direction: column; padding: 28px 40px 25px; }
+    .intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+    .eyebrow, .section-label { margin: 0; color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 8px 0 0; font-size: clamp(32px, 4vw, 46px); font-weight: 760; letter-spacing: -.065em; line-height: .95; }
+    .intro-copy { max-width: 220px; margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: right; }
+
+    .tempo-block { margin-top: 24px; }
+    .tempo-value-row { display: grid; grid-template-columns: 45px minmax(0, 1fr) auto 45px; align-items: end; gap: 14px; }
+    .tempo-adjust { width: 38px; height: 38px; align-self: center; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: transparent; font-size: 22px; font-weight: 300; line-height: 1; transition: transform .18s ease, color .18s ease, border-color .18s ease, background .18s ease; }
+    .tempo-adjust:hover { border-color: var(--accent); color: var(--accent-dark); background: #fffaf4; transform: scale(1.06); }
+    .tempo-number { display: block; font-size: clamp(86px, 13vw, 142px); font-weight: 730; letter-spacing: -.1em; line-height: .72; text-align: center; font-variant-numeric: tabular-nums; }
+    .tempo-unit { margin: 0 0 8px -8px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .range-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 19px 55px 0; }
+    .range-mark { color: var(--faint); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9px; letter-spacing: .08em; }
+    input[type="range"] { width: 100%; height: 18px; margin: 0; appearance: none; background: transparent; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--fill, 31%), var(--line) var(--fill, 31%)); }
+    input[type="range"]::-moz-range-track { height: 3px; border-radius: 3px; background: var(--line); }
+    input[type="range"]::-moz-range-progress { height: 3px; border-radius: 3px; background: var(--accent); }
+    input[type="range"]::-webkit-slider-thumb { width: 14px; height: 14px; margin-top: -5px; appearance: none; border: 3px solid var(--paper); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 3px solid var(--paper); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+    .stage { position: relative; min-height: 159px; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; margin-top: 14px; }
+    .stage-caption { position: absolute; top: 4px; left: 0; right: 0; display: flex; justify-content: space-between; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+    .stage-caption strong { color: var(--ink); font-weight: 700; }
+    .pendulum { position: relative; width: 230px; height: 132px; margin: 0 auto; }
+    .pendulum-arc { position: absolute; left: 50%; bottom: 2px; width: 204px; height: 76px; border-top: 1px solid var(--line); border-radius: 50% 50% 0 0; transform: translateX(-50%); opacity: .85; }
+    .pendulum-arc::before, .pendulum-arc::after { content: ""; position: absolute; top: -3px; width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
+    .pendulum-arc::before { left: 0; }
+    .pendulum-arc::after { right: 0; }
+    .pendulum-arm { position: absolute; z-index: 2; top: 26px; left: 50%; width: 2px; height: 91px; background: var(--ink); transform: translateX(-50%) rotate(var(--angle, 0deg)); transform-origin: 50% 0; transition: transform .16s cubic-bezier(.22, .8, .3, 1); }
+    .pendulum-arm::after { content: ""; position: absolute; bottom: -6px; left: 50%; width: 16px; height: 16px; border: 3px solid var(--paper); border-radius: 50%; background: var(--accent); box-shadow: 0 2px 8px rgba(228, 93, 63, .25); transform: translateX(-50%); }
+    .pendulum-hub { position: absolute; z-index: 3; top: 19px; left: 50%; width: 16px; height: 16px; border: 4px solid var(--paper); border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1px var(--ink); transform: translateX(-50%); }
+    .beat-core { position: absolute; z-index: 1; top: -4px; left: 50%; width: 64px; height: 64px; border: 1px solid var(--accent-wash); border-radius: 50%; opacity: .65; transform: translateX(-50%); }
+    .beat-core::after { content: ""; position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); }
+    .beat-core.pulse { animation: pulse .34s ease-out; }
+    .beat-core.is-downbeat { border-color: rgba(228, 93, 63, .55); background: rgba(246, 208, 196, .22); opacity: 1; }
+    .beat-dots { position: absolute; z-index: 4; bottom: -2px; left: 50%; display: flex; gap: 7px; transform: translateX(-50%); }
+    .beat-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--line); transition: transform .16s ease, background .16s ease; }
+    .beat-dot.active { background: var(--accent); transform: scale(1.55); }
+
+    .controls { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; margin-top: 15px; }
+    .action-button { min-height: 44px; border: 1px solid transparent; border-radius: 11px; font-size: 12px; font-weight: 760; letter-spacing: .01em; transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease; }
+    .action-button:hover { transform: translateY(-2px); }
+    .primary-action { color: #fff9f1; background: var(--accent); box-shadow: 0 8px 15px rgba(228, 93, 63, .18); }
+    .primary-action:hover { background: var(--accent-dark); box-shadow: 0 11px 20px rgba(228, 93, 63, .24); }
+    .secondary-action { border-color: var(--line); color: var(--ink); background: transparent; }
+    .secondary-action:hover { border-color: var(--accent-wash); background: #fffaf4; }
+    .secondary-action.tap-flash { animation: tapFlash .28s ease-out; }
+    .keyboard-hint { display: inline-flex; align-items: center; gap: 8px; margin: 13px auto 0; color: var(--muted); font-size: 10px; }
+    kbd { min-width: 21px; padding: 3px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--ink); background: var(--paper-deep); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9px; text-align: center; }
+
+    .side-panel { min-width: 0; display: flex; flex-direction: column; padding: 30px 25px 22px; border-left: 1px solid var(--line); background: var(--paper-deep); }
+    .side-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .side-heading h2 { margin: 6px 0 0; font-size: 19px; letter-spacing: -.04em; }
+    .save-state { color: var(--muted); font-size: 10px; text-align: right; }
+    .control-group { padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .control-group:last-of-type { border-bottom: 0; }
+    .tempo-input-wrap { display: flex; align-items: baseline; gap: 9px; margin-top: 11px; }
+    .tempo-input { width: 105px; padding: 0; border: 0; color: var(--ink); background: transparent; font-size: 38px; font-weight: 720; letter-spacing: -.08em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .tempo-input::-webkit-inner-spin-button, .tempo-input::-webkit-outer-spin-button { opacity: .35; }
+    .bpm-label { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; letter-spacing: .1em; }
+    .side-copy { margin: 9px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .tap-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; color: var(--ink); font-size: 11px; }
+    .tap-count { color: var(--accent-dark); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .tap-line { display: flex; gap: 6px; margin-top: 15px; }
+    .tap-line span { flex: 1; height: 4px; border-radius: 2px; background: var(--line); transition: background .2s ease, transform .2s ease; }
+    .tap-line span.filled { background: var(--accent); transform: scaleY(1.35); }
+    .tip { margin-top: auto; padding-top: 18px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .tip strong { color: var(--ink); font-weight: 700; }
+    .status-bar { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 28px; color: var(--muted); font-size: 10px; }
+    .status-icon { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .status-bar.error { color: var(--accent-dark); }
+    .status-bar.error .status-icon { background: var(--accent); }
+
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(228, 93, 63, .32); transform: translateX(-50%) scale(1); } 45% { box-shadow: 0 0 0 11px rgba(228, 93, 63, 0); transform: translateX(-50%) scale(1.08); } 100% { box-shadow: 0 0 0 0 rgba(228, 93, 63, 0); transform: translateX(-50%) scale(1); } }
+    @keyframes breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+    @keyframes tapFlash { 0% { transform: scale(1); background: transparent; } 45% { transform: scale(.97); background: var(--accent-wash); } 100% { transform: scale(1); background: transparent; } }
+
+    @media (max-width: 760px) {
+      body { padding: 0; }
+      .app-shell { width: 100%; height: auto; min-height: 100vh; border: 0; border-radius: 0; }
+      .workspace { grid-template-columns: 1fr; }
+      .side-panel { border-top: 1px solid var(--line); border-left: 0; }
+      .tip { margin-top: 0; }
+    }
+    @media (max-height: 680px) and (min-width: 761px) {
+      .primary-panel { padding-top: 21px; padding-bottom: 16px; }
+      .stage { min-height: 132px; }
+      .pendulum { transform: scale(.88); transform-origin: bottom center; }
+      .side-panel { padding-top: 22px; padding-bottom: 14px; }
+      .control-group { padding: 14px 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell" id="app" aria-busy="true">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>Tempo Tap</span></div>
+      <div class="topbar-note"><span class="live-dot" aria-hidden="true"></span><span id="headerStatus">Ready to find the pocket</span></div>
+      <button class="reset-button" id="resetButton" type="button">Reset tempo</button>
+    </header>
+
+    <main class="workspace">
+      <section class="primary-panel" aria-labelledby="pageTitle">
+        <div class="intro">
+          <div>
+            <p class="eyebrow">Simple timekeeper</p>
+            <h1 id="pageTitle">Find your tempo.</h1>
+          </div>
+          <p class="intro-copy">Set a pulse, press play,<br>and let the beat stay steady.</p>
+        </div>
+
+        <div class="tempo-block" aria-label="Tempo controls">
+          <div class="tempo-value-row">
+            <button class="tempo-adjust" id="decreaseButton" type="button" aria-label="Decrease tempo by one beat per minute">−</button>
+            <div><span class="tempo-number" id="tempoDisplay">96</span></div>
+            <span class="tempo-unit">BPM</span>
+            <button class="tempo-adjust" id="increaseButton" type="button" aria-label="Increase tempo by one beat per minute">+</button>
+          </div>
+          <div class="range-row">
+            <span class="range-mark">40</span>
+            <input id="tempoRange" type="range" min="40" max="240" step="1" value="96" aria-label="Tempo in beats per minute">
+            <span class="range-mark">240</span>
+          </div>
+        </div>
+
+        <div class="stage" aria-label="Beat visualizer">
+          <div class="stage-caption"><span id="beatNumber"><strong>BEAT 1</strong> / 4</span><span id="pulseLabel">Ready when you are</span></div>
+          <div class="pendulum" aria-hidden="true">
+            <div class="beat-core" id="beatVisual"></div>
+            <div class="pendulum-arc"></div>
+            <div class="pendulum-arm" id="pendulumArm"></div>
+            <div class="pendulum-hub"></div>
+            <div class="beat-dots"><span class="beat-dot active"></span><span class="beat-dot"></span><span class="beat-dot"></span><span class="beat-dot"></span></div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="action-button primary-action" id="playButton" type="button" aria-pressed="false"><span id="playLabel">Start metronome</span></button>
+          <button class="action-button secondary-action" id="tapButton" type="button">Tap to set</button>
+        </div>
+        <div class="keyboard-hint"><kbd>SPACE</kbd><span>play / pause</span><span>·</span><span>Tap 3+ times for a steadier read</span></div>
+      </section>
+
+      <aside class="side-panel" aria-label="Session controls">
+        <div class="side-heading">
+          <div><p class="section-label">Session</p><h2>Tempo controls</h2></div>
+          <span class="save-state" id="saveState">Loading…</span>
+        </div>
+
+        <section class="control-group" aria-labelledby="fineTuneHeading">
+          <p class="section-label" id="fineTuneHeading">Fine tune</p>
+          <div class="tempo-input-wrap">
+            <input class="tempo-input" id="tempoInput" type="number" min="40" max="240" step="1" value="96" aria-label="Exact tempo in beats per minute">
+            <span class="bpm-label">beats / min</span>
+          </div>
+          <p class="side-copy">Use the slider for a quick sweep, or enter an exact BPM.</p>
+        </section>
+
+        <section class="control-group" aria-labelledby="tapHeading">
+          <p class="section-label" id="tapHeading">Tap tempo</p>
+          <p class="side-copy">Tap along with a song or a thought. The last few taps average into your new tempo.</p>
+          <div class="tap-status"><span id="tapSummary">Waiting for your first tap</span><span class="tap-count" id="tapCount">0 taps</span></div>
+          <div class="tap-line" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+        </section>
+
+        <p class="tip"><strong>Good to know.</strong> The first beat of every bar is accented so you can feel where the phrase begins.</p>
+      </aside>
+    </main>
+
+    <div class="status-bar" id="audioStatus" role="status" aria-live="polite"><span class="status-icon" aria-hidden="true"></span><span>Audio will begin after you press start.</span></div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const MIN_TEMPO = 40;
+      const MAX_TEMPO = 240;
+      const DEFAULT_TEMPO = 96;
+      const STORAGE_KEY = 'tempo-tap-tempo';
+
+      const $ = (id) => document.getElementById(id);
+      const app = $('app');
+      const tempoDisplay = $('tempoDisplay');
+      const tempoRange = $('tempoRange');
+      const tempoInput = $('tempoInput');
+      const decreaseButton = $('decreaseButton');
+      const increaseButton = $('increaseButton');
+      const playButton = $('playButton');
+      const playLabel = $('playLabel');
+      const tapButton = $('tapButton');
+      const resetButton = $('resetButton');
+      const beatVisual = $('beatVisual');
+      const pendulumArm = $('pendulumArm');
+      const beatNumber = $('beatNumber');
+      const pulseLabel = $('pulseLabel');
+      const tapSummary = $('tapSummary');
+      const tapCount = $('tapCount');
+      const tapLine = Array.from(document.querySelectorAll('.tap-line span'));
+      const saveState = $('saveState');
+      const audioStatus = $('audioStatus');
+      const headerStatus = $('headerStatus');
+      const beatDots = Array.from(document.querySelectorAll('.beat-dot'));
+      const durableStorage = window.storage || (typeof storage !== 'undefined' ? storage : null);
+
+      let tempo = DEFAULT_TEMPO;
+      let currentBeat = 0;
+      let isPlaying = false;
+      let beatTimer = null;
+      let audioContext = null;
+      let tapTimes = [];
+      let saveTimer = null;
+
+      const clampTempo = (value) => Math.round(Math.min(MAX_TEMPO, Math.max(MIN_TEMPO, Number(value) || DEFAULT_TEMPO)));
+
+      function announce(message) {
+        if (typeof window.notify === 'function') window.notify(message);
+      }
+
+      function updateTitle() {
+        if (typeof window.setTitle === 'function') window.setTitle('Tempo Tap');
+      }
+
+      function setAudioStatus(message, isError = false) {
+        audioStatus.classList.toggle('error', isError);
+        audioStatus.innerHTML = '<span class="status-icon" aria-hidden="true"></span><span></span>';
+        audioStatus.lastElementChild.textContent = message;
+      }
+
+      function renderTempo() {
+        tempoDisplay.textContent = tempo;
+        tempoRange.value = tempo;
+        tempoInput.value = tempo;
+        const fill = ((tempo - MIN_TEMPO) / (MAX_TEMPO - MIN_TEMPO)) * 100;
+        tempoRange.style.setProperty('--fill', `${fill}%`);
+        tempoRange.setAttribute('aria-valuetext', `${tempo} beats per minute`);
+      }
+
+      function saveTempoSoon() {
+        saveState.textContent = 'Saving…';
+        window.clearTimeout(saveTimer);
+        saveTimer = window.setTimeout(async () => {
+          try {
+            if (durableStorage && typeof durableStorage.set === 'function') {
+              await durableStorage.set(STORAGE_KEY, tempo);
+            } else if (window.localStorage) {
+              window.localStorage.setItem(STORAGE_KEY, String(tempo));
+            }
+            saveState.textContent = 'Saved';
+          } catch (error) {
+            saveState.textContent = 'Session only';
+          }
+        }, 180);
+      }
+
+      function setTempo(nextTempo, source = 'control') {
+        const next = clampTempo(nextTempo);
+        const changed = next !== tempo;
+        tempo = next;
+        renderTempo();
+        if (changed) saveTempoSoon();
+        if (isPlaying && changed) restartBeatTimer();
+        if (source === 'tap' && changed) announce(`${tempo} BPM set`);
+      }
+
+      async function loadSavedTempo() {
+        let saved;
+        if (durableStorage && typeof durableStorage.get === 'function') {
+          saved = await durableStorage.get(STORAGE_KEY);
+        } else if (window.localStorage) {
+          saved = Number(window.localStorage.getItem(STORAGE_KEY));
+        }
+        if (Number.isFinite(Number(saved)) && Number(saved) >= MIN_TEMPO && Number(saved) <= MAX_TEMPO) tempo = clampTempo(saved);
+      }
+
+      function updateBeatVisual() {
+        const isDownbeat = currentBeat === 0;
+        beatNumber.innerHTML = `<strong>BEAT ${currentBeat + 1}</strong> / 4`;
+        pulseLabel.textContent = isDownbeat ? 'Downbeat' : 'Steady beat';
+        pendulumArm.style.setProperty('--angle', currentBeat % 2 === 0 ? '-17deg' : '17deg');
+        beatVisual.classList.toggle('is-downbeat', isDownbeat);
+        beatVisual.classList.remove('pulse');
+        void beatVisual.offsetWidth;
+        beatVisual.classList.add('pulse');
+        beatDots.forEach((dot, index) => dot.classList.toggle('active', index === currentBeat));
+      }
+
+      function playClick(isDownbeat) {
+        if (!audioContext) return;
+        const now = audioContext.currentTime;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(isDownbeat ? 1040 : 720, now);
+        oscillator.frequency.exponentialRampToValueAtTime(isDownbeat ? 680 : 470, now + .055);
+        gain.gain.setValueAtTime(.0001, now);
+        gain.gain.exponentialRampToValueAtTime(isDownbeat ? .23 : .13, now + .006);
+        gain.gain.exponentialRampToValueAtTime(.0001, now + .075);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(now);
+        oscillator.stop(now + .08);
+      }
+
+      function tick() {
+        updateBeatVisual();
+        playClick(currentBeat === 0);
+        currentBeat = (currentBeat + 1) % 4;
+      }
+
+      function restartBeatTimer() {
+        window.clearInterval(beatTimer);
+        beatTimer = window.setInterval(tick, 60000 / tempo);
+      }
+
+      async function ensureAudio() {
+        if (!audioContext) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) throw new Error('Audio is not supported in this browser.');
+          audioContext = new AudioContextClass();
+        }
+        if (audioContext.state === 'suspended') await audioContext.resume();
+      }
+
+      async function togglePlaying() {
+        if (isPlaying) {
+          isPlaying = false;
+          window.clearInterval(beatTimer);
+          beatTimer = null;
+          app.classList.remove('is-playing');
+          playButton.setAttribute('aria-pressed', 'false');
+          playLabel.textContent = 'Start metronome';
+          headerStatus.textContent = 'Paused on beat';
+          setAudioStatus('Paused · press start to continue.');
+          return;
+        }
+
+        try {
+          await ensureAudio();
+          isPlaying = true;
+          currentBeat = 0;
+          app.classList.add('is-playing');
+          playButton.setAttribute('aria-pressed', 'true');
+          playLabel.textContent = 'Stop metronome';
+          headerStatus.textContent = 'Keeping time';
+          setAudioStatus('Playing · beat 1 is accented.');
+          tick();
+          restartBeatTimer();
+        } catch (error) {
+          setAudioStatus(error.message || 'Audio could not start. Try again.', true);
+          announce('Audio could not start');
+        }
+      }
+
+      function handleTap() {
+        const now = performance.now();
+        const lastTap = tapTimes[tapTimes.length - 1];
+        if (lastTap && now - lastTap > 1800) tapTimes = [];
+        tapTimes.push(now);
+        if (tapTimes.length > 6) tapTimes.shift();
+
+        tapCount.textContent = `${tapTimes.length} ${tapTimes.length === 1 ? 'tap' : 'taps'}`;
+        tapLine.forEach((bar, index) => bar.classList.toggle('filled', index < Math.min(tapTimes.length, 5)));
+        tapButton.classList.remove('tap-flash');
+        void tapButton.offsetWidth;
+        tapButton.classList.add('tap-flash');
+
+        const intervals = [];
+        for (let index = 1; index < tapTimes.length; index += 1) intervals.push(tapTimes[index] - tapTimes[index - 1]);
+        if (!intervals.length) {
+          tapSummary.textContent = 'Keep tapping…';
+          return;
+        }
+
+        const average = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length;
+        const tappedTempo = clampTempo(60000 / average);
+        setTempo(tappedTempo, 'tap');
+        tapSummary.textContent = `${tappedTempo} BPM from your taps`;
+      }
+
+      async function boot() {
+        updateTitle();
+        renderTempo();
+        try {
+          await loadSavedTempo();
+          renderTempo();
+          saveState.textContent = 'Saved tempo';
+        } catch (error) {
+          saveState.textContent = 'New session';
+        } finally {
+          app.setAttribute('aria-busy', 'false');
+        }
+      }
+
+      tempoRange.addEventListener('input', (event) => setTempo(event.target.value));
+      tempoInput.addEventListener('change', (event) => setTempo(event.target.value));
+      decreaseButton.addEventListener('click', () => setTempo(tempo - 1));
+      increaseButton.addEventListener('click', () => setTempo(tempo + 1));
+      playButton.addEventListener('click', togglePlaying);
+      tapButton.addEventListener('click', handleTap);
+      resetButton.addEventListener('click', () => {
+        tapTimes = [];
+        tapCount.textContent = '0 taps';
+        tapSummary.textContent = 'Waiting for your first tap';
+        tapLine.forEach((bar) => bar.classList.remove('filled'));
+        setTempo(DEFAULT_TEMPO);
+        announce('Tempo reset to 96 BPM');
+      });
+
+      document.addEventListener('keydown', (event) => {
+        const target = event.target;
+        if (event.code === 'Space' && !(target instanceof HTMLInputElement) && !(target instanceof HTMLButtonElement)) {
+          event.preventDefault();
+          togglePlaying();
+        }
+      });
+
+      boot();
+    })();
+  </script>
+</body>
+</html>

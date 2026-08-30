@@ -1,7 +1,7 @@
 {
   "id": "a-tip-calculator-that-7980a",
   "name": "Fair Share",
-  "description": "A simple tip calculator that divides the final bill fairly between friends, with optional round-up to whole dollars.",
+  "description": "A simple tip calculator with easy-to-tap tip presets that divides the final bill fairly between friends and shows each tip-inclusive share.",
   "icon": "⚖",
   "accent": "#5b2d51",
   "status": "ready",
@@ -9,15 +9,16 @@
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T01:54:21.158Z",
-  "updatedAt": "2026-08-30T03:13:19.649Z",
+  "updatedAt": "2026-08-30T10:18:19.078Z",
   "window": {
     "width": 900,
     "height": 650
   },
   "actions": [],
-  "threadId": "9c62d6e3-4afd-4944-8a58-9abf53372192",
-  "threadAgent": "claude",
-  "revision": 2,
-  "model": "opus-5-high",
+  "connections": [],
+  "threadId": "01a05227-c371-7b50-afb4-9ce81ac116d0",
+  "threadAgent": "codex",
+  "revision": 5,
+  "model": "luna-high",
   "error": null
 }

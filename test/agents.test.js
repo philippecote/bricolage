@@ -165,3 +165,42 @@ describe('switching agents on an existing app', () => {
     expect(build.threadAgent).toBe('codex');
   });
 });
+
+describe('streaming preview', () => {
+  it('only offers a reload once the runtime file is a complete document', async () => {
+    const { BuildService: Service } = await import('../src/buildService.js');
+    const { writeManifest, getAppDir } = await import('../src/workshopStorage.js');
+    const fsp = await import('node:fs/promises');
+    const nodePath = await import('node:path');
+    const id = 'preview-fixture';
+    const now = new Date().toISOString();
+    await writeManifest(id, { id, name: 'Preview', createdAt: now, updatedAt: now, prompt: 'x' });
+    const runtime = nodePath.join(getAppDir(id), 'runtime');
+    await fsp.mkdir(runtime, { recursive: true });
+
+    const builds = new Service({ codex: Object.assign(new EventEmitter(), {}) });
+    await builds.ready();
+    const build = { id: 'b1', appId: id, status: 'running' };
+    const seen = [];
+    builds.on('build:b1', (event) => seen.push(event));
+
+    // Mid-write: truncated, then partial, then whole.
+    await fsp.writeFile(nodePath.join(runtime, 'index.html'), '');
+    await builds.offerPreview(build);
+    await fsp.writeFile(nodePath.join(runtime, 'index.html'), `<!doctype html><html><head>${'x'.repeat(300)}`);
+    await builds.offerPreview(build);
+    expect(seen).toHaveLength(0);
+
+    await fsp.writeFile(nodePath.join(runtime, 'index.html'), `<!doctype html><html><body>${'x'.repeat(300)}</body></html>`);
+    await builds.offerPreview(build);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ preview: true, message: '' });
+
+    // A settled build must not keep reloading.
+    build.status = 'completed';
+    await builds.offerPreview(build);
+    expect(seen).toHaveLength(1);
+
+    await fsp.rm(getAppDir(id), { recursive: true, force: true });
+  });
+});

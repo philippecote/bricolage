@@ -1,4 +1,4 @@
-import type { BuildSummary, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { BuildSummary, Connection, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -89,6 +89,10 @@ export const api = {
   approval: (id: string, accepted: boolean) => request(`/api/approvals/${id}`, { method: 'POST', body: JSON.stringify({ accepted }) }),
   answerBuild: (id: string, answers: Record<string, string>) => request<{ build: BuildSummary }>(`/api/builds/${id}/answers`, { method: 'POST', body: JSON.stringify({ answers }) }),
   cancelBuild: (id: string) => request<{ build: BuildSummary }>(`/api/builds/${id}/cancel`, { method: 'POST', body: '{}' }),
+  connections: () => request<{ connections: Connection[] }>('/api/connections'),
+  addConnection: (definition: { id: string; label: string; command: string; args: string[] }) =>
+    request<{ connection: Connection; tools: string[]; error: string | null }>('/api/connections', { method: 'POST', body: JSON.stringify(definition) }),
+  removeConnection: (id: string) => request(`/api/connections/${id}`, { method: 'DELETE', body: '{}' }),
   action: (id: string, name: string, payload: unknown) => request(`/api/apps/${id}/actions/${name}`, { method: 'POST', body: JSON.stringify({ payload }) }),
   storage: (id: string, operation: 'get' | 'set', payload: unknown) => request(`/api/apps/${id}/storage/${operation}`, { method: 'POST', body: JSON.stringify(payload) }),
 };

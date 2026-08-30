@@ -1,6 +1,6 @@
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import type { AgentState, BuildEvent, BuildQuestion, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { AgentState, BuildEvent, BuildQuestion, Connection, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
 const STARTERS = [
   ['Daily pulse', 'Build a daily habit tracker with streaks and a calm weekly view'],
@@ -54,6 +54,9 @@ export function Workshop() {
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [activityOpen, setActivityOpen] = useState(false);
   const [handledApprovals, setHandledApprovals] = useState<string[]>([]);
+  // Bumped every time the agent finishes writing a runtime file, so the preview
+  // reloads mid-build and you watch the app appear.
+  const [previewNonce, setPreviewNonce] = useState<Record<string, number>>({});
   const maxZ = useRef(Math.max(2, ...windows.map((win) => win.z)));
   const streams = useRef(new Map<string, EventSource>());
   const nativeCreatePending = useRef(false);
@@ -182,6 +185,8 @@ export function Workshop() {
     const stream = new EventSource(`/api/builds/${buildId}/events`); streams.current.set(buildId, stream);
     stream.onmessage = (message) => {
       const event: BuildEvent = JSON.parse(message.data);
+      // A bare preview signal only reloads the iframe; it is not activity to show.
+      if (event.preview && !event.message) { setPreviewNonce((current) => ({ ...current, [appId]: (current[appId] || 0) + 1 })); return; }
       setBuilds((current) => ({ ...current, [appId]: [...(current[appId] || []).filter((item) => item.id !== event.id), event] }));
       if (!['questions', 'complete', 'failed', 'cancelled'].includes(event.phase)) setApps((items) => items.map((app) => app.id === appId ? { ...app, status: 'building' } : app));
       if (['complete', 'failed', 'cancelled'].includes(event.phase)) {
@@ -331,13 +336,14 @@ export function Workshop() {
     {windows.map((win) => {
       const app = apps.find((item) => item.id === win.id); if (!app || win.minimized) return null;
       const inspectorOpen = inspectorAppId === app.id;
-      return <section key={win.id} className={`app-window ${win.maximized ? 'maximized' : ''}`} style={win.maximized ? { zIndex: win.z } : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.z }} onPointerDown={() => focusWindow(win.id)} aria-label={`${app.name} window`}>
+      const building = activity.some((item) => item.app.id === app.id && item.working);
+      return <section key={win.id} className={`app-window ${win.maximized ? 'maximized' : ''} ${building ? 'building' : ''}`} style={win.maximized ? { zIndex: win.z } : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.z }} onPointerDown={() => focusWindow(win.id)} aria-label={`${app.name} window`}>
         <header className="window-bar" onPointerDown={(event) => startWindowDrag(event, win)} onDoubleClick={() => windowPatch(win.id, { maximized: !win.maximized })}>
           <div className="traffic"><button className="close" onClick={() => closeWindow(win.id)} aria-label="Close" /><button className="min" onClick={() => windowPatch(win.id, { minimized: true })} aria-label="Minimize" /><button className="max" onClick={() => windowPatch(win.id, { maximized: !win.maximized })} aria-label="Maximize" /></div>
           <span className="window-title"><AppIcon app={app} compact />{app.name}</span>
           <button className={`inspector-toggle ${inspectorOpen ? 'active' : ''}`} onClick={() => setInspectorAppId(inspectorOpen ? null : app.id)} aria-label="Open build studio" title="Build studio">✦</button>
         </header>
-        <div className="window-body"><iframe title={app.name} src={`/runtime/${app.id}?v=${app.revision}`} sandbox="allow-scripts allow-forms allow-popups" />{inspectorOpen && <Inspector app={app} events={currentEvents} buildId={buildForApp[app.id]} revisions={revisions[app.id] || []} editing={editing} setEditing={setEditing} improve={improve} answer={(answers) => answerBuild(app.id, answers)} cancel={() => cancelBuild(app.id)} setModel={(next) => setAppModel(app, next)} pin={() => togglePin(app)} duplicate={() => duplicate(app)} archive={() => archive(app)} restore={(revision) => restoreRevision(app, revision)} approve={async (id, accepted) => { await api.approval(id, accepted); }} />}</div>
+        <div className="window-body"><iframe title={app.name} src={`/runtime/${app.id}?v=${app.revision}.${previewNonce[app.id] || 0}`} sandbox="allow-scripts allow-forms allow-popups" />{inspectorOpen && <Inspector app={app} events={currentEvents} buildId={buildForApp[app.id]} revisions={revisions[app.id] || []} editing={editing} setEditing={setEditing} improve={improve} answer={(answers) => answerBuild(app.id, answers)} cancel={() => cancelBuild(app.id)} setModel={(next) => setAppModel(app, next)} pin={() => togglePin(app)} duplicate={() => duplicate(app)} archive={() => archive(app)} restore={(revision) => restoreRevision(app, revision)} approve={async (id, accepted) => { await api.approval(id, accepted); }} />}</div>
       </section>;
     })}
 
@@ -439,5 +445,53 @@ function Settings({ status, theme, setTheme, sounds, setSounds, onClose }: { sta
       <p>{ready ? `Workshop can build with ${name}.` : state?.error || `Install and sign in to ${name} to build with it.`}</p>
       {state && !state.available && <code>{install}</code>}
     </div>;
-  })}</div></section></div>;
+  })}</div><Connections /></section></div>;
+}
+
+// Outside services the desktop can reach. Workshop holds whatever the server
+// needs; an app gets a scoped caller and only for connections it declares.
+function Connections() {
+  const [items, setItems] = useState<Connection[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ id: '', label: '', command: '', args: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => { api.connections().then((result) => setItems(result.connections)).catch(() => setError('Could not read connections.')); }, []);
+
+  async function add(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true); setError('');
+    try {
+      const result = await api.addConnection({ id: draft.id.trim(), label: draft.label.trim() || draft.id.trim(), command: draft.command.trim(), args: draft.args.split(' ').map((part) => part.trim()).filter(Boolean) });
+      if (result.error) setError(result.error);
+      setItems((await api.connections()).connections);
+      setDraft({ id: '', label: '', command: '', args: '' });
+      setAdding(false);
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not add that connection.'); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(id: string) {
+    await api.removeConnection(id).catch(() => {});
+    setItems((await api.connections()).connections);
+  }
+
+  return <section className="connections">
+    <header><div><strong>Connections</strong><small>Services your apps can reach. Added once here, granted per app.</small></div><button onClick={() => setAdding((value) => !value)}>{adding ? 'Cancel' : 'Add'}</button></header>
+    {items.map((item) => <div key={item.id} className="connection-row">
+      <div><strong>{item.label}</strong><small>{item.tools.length ? `${item.tools.length} tools · ${item.tools.slice(0, 3).join(', ')}${item.tools.length > 3 ? '…' : ''}` : item.error || 'Not started yet'}</small></div>
+      <code>{item.id}</code>
+      <button className="danger" onClick={() => remove(item.id)}>Remove</button>
+    </div>)}
+    {!items.length && !adding && <p className="connections-empty">No connections yet. Apps can still use the web and the model.</p>}
+    {adding && <form className="connection-form" onSubmit={add}>
+      <input placeholder="id (e.g. files)" value={draft.id} onChange={(event) => setDraft({ ...draft, id: event.target.value })} required />
+      <input placeholder="Name (e.g. Local Files)" value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} />
+      <input placeholder="command (e.g. npx)" value={draft.command} onChange={(event) => setDraft({ ...draft, command: event.target.value })} required />
+      <input placeholder="arguments, space separated" value={draft.args} onChange={(event) => setDraft({ ...draft, args: event.target.value })} />
+      <button disabled={busy || !draft.id.trim() || !draft.command.trim()}>{busy ? 'Connecting…' : 'Connect'}</button>
+    </form>}
+    {error && <p className="connection-error">{error}</p>}
+  </section>;
 }

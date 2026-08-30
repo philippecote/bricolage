@@ -26,6 +26,8 @@ export const config = {
   llmEffort: process.env.WORKSHOP_LLM_EFFORT || 'low',
   llmTimeoutMs: 45_000,
   llmMaxCallsPerAction: 8,
+  mcpTimeoutMs: 20_000,
+  mcpMaxCallsPerAction: 12,
   actionMaxRepairAttempts: 2,
   // Long enough for an action to make a model call with web search and still
   // return; ctx.llm bounds its own call below this, and safeFetch bounds its own.

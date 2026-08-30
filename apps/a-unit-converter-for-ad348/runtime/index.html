@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kitchen Convert</title>
+  <style>
+    :root {
+      --paper: #f5f0e8;
+      --paper-deep: #ebe2d5;
+      --ink: #28251f;
+      --muted: #756e64;
+      --line: rgba(40, 37, 31, 0.14);
+      --line-strong: rgba(40, 37, 31, 0.24);
+      --tomato: #d85535;
+      --tomato-deep: #af3e25;
+      --tomato-soft: #f1c9bb;
+      --cream: #fffaf2;
+      --shadow: 0 22px 65px rgba(70, 48, 25, 0.12);
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(255, 250, 242, 0.95), transparent 31rem),
+        var(--paper);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, select { font: inherit; }
+    button, select { cursor: pointer; }
+
+    .app-shell {
+      width: min(1160px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 28px clamp(20px, 4vw, 60px) 26px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid var(--line);
+      animation: reveal 520ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      color: var(--cream);
+      border-radius: 9px 9px 9px 3px;
+      background: var(--tomato);
+      box-shadow: 4px 4px 0 var(--tomato-soft);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      height: 1.5px;
+      width: 10px;
+      background: currentColor;
+      transform: rotate(-34deg);
+    }
+
+    .brand-mark::before { top: 9px; left: 8px; }
+    .brand-mark::after { top: 16px; left: 12px; transform: rotate(34deg); }
+
+    .topbar-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .topbar-note::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--tomato);
+      box-shadow: 0 0 0 4px var(--tomato-soft);
+    }
+
+    .main-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(230px, 0.72fr) minmax(420px, 1.48fr);
+      gap: clamp(34px, 6vw, 88px);
+      align-items: center;
+      padding: clamp(42px, 7vh, 76px) 0 48px;
+    }
+
+    .intro {
+      align-self: center;
+      max-width: 340px;
+      animation: reveal 620ms 80ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .eyebrow,
+    .section-label {
+      display: block;
+      color: var(--tomato-deep);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: 0.17em;
+      line-height: 1.4;
+      text-transform: uppercase;
+    }
+
+    h1, h2, p { margin-top: 0; }
+
+    h1 {
+      max-width: 330px;
+      margin: 13px 0 17px;
+      font-family: var(--serif);
+      font-size: clamp(42px, 5vw, 65px);
+      font-weight: 400;
+      letter-spacing: -0.065em;
+      line-height: 0.97;
+    }
+
+    .intro-copy {
+      max-width: 285px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .measure-illustration {
+      position: relative;
+      height: 132px;
+      margin-top: 42px;
+      overflow: hidden;
+      border-top: 1px solid var(--line);
+    }
+
+    .measure-illustration svg {
+      position: absolute;
+      right: 3px;
+      bottom: -11px;
+      width: 205px;
+      height: 155px;
+      color: var(--tomato);
+      opacity: 0.9;
+      transform: rotate(-4deg);
+    }
+
+    .illustration-note {
+      position: absolute;
+      top: 16px;
+      left: 1px;
+      color: var(--muted);
+      font-family: var(--serif);
+      font-size: 14px;
+      font-style: italic;
+    }
+
+    .converter {
+      position: relative;
+      align-self: center;
+      padding: clamp(25px, 4vw, 42px);
+      overflow: hidden;
+      border: 1px solid rgba(40, 37, 31, 0.08);
+      border-radius: 3px;
+      background: var(--cream);
+      box-shadow: var(--shadow);
+      animation: lift 700ms 160ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .converter::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 90px;
+      height: 4px;
+      background: var(--tomato);
+    }
+
+    .panel-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      margin: 6px 0 0;
+      font-size: 22px;
+      font-weight: 720;
+      letter-spacing: -0.04em;
+    }
+
+    .live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .live-indicator i {
+      width: 7px;
+      height: 7px;
+      display: block;
+      border-radius: 50%;
+      background: #5a9a71;
+      box-shadow: 0 0 0 4px #dcecdf;
+    }
+
+    .control-row {
+      display: grid;
+      grid-template-columns: minmax(112px, 0.76fr) minmax(118px, 1fr) 32px minmax(118px, 1fr);
+      align-items: end;
+      gap: 12px;
+    }
+
+    .field { min-width: 0; }
+
+    .field-label {
+      display: block;
+      margin: 0 0 9px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    input, select {
+      width: 100%;
+      height: 48px;
+      padding: 0 13px;
+      border: 1px solid var(--line-strong);
+      border-radius: 2px;
+      outline: none;
+      color: var(--ink);
+      background: transparent;
+      transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    }
+
+    input { font-size: 19px; font-weight: 700; }
+    select { font-size: 13px; font-weight: 650; }
+
+    input:focus, select:focus {
+      border-color: var(--tomato);
+      background: #fffdf9;
+      box-shadow: 0 0 0 3px rgba(216, 85, 53, 0.14);
+    }
+
+    .swap-button {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 8px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      color: var(--tomato-deep);
+      background: transparent;
+      font-size: 18px;
+      line-height: 1;
+      transition: color 180ms ease, background 180ms ease, transform 180ms ease;
+    }
+
+    .swap-button:hover,
+    .swap-button:focus-visible {
+      color: var(--cream);
+      background: var(--tomato);
+      border-color: var(--tomato);
+      transform: rotate(180deg);
+    }
+
+    .message {
+      min-height: 26px;
+      margin: 19px 0 0;
+      padding: 10px 12px;
+      border-left: 3px solid var(--line-strong);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .message.error {
+      border-left-color: var(--tomato);
+      color: var(--tomato-deep);
+      background: #fff5f1;
+    }
+
+    .result-state {
+      position: relative;
+      min-height: 143px;
+      margin-top: 28px;
+      padding: 20px 22px 18px;
+      background: var(--paper);
+      border-left: 4px solid var(--tomato);
+    }
+
+    .result-state.result-in {
+      animation: result-in 300ms ease both;
+    }
+
+    .result-caption {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .result-value {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      column-gap: 10px;
+      margin-top: 6px;
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: clamp(40px, 5vw, 58px);
+      letter-spacing: -0.065em;
+      line-height: 1;
+    }
+
+    .result-unit {
+      color: var(--tomato-deep);
+      font-family: var(--sans);
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .result-detail {
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .result-detail strong { color: var(--ink); font-weight: 750; }
+
+    .equivalents { margin-top: 29px; }
+
+    .subheading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .subheading strong {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .subheading span {
+      color: var(--muted);
+      font-family: var(--serif);
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    .equivalent-list {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+    }
+
+    .equivalent {
+      padding: 13px 14px 2px 0;
+      border-right: 1px solid var(--line);
+    }
+
+    .equivalent + .equivalent { padding-left: 14px; }
+    .equivalent:last-child { border-right: 0; padding-right: 0; }
+
+    .equivalent-label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .equivalent-value {
+      display: block;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .quick-reference {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .quick-reference strong {
+      color: var(--tomato-deep);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .example-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 17px;
+    }
+
+    .example {
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 11px;
+      transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .example:hover,
+    .example:focus-visible {
+      border-color: var(--tomato);
+      color: var(--tomato-deep);
+      background: #fff7f2;
+      transform: translateY(-1px);
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding-top: 17px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 0.03em;
+      animation: reveal 620ms 300ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .footer span:last-child { text-align: right; }
+    .is-hidden { display: none !important; }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes lift {
+      from { opacity: 0; transform: translateY(22px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes result-in {
+      from { opacity: .45; transform: translateY(3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 760px) {
+      .app-shell { padding-top: 20px; }
+      .main-grid {
+        grid-template-columns: 1fr;
+        gap: 36px;
+        padding-top: 42px;
+      }
+      .intro { max-width: none; }
+      h1 { max-width: 480px; font-size: clamp(42px, 13vw, 62px); }
+      .intro-copy { max-width: 390px; }
+      .measure-illustration { display: none; }
+      .converter { width: 100%; }
+    }
+
+    @media (min-width: 761px) and (max-height: 720px) {
+      .app-shell { padding-top: 20px; padding-bottom: 18px; }
+      .main-grid { padding-top: 25px; padding-bottom: 24px; }
+      .converter { padding: 24px 30px; }
+      .panel-heading { margin-bottom: 20px; }
+      .result-state { min-height: 116px; margin-top: 18px; padding: 15px 18px 13px; }
+      .result-value { font-size: 46px; }
+      .equivalents { margin-top: 18px; }
+      .equivalent { padding-top: 9px; }
+      .quick-reference { margin-top: 16px; padding-top: 10px; }
+      .example-row { margin-top: 10px; }
+      .footer { padding-top: 11px; }
+    }
+
+    @media (max-width: 520px) {
+      .topbar-note { display: none; }
+      .control-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .control-row .field:first-child { grid-column: 1 / -1; }
+      .swap-button { grid-column: 1 / -1; grid-row: 3; justify-self: center; margin: -4px 0 -4px; }
+      .equivalent-list { grid-template-columns: 1fr; }
+      .equivalent,
+      .equivalent + .equivalent,
+      .equivalent:last-child { padding: 10px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+      .equivalent:last-child { border-bottom: 0; }
+      .quick-reference { align-items: flex-start; flex-direction: column; gap: 4px; }
+      .footer { flex-direction: column; gap: 7px; }
+      .footer span:last-child { text-align: left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#converter" aria-label="Kitchen Convert home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Kitchen Convert</span>
+      </a>
+      <div class="topbar-note">Volume / US + metric</div>
+    </header>
+
+    <main class="main-grid">
+      <section class="intro" aria-labelledby="page-title">
+        <span class="eyebrow">A small kitchen utility</span>
+        <h1 id="page-title">Volume, without the guesswork.</h1>
+        <p class="intro-copy">Move between pantry-friendly and metric measures in a few taps. Your last setup stays ready for the next recipe.</p>
+        <div class="measure-illustration" aria-hidden="true">
+          <span class="illustration-note">measure twice, enjoy once</span>
+          <svg viewBox="0 0 220 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M54 37h99l-10 101H65L54 37Z" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M60 53h86M62 72h82M64 91h78M66 110h74" stroke="currentColor" stroke-width="1.5" opacity=".65"/>
+            <path d="M153 56h20c18 0 26 13 26 27s-8 27-26 27h-17" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M82 30c7-8 15-10 24-4 7 4 15 2 20-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M82 138h72" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="72" cy="21" r="3" fill="currentColor"/>
+            <circle cx="149" cy="18" r="2" fill="currentColor"/>
+          </svg>
+        </div>
+      </section>
+
+      <section class="converter" id="converter" aria-labelledby="converter-title">
+        <div class="panel-heading">
+          <div>
+            <span class="section-label">Convert</span>
+            <h2 id="converter-title">Enter a measurement</h2>
+          </div>
+          <span class="live-indicator"><i aria-hidden="true"></i> Updates live</span>
+        </div>
+
+        <div class="control-row">
+          <label class="field">
+            <span class="field-label">Amount</span>
+            <input id="amount" type="number" inputmode="decimal" min="0" step="any" value="1" aria-describedby="status" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field-label">From</span>
+            <select id="from-unit" aria-label="Convert from"></select>
+          </label>
+          <button class="swap-button" id="swap-units" type="button" aria-label="Swap the from and to units" title="Swap units">↔</button>
+          <label class="field">
+            <span class="field-label">To</span>
+            <select id="to-unit" aria-label="Convert to"></select>
+          </label>
+        </div>
+
+        <p class="message is-hidden" id="empty-state" role="status">Enter a number to see your conversion.</p>
+        <p class="message error is-hidden" id="error-state" role="alert">Use a finite number greater than zero.</p>
+
+        <div class="result-state" id="result-state" aria-live="polite">
+          <span class="result-caption">Converted amount</span>
+          <div class="result-value"><span id="result-number">236.59</span><span class="result-unit" id="result-unit">ml</span></div>
+          <p class="result-detail" id="result-detail">1 cup is <strong>236.59 ml</strong></p>
+        </div>
+
+        <div class="equivalents" aria-labelledby="equivalents-title">
+          <div class="subheading">
+            <strong id="equivalents-title">Kitchen equivalents</strong>
+            <span>friendly approximations</span>
+          </div>
+          <div class="equivalent-list" id="equivalent-list"></div>
+        </div>
+
+        <div class="quick-reference">
+          <strong>Quick note</strong>
+          <span>1 cup = 16 tbsp = 48 tsp</span>
+        </div>
+
+        <div class="example-row" aria-label="Common examples">
+          <button class="example" type="button" data-amount="1" data-from="cup" data-to="ml">1 cup → ml</button>
+          <button class="example" type="button" data-amount="2" data-from="tbsp" data-to="cup">2 tbsp → cup</button>
+          <button class="example" type="button" data-amount="500" data-from="ml" data-to="cup">500 ml → cup</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>US volume standards · rounded to 2 decimal places</span>
+      <span id="status">Ready for your recipe</span>
+    </footer>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const units = {
+        tsp: { label: 'Teaspoon (tsp)', short: 'tsp', ml: 4.92892159375 },
+        tbsp: { label: 'Tablespoon (tbsp)', short: 'tbsp', ml: 14.78676478125 },
+        floz: { label: 'Fluid ounce (fl oz)', short: 'fl oz', ml: 29.5735295625 },
+        cup: { label: 'Cup', short: 'cup', ml: 236.5882365 },
+        pint: { label: 'Pint', short: 'pt', ml: 473.176473 },
+        quart: { label: 'Quart', short: 'qt', ml: 946.352946 },
+        gallon: { label: 'Gallon', short: 'gal', ml: 3785.411784 },
+        ml: { label: 'Milliliter (ml)', short: 'ml', ml: 1 },
+        liter: { label: 'Liter (L)', short: 'L', ml: 1000 }
+      };
+
+      const unitOrder = ['tsp', 'tbsp', 'floz', 'cup', 'pint', 'quart', 'gallon', 'ml', 'liter'];
+      const amountInput = document.getElementById('amount');
+      const fromSelect = document.getElementById('from-unit');
+      const toSelect = document.getElementById('to-unit');
+      const resultState = document.getElementById('result-state');
+      const resultNumber = document.getElementById('result-number');
+      const resultUnit = document.getElementById('result-unit');
+      const resultDetail = document.getElementById('result-detail');
+      const equivalentList = document.getElementById('equivalent-list');
+      const emptyState = document.getElementById('empty-state');
+      const errorState = document.getElementById('error-state');
+      const status = document.getElementById('status');
+      const storageApi = window.storage;
+
+      const formatNumber = (number, maximumFractionDigits = 2) => {
+        if (!Number.isFinite(number)) return '—';
+        return new Intl.NumberFormat('en-US', { maximumFractionDigits, minimumFractionDigits: 0 }).format(number);
+      };
+
+      const unitPhrase = (number, unit) => {
+        const singular = { tsp: 'teaspoon', tbsp: 'tablespoon', floz: 'fluid ounce', cup: 'cup', pint: 'pint', quart: 'quart', gallon: 'gallon', ml: 'milliliter', liter: 'liter' }[unit];
+        const plural = { tsp: 'teaspoons', tbsp: 'tablespoons', floz: 'fluid ounces', cup: 'cups', pint: 'pints', quart: 'quarts', gallon: 'gallons', ml: 'milliliters', liter: 'liters' }[unit];
+        return `${formatNumber(number)} ${Math.abs(number) === 1 ? singular : plural}`;
+      };
+
+      const friendlyAmount = (number, unit) => {
+        if (unit === 'tsp' || unit === 'tbsp') return formatNumber(number, 1);
+        if (unit === 'cup' || unit === 'pint' || unit === 'quart' || unit === 'gallon') {
+          const commonFractions = [[0.25, '¼'], [0.333333, '⅓'], [0.5, '½'], [0.666667, '⅔'], [0.75, '¾']];
+          const whole = Math.floor(number);
+          const fraction = number - whole;
+          if (Math.abs(fraction) < 0.04) return formatNumber(number, 0);
+          for (const [value, glyph] of commonFractions) {
+            if (Math.abs(fraction - value) < 0.04) return `${whole ? `${whole} ` : ''}${glyph}`;
+          }
+        }
+        return formatNumber(number, number < 10 ? 2 : 1);
+      };
+
+      const savedState = { amount: '1', from: 'cup', to: 'ml' };
+
+      const populateSelect = (select) => {
+        select.innerHTML = '';
+        unitOrder.forEach((key) => {
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = units[key].label;
+          select.appendChild(option);
+        });
+      };
+
+      const setVisible = (element, visible) => element.classList.toggle('is-hidden', !visible);
+
+      const equivalent = (label, value) => {
+        const item = document.createElement('div');
+        item.className = 'equivalent';
+        item.innerHTML = `<span class="equivalent-label">${label}</span><span class="equivalent-value">${value}</span>`;
+        return item;
+      };
+
+      const renderEquivalents = (milliliters) => {
+        equivalentList.replaceChildren(
+          equivalent('Metric', milliliters >= 1000 ? unitPhrase(milliliters / 1000, 'liter') : unitPhrase(milliliters, 'ml')),
+          equivalent('Cups', unitPhrase(milliliters / units.cup.ml, 'cup')),
+          equivalent('Spoons', milliliters >= units.tbsp.ml ? unitPhrase(milliliters / units.tbsp.ml, 'tbsp') : unitPhrase(milliliters / units.tsp.ml, 'tsp'))
+        );
+      };
+
+      const render = () => {
+        const raw = amountInput.value.trim();
+        const value = Number(raw);
+        const valid = raw !== '' && Number.isFinite(value) && value > 0;
+        setVisible(emptyState, raw === '');
+        setVisible(errorState, raw !== '' && !valid);
+        setVisible(resultState, valid);
+
+        if (!valid) {
+          status.textContent = raw === '' ? 'Waiting for a measurement' : 'Check the measurement';
+          return;
+        }
+
+        const from = fromSelect.value;
+        const to = toSelect.value;
+        const milliliters = value * units[from].ml;
+        const converted = milliliters / units[to].ml;
+        resultNumber.textContent = friendlyAmount(converted, to);
+        resultUnit.textContent = units[to].short;
+        resultDetail.innerHTML = `${unitPhrase(value, from)} is <strong>${unitPhrase(converted, to)}</strong>`;
+        resultState.classList.remove('result-in');
+        void resultState.offsetWidth;
+        resultState.classList.add('result-in');
+        renderEquivalents(milliliters);
+        status.textContent = 'Ready for your recipe';
+      };
+
+      const saveState = () => {
+        if (!storageApi || typeof storageApi.set !== 'function') return;
+        storageApi.set('kitchen-convert-state', {
+          amount: amountInput.value,
+          from: fromSelect.value,
+          to: toSelect.value
+        }).catch(() => {});
+      };
+
+      const notifyUser = (message) => {
+        if (typeof window.notify === 'function') window.notify(message);
+      };
+
+      const restoreState = async () => {
+        if (!storageApi || typeof storageApi.get !== 'function') return;
+        try {
+          const stored = await storageApi.get('kitchen-convert-state');
+          if (!stored || typeof stored !== 'object') return;
+          if (typeof stored.amount === 'string' || typeof stored.amount === 'number') savedState.amount = String(stored.amount);
+          if (typeof stored.from === 'string' && units[stored.from]) savedState.from = stored.from;
+          if (typeof stored.to === 'string' && units[stored.to]) savedState.to = stored.to;
+          amountInput.value = savedState.amount;
+          fromSelect.value = savedState.from;
+          toSelect.value = savedState.to;
+          render();
+        } catch (error) {
+          // The converter remains fully usable when saved state is unavailable.
+        }
+      };
+
+      populateSelect(fromSelect);
+      populateSelect(toSelect);
+      fromSelect.value = savedState.from;
+      toSelect.value = savedState.to;
+
+      [amountInput, fromSelect, toSelect].forEach((control) => {
+        control.addEventListener('input', () => { render(); saveState(); });
+        control.addEventListener('change', () => { render(); saveState(); });
+      });
+
+      document.getElementById('swap-units').addEventListener('click', () => {
+        const currentFrom = fromSelect.value;
+        fromSelect.value = toSelect.value;
+        toSelect.value = currentFrom;
+        render();
+        saveState();
+        notifyUser('Units swapped');
+      });
+
+      document.querySelectorAll('.example').forEach((button) => {
+        button.addEventListener('click', () => {
+          amountInput.value = button.dataset.amount;
+          fromSelect.value = button.dataset.from;
+          toSelect.value = button.dataset.to;
+          render();
+          saveState();
+          amountInput.focus();
+        });
+      });
+
+      if (typeof window.setTitle === 'function') window.setTitle('Kitchen Convert');
+      render();
+      restoreState();
+    })();
+  </script>
+</body>
+</html>

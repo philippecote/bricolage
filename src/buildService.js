@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { config } from './config.js';
@@ -18,12 +19,14 @@ export const MODEL_KEYS = Object.keys(MODEL_PRESETS);
 export const DEFAULT_MODEL = 'luna-high';
 
 export class BuildService extends EventEmitter {
-  constructor({ codex, claude = null, agents = null }) {
+  constructor({ codex, claude = null, agents = null, mcp = null }) {
     super();
+    this.mcp = mcp;
     this.agents = agents || { ...(codex ? { codex } : {}), ...(claude ? { claude } : {}) };
     this.codex = this.agents.codex;
     this.builds = new Map();
     this.approvals = new Map();
+    this.watchers = new Map();
     this.initializing = this.hydrate();
     // Thread ids are minted per agent and never collide, so one handler can
     // route notifications from every backend by thread alone.
@@ -146,9 +149,62 @@ export class BuildService extends EventEmitter {
       await writeManifest(build.appId, { threadId, threadAgent: preset.agent });
     }
     this.push(build, 'editing', 'Crafting the app');
-    const result = await agent.startTurn(threadId, buildPrompt(build), preset);
+    this.watchPreview(build);
+    const result = await agent.startTurn(threadId, buildPrompt(build, await this.connectionBrief()), preset);
     build.turnId = result?.turn?.id || null;
     await this.persist(build);
+  }
+
+  // What the agent may reach outside the desktop, with real tool names so it
+  // writes calls that exist instead of inventing them. Best effort: a connection
+  // that will not start must not hold up a build.
+  async connectionBrief() {
+    if (!this.mcp?.describe) return '';
+    const listed = await this.mcp.list().catch(() => []);
+    const ids = listed.filter((item) => item.enabled).map((item) => item.id);
+    if (!ids.length) return '';
+    const described = await Promise.race([
+      this.mcp.describe(ids).catch(() => []),
+      new Promise((resolve) => setTimeout(() => resolve([]), 8000)),
+    ]);
+    const usable = described.filter((entry) => entry.tools?.length);
+    if (!usable.length) return '';
+    const lines = usable.map((entry) => `- ${entry.id} (${entry.label}): ${entry.tools.map((tool) => tool.name + (tool.description ? ` — ${tool.description.slice(0, 90)}` : '')).join('; ')}`);
+    return `\n\nConnections this Workshop can reach from an action, as ctx.mcp('<id>').call('<tool>', args):\n${lines.join('\n')}\nUse one only if the app genuinely needs it, list every one you use in manifest.connections, and never invent an id or tool that is not above.`;
+  }
+
+  // Agents report writes inconsistently — Codex emits a fileChange item for a
+  // plain write but nothing at all when it patches through the shell. The file
+  // system is the one signal that is true for every agent, so watch that.
+  watchPreview(build) {
+    const dir = path.join(getAppDir(build.appId), 'runtime');
+    let timer = null;
+    let watcher = null;
+    try {
+      watcher = fsSync.watch(dir, { recursive: true }, () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => { this.offerPreview(build).catch(() => {}); }, 700);
+      });
+    } catch { return; }
+    this.watchers.get(build.id)?.();
+    this.watchers.set(build.id, () => { clearTimeout(timer); watcher.close(); });
+  }
+
+  // Agents truncate index.html before rewriting it — a real create was observed
+  // sitting at 0 bytes mid-build. Reloading then would flash an empty window,
+  // which is worse than the placeholder it replaced.
+  async offerPreview(build) {
+    if (build.status !== 'running') return;
+    const html = await fs.readFile(path.join(getAppDir(build.appId), 'runtime', 'index.html'), 'utf8').catch(() => '');
+    if (html.length < 200 || !/<\/html>/i.test(html)) return;
+    // A signal, not an event: the preview reloads without adding noise to the
+    // activity feed or the persisted build record.
+    this.emit(`build:${build.id}`, { id: randomId(), buildId: build.id, appId: build.appId, phase: 'preview', message: '', preview: true, at: new Date().toISOString() });
+  }
+
+  stopWatchingPreview(buildId) {
+    this.watchers.get(buildId)?.();
+    this.watchers.delete(buildId);
   }
 
   async onCodexNotification(message) {
@@ -178,6 +234,7 @@ export class BuildService extends EventEmitter {
     if (message.method === 'item/completed') this.push(build, phaseForItem(params.item, true), itemLabel(params.item, true));
     if (message.method === 'turn/completed') {
       const status = params.turn?.status;
+      this.stopWatchingPreview(build.id);
       if (status && status !== 'completed') return this.fail(build, turnError(build, params.turn));
       try {
         this.push(build, 'checking', 'Checking every important path');
@@ -233,6 +290,7 @@ export class BuildService extends EventEmitter {
   }
 
   async fail(build, error) {
+    this.stopWatchingPreview(build.id);
     build.status = 'failed'; build.updatedAt = new Date().toISOString();
     try { await writeManifest(build.appId, { status: 'failed', error: error.message }); } catch { /* workspace may be gone */ }
     this.push(build, 'failed', error.message);
@@ -243,6 +301,7 @@ export class BuildService extends EventEmitter {
     const build = this.builds.get(buildId);
     if (!build || !BUILD_STATES.includes(build.status)) throw new Error('Build not found.');
     if (build.threadId && build.turnId) await this.agentFor(build.model).interrupt(build.threadId, build.turnId);
+    this.stopWatchingPreview(buildId);
     build.status = 'cancelled'; this.push(build, 'cancelled', 'Stopped for now');
     await writeManifest(build.appId, { status: 'draft' });
     return publicBuild(build);
@@ -261,7 +320,21 @@ export class BuildService extends EventEmitter {
 export function publicBuild(build) { return { id: build.id, appId: build.appId, status: build.status, kind: build.kind, stage: build.stage, model: build.model, createdAt: build.createdAt, updatedAt: build.updatedAt, events: build.events, questions: build.events.find((event) => event.questions)?.questions || null, plan: build.plan }; }
 function requirePreset(key) { const preset = MODEL_PRESETS[key]; if (!preset) throw new Error('Unknown Workshop model preset.'); return preset; }
 function phaseForItem(item = {}, completed = false) { const type = item.type || ''; if (/command|test/i.test(type)) return 'checking'; if (/file|edit/i.test(type)) return 'editing'; return completed ? 'checking' : 'editing'; }
-function itemLabel(item = {}, completed = false) { const type = item.type || ''; const file = item.path || item.filePath || item.name; if (/command|test/i.test(type)) return completed ? 'Local check passed' : 'Running a local check'; if (/file|edit/i.test(type)) return file ? `${completed ? 'Finished' : 'Editing'} ${path.basename(file)}` : (completed ? 'Interface detail finished' : 'Shaping an interface detail'); return completed ? 'One detail polished' : 'Polishing the experience'; }
+function itemLabel(item = {}, completed = false) {
+  const type = item.type || '';
+  const [file] = itemPaths(item);
+  if (/command|test/i.test(type)) return completed ? 'Local check passed' : 'Running a local check';
+  if (/file|edit/i.test(type)) return file ? `${completed ? 'Finished' : 'Editing'} ${path.basename(file)}` : (completed ? 'Interface detail finished' : 'Shaping an interface detail');
+  return completed ? 'One detail polished' : 'Polishing the experience';
+}
+
+// Codex reports a file edit as changes[].path while Claude Code reports item.path.
+// Reading only the latter cost every Codex build its file names in the activity
+// feed, and would have cost the streaming preview its trigger.
+function itemPaths(item = {}) {
+  const changes = Array.isArray(item.changes) ? item.changes.map((change) => change?.path) : [];
+  return [item.path, item.filePath, ...changes].filter((value) => typeof value === 'string' && value);
+}
 function turnError(build, turn = {}) {
   const label = MODEL_PRESETS[build.model]?.label || 'The agent';
   return new Error(turn.error ? `${label}: ${turn.error}` : `${label} turn ${turn.status}.`);
@@ -358,7 +431,7 @@ Rules for questions:
 - Never ask about frameworks, storage, file layout, or anything else technical.`;
 }
 
-function buildPrompt(build) {
+function buildPrompt(build, connections = '') {
   const brief = build.answers && Object.keys(build.answers).length
     ? `\nThe person answered your shaping questions:\n${Object.entries(build.answers).map(([key, value]) => `- ${key}: ${value}`).join('\n')}`
     : '';
@@ -367,7 +440,7 @@ function buildPrompt(build) {
   const cold = build.kind === 'edit' && !build.resumed
     ? '\n\nYou have not seen this app earlier in this conversation. Read runtime/index.html, manifest.json, and any actions/ files before changing anything, and preserve every behavior the change does not explicitly touch.'
     : '';
-  return `Build this Workshop mini-app now: ${build.prompt}${summary}${brief}${plan}${cold}
+  return `Build this Workshop mini-app now: ${build.prompt}${summary}${brief}${plan}${cold}${connections}
 
 Follow the workshop-app-builder skill and AGENTS.md exactly. Shaping is finished; do not ask any more questions. Work autonomously, write a complete polished runtime, update manifest.json and check the JavaScript syntax. Do not just explain what you would do.`;
 }

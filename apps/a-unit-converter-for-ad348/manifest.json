@@ -1,0 +1,24 @@
+{
+  "id": "a-unit-converter-for-ad348",
+  "name": "Kitchen Convert",
+  "description": "A quick cooking measurement converter for switching between common volume units.",
+  "icon": "◒",
+  "accent": "#d85535",
+  "status": "ready",
+  "prompt": "a unit converter for cooking measurements",
+  "pinned": false,
+  "archived": false,
+  "createdAt": "2026-08-30T10:23:24.207Z",
+  "updatedAt": "2026-08-30T10:27:49.267Z",
+  "window": {
+    "width": 920,
+    "height": 680
+  },
+  "actions": [],
+  "connections": [],
+  "threadId": "01a05232-0238-7e01-8d86-a0a568f84f48",
+  "threadAgent": "codex",
+  "revision": 1,
+  "model": "luna-high",
+  "error": null
+}

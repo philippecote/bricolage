@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { AppLlmService, OpenAiLlmService } from './llmService.js';
 import { CodexAppServer } from './codexAppServer.js';
 import { ClaudeAgent } from './claudeAgent.js';
+import { McpHost, connectionSchema, createActionMcp } from './mcpHost.js';
 import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildService.js';
 import { executeAction } from './sandbox.js';
 import { safeFetch } from './network.js';
@@ -36,8 +37,8 @@ function sendFormPayload(res, status, payload) { res.status(status).type('html')
 function optionalLlm() { if (!config.openaiApiKey) return null; try { return new OpenAiLlmService(); } catch { return null; } }
 function optionalAppLlm() { if (!config.openaiApiKey) return null; try { return new AppLlmService(); } catch { return null; } }
 
-export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), buildService = null } = {}) {
-  const builds = buildService || new BuildService({ codex, claude });
+export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), buildService = null } = {}) {
+  const builds = buildService || new BuildService({ codex, claude, mcp });
   const app = express();
   app.disable('x-powered-by');
   // Trace before body parsing so a stalled/blocked request is visible.
@@ -71,8 +72,18 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       probeAgent('Claude Code', claude),
     ]);
     // `codex` stays for the existing clients; `agents` is the shape that scales.
-    res.json({ name: 'Workshop', version: '1.0.0', codex: codexState, agents: { codex: codexState, claude: claudeState }, activeBuilds: builds.listActive() });
+    res.json({ name: 'Workshop', version: '1.0.0', codex: codexState, agents: { codex: codexState, claude: claudeState }, connections: await mcp.list().catch(() => []), activeBuilds: builds.listActive() });
   });
+  app.get('/api/connections', async (_req, res, next) => { try { res.json({ connections: await mcp.list() }); } catch (e) { next(e); } });
+  app.post('/api/connections', async (req, res, next) => {
+    try {
+      const definition = await mcp.add(parse(connectionSchema, req.body));
+      // Starting it now turns a typo into an error the user sees immediately.
+      const described = await mcp.describe([definition.id]);
+      res.status(201).json({ connection: definition, tools: described[0]?.tools || [], error: described[0]?.error || null });
+    } catch (e) { e.statusCode ||= 400; next(e); }
+  });
+  app.delete('/api/connections/:id', async (req, res, next) => { try { await mcp.remove(req.params.id); res.json({ status: 'ok' }); } catch (e) { next(e); } });
   app.get('/api/apps', async (req, res, next) => { try { res.json({ apps: await listApps({ includeArchived: req.query.archived === 'true' }) }); } catch (e) { next(e); } });
   // Neutral browser compatibility alias. Some embedded browsers block requests
   // whose URL advertises a mutating action; this keeps the normal POST contract
@@ -151,7 +162,9 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       const storage = createAppStorage(req.params.appId);
       const started = Date.now();
       const llm = createActionLlm(appLlm, { appId: req.params.appId, action: req.params.action });
-      const result = await executeAction({ code, input: payload ?? {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId, nowIso: new Date().toISOString(), fetch: safeFetch, storage, llm }, fetchFn: safeFetch, timeoutMs: config.actionTimeoutMs });
+      const manifest = await readManifest(req.params.appId).catch(() => ({ connections: [] }));
+      const mcpFor = createActionMcp(mcp, { appId: req.params.appId, granted: manifest.connections || [] });
+      const result = await executeAction({ code, input: payload ?? {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId, nowIso: new Date().toISOString(), fetch: safeFetch, storage, llm, mcp: mcpFor }, fetchFn: safeFetch, timeoutMs: config.actionTimeoutMs });
       res.json({ status: 'ok', output: result.output, logs: result.logs, codeHash: sha256(code), meta: { durationMs: Date.now() - started } });
     } catch (e) { e.statusCode ||= 502; next(e); }
   });
