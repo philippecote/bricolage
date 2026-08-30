@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fair Share</title>
+  <style>
+    :root {
+      --ink: #17151b;
+      --muted: #77717d;
+      --paper: #fcfbf8;
+      --canvas: #f4f0ea;
+      --line: #e9e2da;
+      --plum: #5b2d51;
+      --coral: #ef836b;
+      --shadow: 0 22px 60px rgba(54, 34, 42, .13), 0 3px 10px rgba(54, 34, 42, .05);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 9% 4%, rgba(239, 131, 107, .18), transparent 23rem),
+        radial-gradient(circle at 94% 90%, rgba(91, 45, 81, .13), transparent 25rem),
+        var(--canvas);
+      color: var(--ink);
+      font: 15px/1.45 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(239, 131, 107, .45); outline-offset: 2px; }
+    .shell { width: min(100%, 900px); min-height: 650px; margin: 0 auto; padding: 31px 34px 28px; display: flex; flex-direction: column; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; }
+    .brand-mark { width: 38px; height: 38px; border-radius: 13px; background: var(--plum); color: #fff; display: grid; place-items: center; box-shadow: 0 8px 18px rgba(91, 45, 81, .2); }
+    .brand-mark svg { width: 19px; height: 19px; }
+    .brand-name { font-weight: 770; letter-spacing: -.03em; font-size: 18px; }
+    .top-note { color: var(--muted); font-size: 12px; letter-spacing: .03em; }
+    .intro { display: flex; align-items: end; justify-content: space-between; gap: 25px; margin-bottom: 24px; }
+    .eyebrow { color: var(--plum); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 9px; }
+    h1 { margin: 0; font-size: clamp(29px, 4vw, 40px); line-height: 1.03; letter-spacing: -.055em; font-weight: 800; }
+    .intro-copy { max-width: 480px; color: var(--muted); margin: 10px 0 0; font-size: 14px; }
+    .saved-note { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 3px; color: #5d7d6d; font-size: 12px; white-space: nowrap; }
+    .saved-dot { width: 7px; height: 7px; border-radius: 50%; background: #6aa684; box-shadow: 0 0 0 4px rgba(106,166,132,.13); }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .92fr); gap: 18px; flex: 1; min-height: 0; }
+    .panel { background: rgba(252, 251, 248, .92); border: 1px solid rgba(255,255,255,.76); border-radius: 22px; box-shadow: var(--shadow); }
+    .form-panel { padding: 25px 24px 22px; }
+    .result-panel { background: var(--plum); color: white; padding: 25px 24px 22px; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+    .result-panel::before { content: ""; width: 220px; height: 220px; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; position: absolute; right: -90px; top: -83px; }
+    .result-panel::after { content: ""; width: 150px; height: 150px; border: 1px solid rgba(255,255,255,.08); border-radius: 50%; position: absolute; right: -52px; top: -48px; }
+    .panel-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; position: relative; z-index: 1; }
+    .panel-title { font-size: 15px; font-weight: 760; letter-spacing: -.01em; }
+    .panel-kicker { color: var(--muted); font-size: 12px; }
+    .result-panel .panel-kicker { color: rgba(255,255,255,.62); }
+    .field { margin-bottom: 19px; }
+    label, .field-label { display: block; color: var(--ink); font-size: 12px; font-weight: 750; margin-bottom: 8px; }
+    .field-label small { color: var(--muted); font-size: 11px; font-weight: 500; margin-left: 4px; }
+    .money-input { position: relative; }
+    .money-symbol { position: absolute; left: 15px; top: 50%; transform: translateY(-51%); color: var(--muted); font-size: 17px; pointer-events: none; }
+    input[type="number"], input[type="text"] { width: 100%; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 11px; min-height: 45px; padding: 0 13px; transition: border-color .18s, box-shadow .18s, background .18s; }
+    .money-input input { padding-left: 30px; font-size: 18px; font-weight: 700; }
+    input:hover { border-color: #d7c8c0; }
+    input:focus { border-color: var(--coral); box-shadow: 0 0 0 4px rgba(239, 131, 107, .12); outline: none; }
+    input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { opacity: .45; }
+    .tip-presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 8px; }
+    .tip-button, .mode-button { border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 9px; min-height: 34px; font-size: 12px; font-weight: 700; transition: background .18s, border-color .18s, color .18s, transform .18s; }
+    .tip-button:hover, .mode-button:hover { border-color: #cdb5bb; color: var(--plum); transform: translateY(-1px); }
+    .tip-button.active, .mode-button.active { color: var(--plum); background: #f2e7ed; border-color: #d6b9c9; box-shadow: inset 0 0 0 1px rgba(91,45,81,.05); }
+    .custom-tip-row { display: flex; align-items: center; gap: 8px; }
+    .custom-tip-row input { min-height: 38px; width: 88px; font-size: 13px; }
+    .custom-tip-row span { color: var(--muted); font-size: 12px; }
+    .people-control { display: grid; grid-template-columns: 43px 1fr 43px; gap: 9px; align-items: center; }
+    .stepper { min-height: 43px; border: 1px solid var(--line); background: #fff; color: var(--plum); border-radius: 11px; font-size: 20px; line-height: 1; transition: background .18s, transform .18s; }
+    .stepper:hover { background: #f7edf0; transform: translateY(-1px); }
+    .people-control input { text-align: center; font-size: 17px; font-weight: 750; min-height: 43px; }
+    .people-caption { color: var(--muted); font-size: 12px; text-align: center; margin-top: 7px; }
+    .split-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; background: #f1ece8; border-radius: 11px; padding: 4px; margin-bottom: 9px; }
+    .mode-button { border: 0; background: transparent; min-height: 34px; }
+    .mode-button.active { background: #fff; border: 0; box-shadow: 0 2px 8px rgba(45,27,36,.08); }
+    .helper { color: var(--muted); font-size: 11px; margin: 0; }
+    .custom-rows { display: grid; gap: 8px; max-height: 156px; overflow: auto; padding: 2px 2px 2px 0; margin-top: 12px; }
+    .custom-row { display: grid; grid-template-columns: minmax(0, 1fr) 100px; gap: 7px; }
+    .custom-row input { min-height: 36px; font-size: 12px; }
+    .custom-row input[type="number"] { font-weight: 700; }
+    .custom-total { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 8px; }
+    .custom-total strong { color: var(--ink); }
+    .restore-status { min-height: 18px; color: var(--muted); font-size: 11px; margin: -2px 0 8px; }
+    .restore-status.error { color: #a65548; }
+    .calculate-button { width: 100%; min-height: 47px; border: 0; border-radius: 12px; background: var(--coral); color: #321b28; font-weight: 800; box-shadow: 0 8px 18px rgba(239,131,107,.2); transition: transform .18s, box-shadow .18s, filter .18s; margin-top: 8px; }
+    .calculate-button:hover { transform: translateY(-2px); box-shadow: 0 11px 23px rgba(239,131,107,.3); filter: saturate(1.05); }
+    .calculate-button:active { transform: translateY(0); }
+    .result-panel .panel-heading { margin-bottom: 30px; }
+    .empty-state { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; flex: 1; padding: 0 7px 15px; position: relative; z-index: 1; }
+    .empty-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 16px; background: rgba(255,255,255,.12); margin-bottom: 17px; color: #ffc3ae; }
+    .empty-icon svg { width: 22px; height: 22px; }
+    .empty-state h2 { font-size: 22px; letter-spacing: -.035em; line-height: 1.1; margin: 0 0 8px; }
+    .empty-state p { color: rgba(255,255,255,.65); line-height: 1.55; max-width: 245px; margin: 0; font-size: 13px; }
+    .result-content { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; }
+    .hero-label { color: rgba(255,255,255,.65); font-size: 12px; margin-bottom: 5px; }
+    .hero-value { font-size: clamp(42px, 6vw, 56px); font-weight: 800; letter-spacing: -.075em; line-height: 1; margin-bottom: 7px; }
+    .hero-sub { color: rgba(255,255,255,.66); font-size: 12px; margin-bottom: 29px; }
+    .breakdown { border-top: 1px solid rgba(255,255,255,.16); border-bottom: 1px solid rgba(255,255,255,.16); padding: 16px 0; display: grid; gap: 11px; }
+    .breakdown-row { display: flex; justify-content: space-between; gap: 12px; color: rgba(255,255,255,.72); font-size: 12px; }
+    .breakdown-row strong { color: #fff; font-weight: 700; }
+    .breakdown-row.total { margin-top: 3px; color: #fff; font-weight: 700; }
+    .breakdown-row.total strong { font-size: 14px; }
+    .rounding-note { background: rgba(219,238,229,.13); color: #d7f1e4; border-radius: 10px; padding: 9px 11px; font-size: 11px; line-height: 1.4; margin-top: 15px; }
+    .share-list { margin-top: 17px; display: grid; gap: 8px; max-height: 124px; overflow: auto; padding-right: 3px; }
+    .share-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+    .share-name { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,.77); min-width: 0; }
+    .share-number { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 8px; background: rgba(255,255,255,.12); color: #ffd6c9; font-size: 10px; font-weight: 800; }
+    .share-name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .share-amount { font-weight: 760; color: white; white-space: nowrap; }
+    .result-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: auto; padding-top: 20px; position: relative; z-index: 1; }
+    .result-footer small { color: rgba(255,255,255,.54); font-size: 10px; }
+    .copy-button { border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.09); border-radius: 9px; color: #fff; padding: 8px 11px; font-size: 11px; font-weight: 700; transition: background .18s, transform .18s; }
+    .copy-button:hover { background: rgba(255,255,255,.17); transform: translateY(-1px); }
+    [hidden] { display: none !important; }
+    @media (max-width: 680px) {
+      .shell { padding: 22px 17px; min-height: 100vh; }
+      .top-note { display: none; }
+      .intro { display: block; }
+      .saved-note { margin-top: 15px; }
+      .workspace { grid-template-columns: 1fr; }
+      .result-panel { min-height: 390px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell" id="app" aria-busy="true">
+    <header class="topbar">
+      <div class="brand" aria-label="Fair Share">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M5 8h14M6.5 8 4 13a3 3 0 0 0 5 0L6.5 8Zm11 0L15 13a3 3 0 0 0 5 0l-2.5-5ZM3 17h18"/></svg>
+        </div>
+        <span class="brand-name">Fair Share</span>
+      </div>
+      <span class="top-note">Good meals. Easy math.</span>
+    </header>
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">The friendly bill splitter</p>
+        <h1 id="page-title">Everyone pays their part.</h1>
+        <p class="intro-copy">Add the bill, choose a tip, and make the math disappear before the goodbyes.</p>
+      </div>
+      <div class="saved-note" id="saved-note" hidden><span class="saved-dot"></span><span>Last split restored</span></div>
+    </section>
+    <section class="workspace" aria-label="Tip calculator">
+      <form class="panel form-panel" id="calculator-form" novalidate>
+        <div class="panel-heading"><span class="panel-title">Set up the split</span><span class="panel-kicker">Takes a moment</span></div>
+        <div class="field">
+          <label for="bill">Bill total</label>
+          <div class="money-input"><span class="money-symbol" aria-hidden="true">$</span><input id="bill" name="bill" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" aria-describedby="bill-error"></div>
+          <p class="helper" id="bill-error" role="alert" hidden>Enter a bill total to see the split.</p>
+        </div>
+        <div class="field">
+          <span class="field-label">Tip <small>on the bill</small></span>
+          <div class="tip-presets" role="group" aria-label="Tip percentage">
+            <button type="button" class="tip-button" data-tip="10">10%</button><button type="button" class="tip-button active" data-tip="15">15%</button><button type="button" class="tip-button" data-tip="18">18%</button><button type="button" class="tip-button" data-tip="20">20%</button><button type="button" class="tip-button" data-tip="25">25%</button>
+          </div>
+          <div class="custom-tip-row"><input id="tip" name="tip" type="number" inputmode="decimal" min="0" max="100" step="0.5" value="15" aria-label="Custom tip percentage"><span>custom percentage</span></div>
+        </div>
+        <div class="field">
+          <label for="people">Friends sharing</label>
+          <div class="people-control"><button class="stepper" id="decrease-people" type="button" aria-label="Remove one friend">−</button><input id="people" name="people" type="number" inputmode="numeric" min="1" max="50" step="1" value="2" aria-describedby="people-caption"><button class="stepper" id="increase-people" type="button" aria-label="Add one friend">+</button></div>
+          <div class="people-caption" id="people-caption">2 people sharing</div>
+        </div>
+        <div class="field" id="split-field">
+          <span class="field-label">How should it split?</span>
+          <div class="split-toggle" role="group" aria-label="Split style"><button type="button" class="mode-button active" data-mode="equal">Equal shares</button><button type="button" class="mode-button" data-mode="custom">Custom shares</button></div>
+          <p class="helper" id="split-helper">The total is divided evenly between everyone.</p>
+          <div class="custom-rows" id="custom-rows" hidden></div>
+          <div class="custom-total" id="custom-total" hidden><span>Assigned before tip</span><strong id="assigned-total">$0.00</strong></div>
+        </div>
+        <div class="restore-status" id="restore-status" aria-live="polite">Restoring your last split…</div>
+        <button class="calculate-button" type="submit">Calculate the split <span aria-hidden="true">→</span></button>
+      </form>
+      <section class="panel result-panel" aria-labelledby="result-title" aria-live="polite">
+        <div class="panel-heading"><span class="panel-title" id="result-title">Your share</span><span class="panel-kicker" id="result-kicker">Waiting for a bill</span></div>
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5v-9Z"/><path d="m4.5 8 7.5 3.5L19.5 8M12 11.5V20"/></svg></div>
+          <h2>Ready when you are.</h2><p>Put in the bill total and we’ll make everyone’s share crystal clear.</p>
+        </div>
+        <div class="result-content" id="result-content" hidden>
+          <div class="hero-label">Each person pays</div><div class="hero-value" id="hero-value">$0.00</div><div class="hero-sub" id="hero-sub">including 15% tip</div>
+          <div class="breakdown"><div class="breakdown-row"><span>Bill</span><strong id="bill-output">$0.00</strong></div><div class="breakdown-row"><span>Tip <span id="tip-rate-output">15%</span></span><strong id="tip-output">$0.00</strong></div><div class="breakdown-row total"><span>Total bill</span><strong id="total-output">$0.00</strong></div></div>
+          <div class="rounding-note" id="rounding-note" hidden></div><div class="share-list" id="share-list" aria-label="Individual shares"></div>
+          <div class="result-footer"><small id="footer-note">Split evenly · 2 people</small><button class="copy-button" id="copy-button" type="button">Copy summary</button></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const stateKey = "fair-share-latest";
+      const storageApi = window.storage || (window.Workshop && window.Workshop.storage) || { get: async () => null, set: async () => undefined };
+      const app = document.getElementById("app"), form = document.getElementById("calculator-form"), billInput = document.getElementById("bill"), tipInput = document.getElementById("tip"), peopleInput = document.getElementById("people"), peopleCaption = document.getElementById("people-caption"), customRows = document.getElementById("custom-rows"), customTotal = document.getElementById("custom-total"), assignedTotal = document.getElementById("assigned-total"), splitHelper = document.getElementById("split-helper"), emptyState = document.getElementById("empty-state"), resultContent = document.getElementById("result-content"), restoreStatus = document.getElementById("restore-status"), savedNote = document.getElementById("saved-note"), billError = document.getElementById("bill-error"), roundingNote = document.getElementById("rounding-note"), shareList = document.getElementById("share-list");
+      let splitMode = "equal", customAmounts = [], customNames = [], lastResult = null;
+      const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+      const money = (value) => currency.format(Number.isFinite(value) ? value : 0);
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+      function notifyUser(message) { if (typeof window.notify === "function") window.notify(message); else if (window.Workshop && typeof window.Workshop.notify === "function") window.Workshop.notify(message); }
+      function setAppTitle(title) { if (typeof window.setTitle === "function") window.setTitle(title); document.title = title; }
+      function readNumber(input, fallback = 0) { const value = Number.parseFloat(input.value); return Number.isFinite(value) ? value : fallback; }
+      function peopleCount() { return clamp(Math.round(readNumber(peopleInput, 2)), 1, 50); }
+      function updatePeopleCaption(count) { peopleCaption.textContent = `${count} ${count === 1 ? "person" : "people"} sharing`; }
+      function equalAmounts(total, count) { const cents = Math.max(0, Math.round(total * 100)), base = Math.floor(cents / count), remainder = cents % count; return Array.from({ length: count }, (_, index) => (base + (index < remainder ? 1 : 0)) / 100); }
+      function resizeCustomRows(count, baseBill) { const nextAmounts = customAmounts.slice(0, count), nextNames = customNames.slice(0, count); while (nextAmounts.length < count) nextAmounts.push(baseBill > 0 ? baseBill / count : 0); while (nextNames.length < count) nextNames.push(`Friend ${nextNames.length + 1}`); customAmounts = nextAmounts; customNames = nextNames; }
+      function escapeAttribute(value) { return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+      function escapeHtml(value) { return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+      function readCustomRows() { customRows.querySelectorAll("[data-amount-index]").forEach((input) => { customAmounts[Number(input.dataset.amountIndex)] = Math.max(0, readNumber(input)); }); customRows.querySelectorAll("[data-name-index]").forEach((input) => { customNames[Number(input.dataset.nameIndex)] = input.value.trim() || `Friend ${Number(input.dataset.nameIndex) + 1}`; }); }
+      function updateCustomTotal() { const total = customAmounts.reduce((sum, amount) => sum + (Number.isFinite(amount) ? amount : 0), 0); assignedTotal.textContent = money(total); }
+      function renderCustomRows() {
+        const count = peopleCount(); resizeCustomRows(count, Math.max(0, readNumber(billInput)));
+        customRows.innerHTML = customAmounts.map((amount, index) => `<div class="custom-row"><input type="text" data-name-index="${index}" value="${escapeAttribute(customNames[index])}" aria-label="Name for person ${index + 1}" placeholder="Friend ${index + 1}"><input type="number" data-amount-index="${index}" value="${amount ? amount.toFixed(2) : "0.00"}" min="0" step="0.01" inputmode="decimal" aria-label="Bill share for person ${index + 1}"></div>`).join("");
+        customRows.querySelectorAll("input").forEach((input) => input.addEventListener("input", () => { readCustomRows(); updateCustomTotal(); calculate(false); })); updateCustomTotal();
+      }
+      function setMode(nextMode) {
+        if (splitMode === "custom") readCustomRows(); splitMode = nextMode;
+        document.querySelectorAll(".mode-button").forEach((button) => { const active = button.dataset.mode === splitMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+        const isCustom = splitMode === "custom"; customRows.hidden = !isCustom; customTotal.hidden = !isCustom; splitHelper.textContent = isCustom ? "Set each person’s pre-tip share; tip is added proportionally." : "The total is divided evenly between everyone."; if (isCustom) renderCustomRows(); calculate(false);
+      }
+      function syncTipButtons() { const current = Number(readNumber(tipInput, 15).toFixed(2)); document.querySelectorAll(".tip-button").forEach((button) => { const active = Number(button.dataset.tip) === current; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); }); }
+      function sharesFor(total, count) {
+        if (splitMode === "custom") { readCustomRows(); const assigned = customAmounts.reduce((sum, amount) => sum + Math.max(0, amount || 0), 0); if (assigned > 0) { const raw = customAmounts.map((amount) => total * (Math.max(0, amount || 0) / assigned)), rounded = raw.map((amount) => Math.floor(amount * 100) / 100); let centsLeft = Math.round(total * 100) - rounded.reduce((sum, amount) => sum + Math.round(amount * 100), 0); for (let index = 0; centsLeft > 0; index = (index + 1) % rounded.length, centsLeft--) rounded[index] += 0.01; return rounded; } }
+        return equalAmounts(total, count);
+      }
+      function calculate(showError = false) {
+        const bill = Math.max(0, readNumber(billInput)), tipRate = clamp(readNumber(tipInput, 15), 0, 100), count = peopleCount(); peopleInput.value = String(count); updatePeopleCaption(count); syncTipButtons(); if (splitMode === "custom") updateCustomTotal();
+        if (!bill) { emptyState.hidden = false; resultContent.hidden = true; document.getElementById("result-kicker").textContent = "Waiting for a bill"; billError.hidden = !showError; lastResult = null; return null; }
+        billError.hidden = true; const tip = bill * tipRate / 100, total = bill + tip, shares = sharesFor(total, count); lastResult = { bill, tipRate, tip, total, count, shares, mode: splitMode, names: customNames.slice(0, count) }; renderResult(lastResult); return lastResult;
+      }
+      function renderResult(result) {
+        emptyState.hidden = true; resultContent.hidden = false; document.getElementById("result-kicker").textContent = `${result.count} ${result.count === 1 ? "person" : "people"}`; document.getElementById("hero-value").textContent = money(result.shares[0]); document.getElementById("hero-sub").textContent = result.mode === "custom" ? "first share shown · tip included" : `including ${result.tipRate}% tip`; document.getElementById("bill-output").textContent = money(result.bill); document.getElementById("tip-rate-output").textContent = `${result.tipRate}%`; document.getElementById("tip-output").textContent = money(result.tip); document.getElementById("total-output").textContent = money(result.total); document.getElementById("footer-note").textContent = result.mode === "custom" ? `Custom shares · ${result.count} people` : `Split evenly · ${result.count} ${result.count === 1 ? "person" : "people"}`;
+        if (result.mode === "equal" && result.count > 1 && Math.round(result.total * 100) % result.count !== 0) { const cents = Math.round(result.total * 100) % result.count; roundingNote.hidden = false; roundingNote.textContent = `${cents} ${cents === 1 ? "person gets" : "people get"} an extra cent so every penny is covered.`; } else if (result.mode === "custom") { roundingNote.hidden = false; roundingNote.textContent = "Custom shares are weighted before tip, so the tip follows each person’s portion."; } else roundingNote.hidden = true;
+        shareList.innerHTML = result.shares.map((share, index) => { const name = result.mode === "custom" ? (result.names[index] || `Friend ${index + 1}`) : `Person ${index + 1}`; return `<div class="share-item"><div class="share-name"><span class="share-number">${index + 1}</span><span>${escapeHtml(name)}</span></div><strong class="share-amount">${money(share)}</strong></div>`; }).join("");
+      }
+      function snapshot() { if (splitMode === "custom") readCustomRows(); return { bill: billInput.value, tip: tipInput.value, people: peopleInput.value, mode: splitMode, customAmounts: customAmounts.slice(0, peopleCount()), customNames: customNames.slice(0, peopleCount()) }; }
+      async function saveSnapshot() { try { await storageApi.set(stateKey, snapshot()); } catch (error) { restoreStatus.textContent = "This split will stay on screen, but couldn’t be saved."; restoreStatus.classList.add("error"); } }
+      async function restoreSnapshot() {
+        try {
+          const saved = await storageApi.get(stateKey);
+          if (saved && typeof saved === "object") { billInput.value = typeof saved.bill === "string" ? saved.bill : ""; tipInput.value = String(clamp(Number(saved.tip) || 15, 0, 100)); peopleInput.value = String(clamp(Math.round(Number(saved.people) || 2), 1, 50)); splitMode = saved.mode === "custom" ? "custom" : "equal"; customAmounts = Array.isArray(saved.customAmounts) ? saved.customAmounts.map((amount) => Math.max(0, Number(amount) || 0)) : []; customNames = Array.isArray(saved.customNames) ? saved.customNames.map((name) => String(name).slice(0, 35)) : []; updatePeopleCaption(peopleCount()); document.querySelectorAll(".mode-button").forEach((button) => { const active = button.dataset.mode === splitMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); }); customRows.hidden = splitMode !== "custom"; customTotal.hidden = splitMode !== "custom"; splitHelper.textContent = splitMode === "custom" ? "Set each person’s pre-tip share; tip is added proportionally." : "The total is divided evenly between everyone."; if (splitMode === "custom") renderCustomRows(); calculate(false); if (billInput.value) savedNote.hidden = false; }
+          restoreStatus.textContent = "";
+        } catch (error) { restoreStatus.textContent = "Couldn’t restore your last split. You can start fresh below."; restoreStatus.classList.add("error"); } finally { app.setAttribute("aria-busy", "false"); }
+      }
+      document.querySelectorAll(".tip-button").forEach((button) => { button.setAttribute("aria-pressed", button.classList.contains("active") ? "true" : "false"); button.addEventListener("click", () => { tipInput.value = button.dataset.tip; syncTipButtons(); calculate(false); }); });
+      document.querySelectorAll(".mode-button").forEach((button) => { button.setAttribute("aria-pressed", button.classList.contains("active") ? "true" : "false"); button.addEventListener("click", () => setMode(button.dataset.mode)); });
+      document.getElementById("decrease-people").addEventListener("click", () => { if (splitMode === "custom") readCustomRows(); peopleInput.value = String(clamp(peopleCount() - 1, 1, 50)); if (splitMode === "custom") renderCustomRows(); calculate(false); });
+      document.getElementById("increase-people").addEventListener("click", () => { if (splitMode === "custom") readCustomRows(); peopleInput.value = String(clamp(peopleCount() + 1, 1, 50)); if (splitMode === "custom") renderCustomRows(); calculate(false); });
+      billInput.addEventListener("input", () => calculate(false)); tipInput.addEventListener("input", () => calculate(false));
+      peopleInput.addEventListener("input", () => { const count = peopleCount(); peopleInput.value = String(count); updatePeopleCaption(count); if (splitMode === "custom") renderCustomRows(); calculate(false); });
+      form.addEventListener("submit", async (event) => { event.preventDefault(); const result = calculate(true); if (!result) { billInput.focus(); notifyUser("Add the bill total first."); return; } await saveSnapshot(); savedNote.hidden = false; notifyUser("Split calculated and saved."); });
+      document.getElementById("copy-button").addEventListener("click", async () => { if (!lastResult) return; const lines = ["Fair Share", `Bill: ${money(lastResult.bill)}`, `Tip (${lastResult.tipRate}%): ${money(lastResult.tip)}`, `Total: ${money(lastResult.total)}`, ...lastResult.shares.map((share, index) => `${lastResult.mode === "custom" ? (lastResult.names[index] || `Friend ${index + 1}`) : `Person ${index + 1}`}: ${money(share)}`)]; try { await navigator.clipboard.writeText(lines.join("\n")); notifyUser("Summary copied to clipboard."); } catch (error) { notifyUser("Copy isn’t available here, but your split is ready to share."); } });
+      setAppTitle("Fair Share"); restoreSnapshot();
+    })();
+  </script>
+</body>
+</html>

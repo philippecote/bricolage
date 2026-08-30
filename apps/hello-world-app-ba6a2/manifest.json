@@ -1,6 +1,6 @@
 {
   "id": "hello-world-app-ba6a2",
-  "name": "Hello, world",
+  "name": "Hello, Jackie!",
   "description": "A tiny place to make a warm hello.",
   "icon": "☀",
   "accent": "#e77458",
@@ -9,7 +9,7 @@
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T00:38:35.264Z",
-  "updatedAt": "2026-08-30T01:32:49.616Z",
+  "updatedAt": "2026-08-30T01:52:26.112Z",
   "window": {
     "width": 900,
     "height": 650

@@ -15,6 +15,16 @@ const JOURNEY = [
 type WindowState = { id: string; x: number; y: number; width: number; height: number; minimized: boolean; maximized: boolean; z: number };
 type Point = { x: number; y: number };
 
+// Column-major from the right edge: fill down, then step left. The old default
+// derived x from innerWidth and clamped at 12, so every icon past the fold piled
+// up in the same spot on a narrow window.
+function defaultIconPosition(index: number, viewport: { width: number; height: number }): Point {
+  const CELL_W = 104, CELL_H = 100, EDGE = 20, CHROME = 36 + 96;
+  const rows = Math.max(1, Math.floor((viewport.height - CHROME - EDGE) / CELL_H));
+  const column = Math.floor(index / rows), row = index % rows;
+  return { x: Math.max(EDGE, viewport.width - EDGE - CELL_W * (column + 1)), y: EDGE + row * CELL_H };
+}
+
 function stored<T>(key: string, fallback: T): T { try { return JSON.parse(localStorage.getItem(key) || '') as T; } catch { return fallback; } }
 function builderMessage(message: string) {
   return window.location.port === '4100' ? `${message} This tab is on :4100, while this project’s npm start server uses :4000.` : message;
@@ -41,6 +51,9 @@ export function Workshop() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [clock, setClock] = useState(new Date());
+  const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [handledApprovals, setHandledApprovals] = useState<string[]>([]);
   const maxZ = useRef(Math.max(2, ...windows.map((win) => win.z)));
   const streams = useRef(new Map<string, EventSource>());
   const nativeCreatePending = useRef(false);
@@ -61,12 +74,14 @@ export function Workshop() {
       next.activeBuilds.forEach((build) => { seedBuild(build.appId, build.id, build.events || []); watchBuild(build.appId, build.id); });
     }).catch(() => { setStatus(null); setCreateError(builderMessage('Workshop’s local builder is offline.')); });
     const timer = setInterval(() => setClock(new Date()), 30_000);
+    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', onResize);
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSpotlight((value) => !value); }
-      if (event.key === 'Escape') { setSpotlight(false); setLibrary(false); setSettings(false); }
+      if (event.key === 'Escape') { setSpotlight(false); setLibrary(false); setSettings(false); setActivityOpen(false); }
     };
     window.addEventListener('keydown', onKey);
-    return () => { mounted = false; clearInterval(timer); if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); window.removeEventListener('keydown', onKey); streams.current.forEach((stream) => stream.close()); };
+    return () => { mounted = false; clearInterval(timer); if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); streams.current.forEach((stream) => stream.close()); };
   }, []);
 
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('workshop-theme', theme); }, [theme]);
@@ -241,11 +256,29 @@ export function Workshop() {
   const pinned = useMemo(() => apps.filter((app) => app.pinned && !app.archived).slice(0, 7), [apps]);
   const visibleApps = apps.filter((app) => !app.archived);
 
+  // One place that knows what the whole desktop is doing. Every surface below —
+  // the menu-bar chip, the dock rings, the rail — reads from this.
+  const activity = useMemo(() => visibleApps.map((app) => {
+    const events = builds[app.id] || [];
+    const latest = events.at(-1);
+    const phase = latest?.phase || '';
+    const approval = [...events].reverse().find((event) => event.approval && !handledApprovals.includes(event.approval.id))?.approval;
+    const waiting = phase === 'questions' || Boolean(approval);
+    const working = app.status === 'building' && !['complete', 'failed', 'cancelled'].includes(phase);
+    return { app, approval, waiting, working, message: latest?.message || 'Getting started', since: events[0]?.at };
+  }).filter((item) => item.working || item.waiting), [visibleApps, builds, handledApprovals]);
+
+  async function resolveApproval(id: string, accepted: boolean) {
+    setHandledApprovals((current) => [...current, id]);
+    try { await api.approval(id, accepted); }
+    catch (error) { showToast(error instanceof Error ? error.message : 'Could not answer that request'); }
+  }
+
   return <main className="desktop" aria-label="Workshop desktop">
     <div className="wallpaper-orb orb-one" /><div className="wallpaper-orb orb-two" />
     <header className="menu-bar">
       <div className="menu-left"><button className="wordmark" onClick={() => setLibrary(false)} aria-label="Workshop home"><span>W</span> Workshop</button><button onClick={() => setLibrary(true)}>Library</button><button onClick={() => setSpotlight(true)}>Create</button></div>
-      <div className="menu-right"><button className={`codex-state ${codexReady ? 'online' : ''}`} onClick={() => setSettings(true)}><i />{codexReady ? 'Codex ready' : 'Setup needed'}</button><button onClick={() => setSpotlight(true)} className="shortcut">⌘ K</button><time>{clock.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} &nbsp; {clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
+      <div className="menu-right">{activity.length > 0 && <button className={`working-chip ${activity.some((item) => item.waiting) ? 'waiting' : ''}`} onClick={() => setActivityOpen((value) => !value)} aria-label="Show desktop activity"><i />{activity.some((item) => item.waiting) ? 'Needs you' : `${activity.length} working`}</button>}<button className={`codex-state ${codexReady ? 'online' : ''}`} onClick={() => setSettings(true)}><i />{codexReady ? 'Codex ready' : 'Setup needed'}</button><button onClick={() => setSpotlight(true)} className="shortcut">⌘ K</button><time>{clock.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} &nbsp; {clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
     </header>
 
     <section className="desktop-content">
@@ -263,7 +296,7 @@ export function Workshop() {
     </section>
 
     <div className="desktop-apps" aria-label="Apps">{visibleApps.slice(0, 12).map((app, index) => {
-      const position = iconPositions[app.id] || { x: Math.max(12, innerWidth - 112 - (index % 3) * 112), y: 62 + Math.floor(index / 3) * 96 };
+      const position = iconPositions[app.id] || defaultIconPosition(index, viewport);
       return <button key={app.id} className="desktop-icon" style={{ left: position.x, top: position.y, animationDelay: `${index * 45}ms` }} onPointerDown={(event) => startIconDrag(event, app, position)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') openApp(app); }}><AppIcon app={app} /><span>{app.name}</span>{app.status === 'building' && <i className="build-dot" />}</button>;
     })}</div>
 
@@ -280,7 +313,8 @@ export function Workshop() {
       </section>;
     })}
 
-    <nav className="dock" aria-label="Dock"><button className="dock-item creator" onClick={() => setSpotlight(true)} aria-label="Create app"><span>✦</span><em>Create</em></button><i className="dock-separator" />{pinned.map((app) => <button key={app.id} className="dock-item" onClick={() => openApp(app)} aria-label={`Open ${app.name}`}><AppIcon app={app} /><em>{app.name}</em>{windows.some((win) => win.id === app.id) && <b />}</button>)}<i className="dock-separator" /><button className="dock-item" onClick={() => setLibrary(true)} aria-label="App library"><span className="library-icon">⌘</span><em>Library</em></button><button className="dock-item" onClick={() => setSettings(true)} aria-label="Settings"><span className="settings-icon">⚙</span><em>Settings</em></button></nav>
+    <nav className="dock" aria-label="Dock"><button className="dock-item creator" onClick={() => setSpotlight(true)} aria-label="Create app"><span>✦</span><em>Create</em></button><i className="dock-separator" />{pinned.map((app) => <button key={app.id} className={`dock-item ${activity.some((item) => item.app.id === app.id) ? 'working' : ''}`} onClick={() => openApp(app)} aria-label={`Open ${app.name}`}><AppIcon app={app} /><em>{app.name}</em>{windows.some((win) => win.id === app.id) && <b />}</button>)}<i className="dock-separator" /><button className="dock-item" onClick={() => setLibrary(true)} aria-label="App library"><span className="library-icon">⌘</span><em>Library</em></button><button className="dock-item" onClick={() => setSettings(true)} aria-label="Settings"><span className="settings-icon">⚙</span><em>Settings</em></button></nav>
+    {activityOpen && <ActivityRail items={activity} onClose={() => setActivityOpen(false)} onOpen={(app) => { openApp(app, true); setActivityOpen(false); }} onApprove={resolveApproval} />}
     {spotlight && <Spotlight apps={visibleApps} onClose={() => setSpotlight(false)} onCreate={create} onOpen={(app) => { openApp(app); setSpotlight(false); }} />}
     {library && <Library apps={apps} onClose={() => setLibrary(false)} onOpen={openApp} onRestore={async (app) => { await api.patch(app.id, { archived: false }); refresh(); }} />}
     {settings && <Settings status={status} theme={theme} setTheme={setTheme} sounds={sounds} setSounds={setSounds} onClose={() => setSettings(false)} />}
@@ -324,6 +358,32 @@ function Inspector({ app, events, buildId, revisions, editing, setEditing, impro
 function QuestionDeck({ questions, onSubmit }: { questions: BuildQuestion[]; onSubmit: (answers: Record<string, string>) => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>({}); const complete = questions.every((question) => answers[question.id]);
   return <section className="question-deck"><header><span>{questions.length === 1 ? 'One quick choice' : `${questions.length} quick choices`}</span><small>Straight from your builder.</small></header>{questions.map((question, index) => <fieldset key={question.id}><legend><i>{index + 1}</i>{question.prompt}</legend><div>{question.options.map((option) => <button type="button" key={option} className={answers[question.id] === option ? 'selected' : ''} onClick={() => setAnswers((value) => ({ ...value, [question.id]: option }))}>{option}<span>{answers[question.id] === option ? '✓' : ''}</span></button>)}</div></fieldset>)}<button className="start-making" disabled={!complete} onClick={() => onSubmit(answers)}>Make my app <span>✦</span></button></section>;
+}
+
+type ActivityItem = { app: WorkshopApp; approval?: { id: string; summary: string }; waiting: boolean; working: boolean; message: string; since?: string };
+
+// The desktop's answer to "what is happening right now". Builds already stream
+// every phase change; this just stops that being visible only inside one window.
+function ActivityRail({ items, onClose, onOpen, onApprove }: { items: ActivityItem[]; onClose: () => void; onOpen: (app: WorkshopApp) => void; onApprove: (id: string, accepted: boolean) => void }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
+  return <aside className="activity-rail" aria-label="Desktop activity">
+    <header><div><span className="eyebrow">RIGHT NOW</span><h2>{items.length === 1 ? '1 app is working' : `${items.length} apps are working`}</h2></div><button onClick={onClose} aria-label="Close activity">Done</button></header>
+    <div className="activity-list">
+      {items.map((item) => <article key={item.app.id} className={item.waiting ? 'needs-you' : ''}>
+        <button className="activity-open" onClick={() => onOpen(item.app)}>
+          <AppIcon app={item.app} compact />
+          <div><strong>{item.app.name}</strong><small>{item.message}</small></div>
+          <time>{item.since ? formatElapsed(Math.max(0, now - new Date(item.since).getTime())) : ''}</time>
+        </button>
+        {item.approval
+          ? <div className="activity-approval"><p>{item.approval.summary}</p><div><button onClick={() => onApprove(item.approval!.id, false)}>Not now</button><button className="primary" onClick={() => onApprove(item.approval!.id, true)}>Allow</button></div></div>
+          : item.waiting ? <p className="activity-hint">Waiting on your answers — open it to continue.</p>
+          : <div className="activity-track"><i /></div>}
+      </article>)}
+      {!items.length && <p className="activity-empty">Nothing running. The desktop is yours.</p>}
+    </div>
+  </aside>;
 }
 
 function formatElapsed(ms: number) { const seconds = Math.floor(ms / 1000); return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`; }

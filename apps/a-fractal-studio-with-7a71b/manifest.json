@@ -4,12 +4,12 @@
   "description": "An interactive Mandelbrot explorer for clicking into intricate regions, panning across the set, and tuning color and detail.",
   "icon": "◆",
   "accent": "#008f75",
-  "status": "building",
+  "status": "failed",
   "prompt": "a fractal studio, with zooming/navitaging by clicking the mouse. so we can delve into maldelbrots!!",
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T01:45:28.114Z",
-  "updatedAt": "2026-08-30T01:45:52.553Z",
+  "updatedAt": "2026-08-30T01:46:45.024Z",
   "window": {
     "width": 920,
     "height": 680
@@ -18,5 +18,5 @@
   "threadId": "01a05057-d36c-7de2-b7e8-ee6b04d2c8d7",
   "revision": 0,
   "model": "luna-max",
-  "error": null
+  "error": "Build paused when Workshop restarted."
 }

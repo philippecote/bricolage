@@ -38,6 +38,26 @@ Question rules — these are what the person actually sees, so they carry the pr
 - Two to four options each, every option a concrete choice under 42 characters that a non-technical person can pick instantly.
 - Prefer the decision that is expensive to reverse later. Choose the rest yourself.
 
+## Reaching for the model
+
+`ctx.llm.ask` inside an action is the way an app thinks at runtime. Use it where judgment genuinely beats code — summarizing, extracting structure from messy input, ranking, drafting, answering from the live web — and not where a plain function would do.
+
+```js
+export async function handler(input, ctx) {
+  const { output, sources } = await ctx.llm.ask({
+    prompt: `Extract the shopping items from: ${input.text}`,
+    schema: { type: 'object', properties: { items: { type: 'array', items: { type: 'string' } } } },
+    search: false,
+  });
+  return { items: output.items, sources };
+}
+```
+
+- Always pass a schema when the app needs to render the result. Parsing prose in the runtime is a bug waiting to happen.
+- Leave search on for questions about the world; turn it off for anything derived from the user's own content.
+- Surface `sources` in the interface whenever an answer came from the web, and design a visible loading state — these calls take a second or two.
+- Handle the failure: a model call can time out or return unusable JSON, and the app must stay usable when it does.
+
 ## Product judgment
 
 - Prefer a focused app with one excellent workflow over a collection of shallow features.
