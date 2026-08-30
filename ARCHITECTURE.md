@@ -37,7 +37,8 @@ Bricolage is one Node process that serves a React desktop, orchestrates coding a
 | `desktopAgent.js` | The conversational partner — an agentic loop over `desktopTools` |
 | `desktopTools.js` | What the partner can see and do, split into reads and acts |
 | `mcpHost.js` | MCP client and connection registry |
-| `connectionCatalog.js` | The curated server list and its provenance rules |
+| `connectionCatalog.js` | The built-in server list and its provenance rules |
+| `dockerCatalog.js` | Drives `docker mcp` — the ~270-server catalog, as a store |
 | `llmService.js` | `AppLlmService` — `ask()` for apps, `raw()` for the tool loop |
 | `sandbox.js` / `actionRunner.js` | Runs generated action code in a confined child process |
 | `taint.js` | Blocks the private-data + untrusted-content + act combination |
@@ -145,7 +146,11 @@ Bricolage is an MCP host. Servers are stdio child processes; it speaks `initiali
 
 Secrets are per-connection env values. A value of `$NAME` is a **reference** to Bricolage's own environment, so a token can stay in `.env`; literals are stored in `connections.json`. The API returns key names and where they resolve from — **never values**.
 
-The catalog's rules are enforced by tests: org-scoped packages only, pinned versions only.
+The built-in catalog's rules are enforced by tests: org-scoped packages only, pinned versions only.
+
+**The Docker catalog is browsable as a store.** Docker Desktop already curates ~270 servers, each an image pinned by digest and each declaring the secrets it wants, so `dockerCatalog.js` reads `docker mcp catalog show` rather than reproducing any of it. Installing means `docker mcp server enable`; secrets go to Docker Desktop's own store via `docker mcp secret set` and are never held here.
+
+The gateway is one long-lived process that lists its tools at startup, so enabling or disabling a server behind it restarts that connection — otherwise a freshly installed server is enabled in Docker but invisible to Bricolage.
 
 ## The desktop agent
 

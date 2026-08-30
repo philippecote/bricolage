@@ -28,6 +28,8 @@ export const config = {
   llmMaxCallsPerAction: 8,
   // A conversational turn may look at several apps before it answers.
   desktopMaxSteps: 6,
+  dockerBin: process.env.DOCKER_BIN || 'docker',
+  dockerCatalogTtlMs: 5 * 60_000,
   mcpTimeoutMs: 20_000,
   // First contact may download the server package; a tool call must not wait that long.
   mcpStartTimeoutMs: 90_000,

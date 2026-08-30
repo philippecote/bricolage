@@ -85,7 +85,9 @@ export async function handler(input, ctx) {
 
 ## Connections
 
-Settings → Connections offers a small catalog built on two checkable rules: every npm entry sits under an **org scope only its vendor can publish to**, and every version is **pinned**. The **Docker MCP Gateway** leads it, because each server then runs in its own container rather than as a process holding Bricolage's environment.
+Settings → Connections → **Browse the Docker catalog** opens ~270 MCP servers as a grid you search and filter — icons, tool counts, categories, and what each one needs. Install is one click; a server that wants a key asks for it and hands it to Docker Desktop's secret store, never to Bricolage.
+
+Each runs in its own container behind the Docker MCP Gateway, so it never holds Bricolage's environment. Without Docker there is a small built-in catalog, built on two checkable rules: every npm entry sits under an **org scope only its vendor can publish to**, and every version is **pinned**.
 
 Apps declare what they need; you grant it; ungranted calls fail by name.
 

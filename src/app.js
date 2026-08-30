@@ -9,6 +9,7 @@ import { ClaudeAgent } from './claudeAgent.js';
 import { McpHost, connectionSchema, createActionMcp } from './mcpHost.js';
 import { optionalDesktopAgent } from './desktopAgent.js';
 import { CONNECTION_CATALOG, buildFromCatalog } from './connectionCatalog.js';
+import { DockerCatalog } from './dockerCatalog.js';
 import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildService.js';
 import { executeAction } from './sandbox.js';
 import { safeFetch } from './network.js';
@@ -69,7 +70,7 @@ function sendFormPayload(res, status, payload) { res.status(status).type('html')
 function optionalLlm() { if (!config.openaiApiKey) return null; try { return new OpenAiLlmService(); } catch { return null; } }
 function optionalAppLlm() { if (!config.openaiApiKey) return null; try { return new AppLlmService(); } catch { return null; } }
 
-export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), desktop = optionalDesktopAgent(appLlm, (appId, action, payload) => runAppAction(appId, action, payload)), buildService = null } = {}) {
+export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), store = new DockerCatalog(), desktop = optionalDesktopAgent(appLlm, (appId, action, payload) => runAppAction(appId, action, payload)), buildService = null } = {}) {
   const builds = buildService || new BuildService({ codex, claude, mcp });
   const app = express();
   app.disable('x-powered-by');
@@ -155,6 +156,38 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       res.status(201).json({ connection: { id: definition.id, label: definition.label }, tools: described[0]?.tools || [], error: described[0]?.error || null });
     } catch (e) { e.statusCode ||= 400; next(e); }
   });
+  // The Docker MCP Catalog, browsable. Docker curates and pins these; Bricolage
+  // reads its catalog rather than reproducing any of it.
+  app.get('/api/store', async (_req, res, next) => {
+    try {
+      const state = await store.available();
+      if (!state.available) return res.json({ available: false, error: state.error, servers: [], enabled: [] });
+      const [servers, enabled, secrets] = await Promise.all([store.catalog(), store.enabled(), store.secretNames().catch(() => [])]);
+      res.json({ available: true, error: null, servers, enabled, secrets });
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/store/:name', async (req, res, next) => {
+    try {
+      const { secrets } = parse(z.object({ secrets: z.record(z.string(), z.string()).default({}) }), req.body || {});
+      // Secrets go to Docker Desktop's own store; Bricolage never keeps them.
+      for (const [name, value] of Object.entries(secrets)) {
+        if (value.trim()) await store.setSecret(name, value.trim());
+      }
+      await store.enable(req.params.name);
+      // A server is only reachable through the gateway, so make sure it exists.
+      const connections = await mcp.list();
+      if (connections.some((item) => item.id === 'docker')) await mcp.restart('docker');
+      else await mcp.add(buildFromCatalog('docker'));
+      const described = await mcp.describe(['docker']);
+      res.status(201).json({ installed: req.params.name, tools: described[0]?.tools?.length || 0, error: described[0]?.error || null });
+    } catch (e) { e.statusCode ||= 400; next(e); }
+  });
+
+  app.delete('/api/store/:name', async (req, res, next) => {
+    try { await store.disable(req.params.name); await mcp.restart('docker'); res.json({ status: 'ok' }); } catch (e) { e.statusCode ||= 400; next(e); }
+  });
+
   app.get('/api/connections', async (_req, res, next) => { try { res.json({ connections: await mcp.list() }); } catch (e) { next(e); } });
   app.post('/api/connections', async (req, res, next) => {
     try {

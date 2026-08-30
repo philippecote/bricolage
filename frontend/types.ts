@@ -29,3 +29,11 @@ export interface CatalogEntry {
   id: string; label: string; publisher: string; summary: string; caution: string;
   inputs: CatalogInput[]; secrets: CatalogSecret[]; preview: string;
 }
+
+export interface StoreSecret { name: string; env: string; description: string; example: string }
+export interface StoreServer {
+  name: string; title: string; description: string; category: string;
+  icon: string | null; image: string; source: string;
+  tools: string[]; secrets: StoreSecret[]; pulls: number; stars: number;
+}
+export interface Store { available: boolean; error: string | null; servers: StoreServer[]; enabled: string[]; secrets?: string[] }

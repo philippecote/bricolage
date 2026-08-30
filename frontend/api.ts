@@ -1,4 +1,4 @@
-import type { BuildSummary, CatalogEntry, Connection, DesktopReply, PendingAct, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { BuildSummary, CatalogEntry, Connection, DesktopReply, PendingAct, ModelPreset, Store, SystemStatus, WorkshopApp } from './types';
 
 async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -101,6 +101,11 @@ export const api = {
   cancelBuild: (id: string) => request<{ build: BuildSummary }>(`/api/builds/${id}/cancel`, { method: 'POST', body: '{}' }),
   connections: () => request<{ connections: Connection[] }>('/api/connections'),
   catalog: () => request<{ catalog: CatalogEntry[] }>('/api/connections/catalog'),
+  store: () => request<Store>('/api/store', { timeoutMs: 60_000 }),
+  // Pulling an image and starting a container is well past the default budget.
+  install: (name: string, secrets: Record<string, string>) =>
+    request<{ installed: string; tools: number; error: string | null }>(`/api/store/${name}`, { method: 'POST', body: JSON.stringify({ secrets }), timeoutMs: 180_000 }),
+  uninstall: (name: string) => request(`/api/store/${name}`, { method: 'DELETE', body: '{}', timeoutMs: 60_000 }),
   addFromCatalog: (id: string, values: Record<string, string>, secrets: Record<string, string>) =>
     request<{ connection: { id: string; label: string }; tools: string[]; error: string | null }>(`/api/connections/catalog/${id}`, { method: 'POST', body: JSON.stringify({ values, secrets }), timeoutMs: 120_000 }),
   // Starting a server can mean npx downloading a package first, which is far

@@ -1,6 +1,6 @@
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import type { AgentState, BuildEvent, BuildQuestion, CatalogEntry, Connection, DesktopReply, PendingAct, ModelPreset, SystemStatus, Turn, WorkshopApp } from './types';
+import type { AgentState, BuildEvent, BuildQuestion, CatalogEntry, Connection, DesktopReply, PendingAct, ModelPreset, Store, StoreServer, SystemStatus, Turn, WorkshopApp } from './types';
 
 const STARTERS = [
   ['Daily pulse', 'Build a daily habit tracker with streaks and a calm weekly view'],
@@ -509,7 +509,8 @@ function Inspector({ app, events, buildId, revisions, editing, setEditing, impro
 }
 
 function QuestionDeck({ questions, onSubmit }: { questions: BuildQuestion[]; onSubmit: (answers: Record<string, string>) => void }) {
-  const [answers, setAnswers] = useState<Record<string, string>>({}); const complete = questions.every((question) => answers[question.id]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [storeOpen, setStoreOpen] = useState(false); const complete = questions.every((question) => answers[question.id]);
   return <section className="question-deck"><header><span>{questions.length === 1 ? 'One quick choice' : `${questions.length} quick choices`}</span><small>Straight from your builder.</small></header>{questions.map((question, index) => <fieldset key={question.id}><legend><i>{index + 1}</i>{question.prompt}</legend><div>{question.options.map((option) => <button type="button" key={option} className={answers[question.id] === option ? 'selected' : ''} onClick={() => setAnswers((value) => ({ ...value, [question.id]: option }))}>{option}<span>{answers[question.id] === option ? '✓' : ''}</span></button>)}</div></fieldset>)}<button className="start-making" disabled={!complete} onClick={() => onSubmit(answers)}>Make my app <span>✦</span></button></section>;
 }
 
@@ -574,6 +575,7 @@ function Connections() {
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [picked, setPicked] = useState<CatalogEntry | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [storeOpen, setStoreOpen] = useState(false);
   const [draft, setDraft] = useState({ id: '', label: '', command: '', args: '', env: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -630,6 +632,10 @@ function Connections() {
     </div>)}
     {!items.length && !adding && <p className="connections-empty">No connections yet. Apps can still use the web and the model.</p>}
     {adding && !picked && <div className="catalog">
+      <button type="button" className="catalog-entry store-open" onClick={() => setStoreOpen(true)}>
+        <div><strong>Browse the Docker catalog</strong><small>Hundreds of servers, each sandboxed in its own container</small></div>
+        <code>docker</code>
+      </button>
       {catalog.filter((entry) => !items.some((item) => item.id === entry.id)).map((entry) => <button key={entry.id} type="button" className="catalog-entry" onClick={() => { setPicked(entry); setAnswers({}); setError(''); }}>
         <div><strong>{entry.label}</strong><small>{entry.summary}</small></div>
         <code title="Published under an npm scope only this vendor can publish to">{entry.publisher}</code>
@@ -656,5 +662,109 @@ function Connections() {
       <button disabled={busy || !draft.id.trim() || !draft.command.trim()}>{busy ? 'Connecting…' : 'Connect'}</button>
     </form>}
     {error && <p className="connection-error">{error}</p>}
+    {storeOpen && <McpStore onClose={() => setStoreOpen(false)} onChanged={async () => setItems((await api.connections()).connections)} />}
   </section>;
 }
+
+// The Docker MCP Catalog as a grid you browse, not a command you type.
+function McpStore({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const [store, setStore] = useState<Store | null>(null);
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+  const [opened, setOpened] = useState<StoreServer | null>(null);
+  const [secrets, setSecrets] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => { api.store().then(setStore).catch(() => setError('Could not read the Docker catalog.')); }, []);
+
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const server of store?.servers || []) counts.set(server.category, (counts.get(server.category) || 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [store]);
+
+  const shown = useMemo(() => (store?.servers || []).filter((server) => {
+    if (category !== 'all' && server.category !== category) return false;
+    const needle = query.trim().toLowerCase();
+    return !needle || server.title.toLowerCase().includes(needle) || server.description.toLowerCase().includes(needle) || server.name.includes(needle);
+  }).slice(0, 60), [store, query, category]);
+
+  async function install(server: StoreServer) {
+    setBusy(server.name); setError('');
+    try {
+      const result = await api.install(server.name, Object.fromEntries(server.secrets.map((secret) => [secret.name, secrets[secret.name] || ''])));
+      if (result.error) setError(result.error);
+      setStore(await api.store());
+      setOpened(null); setSecrets({});
+      onChanged();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not install that.'); }
+    finally { setBusy(''); }
+  }
+
+  async function remove(server: StoreServer) {
+    setBusy(server.name);
+    try { await api.uninstall(server.name); setStore(await api.store()); onChanged(); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not remove that.'); }
+    finally { setBusy(''); }
+  }
+
+  const isOn = (server: StoreServer) => (store?.enabled || []).includes(server.name);
+
+  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="store-sheet" onMouseDown={(event) => event.stopPropagation()}>
+    <header>
+      <div><span className="eyebrow">DOCKER MCP CATALOG</span><h2>{store ? `${store.servers.length} servers` : 'Loading…'}</h2></div>
+      <button onClick={onClose}>Done</button>
+    </header>
+
+    {store && !store.available && <p className="store-unavailable">{store.error || 'Docker Desktop is not running.'} Start Docker Desktop and reopen this.</p>}
+
+    {store?.available && <>
+      <div className="store-tools">
+        <input placeholder="Search servers" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <div className="store-cats">
+          <button className={category === 'all' ? 'active' : ''} onClick={() => setCategory('all')}>All</button>
+          {categories.map(([name, count]) => <button key={name} className={category === name ? 'active' : ''} onClick={() => setCategory(name)}>{name} <b>{count}</b></button>)}
+        </div>
+      </div>
+
+      <div className="store-grid">
+        {shown.map((server) => <article key={server.name} className={isOn(server) ? 'installed' : ''}>
+          <header>
+            {server.icon ? <img src={server.icon} alt="" loading="lazy" /> : <span className="store-fallback">{server.title.slice(0, 1)}</span>}
+            <div><strong>{server.title}</strong><small>{server.tools.length} tools · {compact(server.pulls)} pulls</small></div>
+          </header>
+          <p>{server.description}</p>
+          <footer>
+            {server.secrets.length > 0 && !isOn(server) && <span className="needs-key" title={server.secrets.map((secret) => secret.env).join(', ')}>needs a key</span>}
+            {isOn(server)
+              ? <button className="remove" disabled={busy === server.name} onClick={() => remove(server)}>{busy === server.name ? '…' : 'Remove'}</button>
+              : <button className="primary" disabled={Boolean(busy)} onClick={() => (server.secrets.length ? setOpened(server) : install(server))}>{busy === server.name ? 'Installing…' : 'Install'}</button>}
+          </footer>
+        </article>)}
+        {!shown.length && <p className="store-unavailable">Nothing matches that.</p>}
+      </div>
+    </>}
+
+    {opened && <div className="store-keys">
+      <strong>{opened.title} needs a key</strong>
+      {opened.secrets.map((secret) => <label key={secret.name}>
+        <span>{secret.env}</span>
+        <input type="password" placeholder={secret.example || 'paste it here'} value={secrets[secret.name] || ''} onChange={(event) => setSecrets({ ...secrets, [secret.name]: event.target.value })} />
+        {secret.description && <small>{stripLinks(secret.description)}</small>}
+      </label>)}
+      <small className="store-note">Stored by Docker Desktop, not by Bricolage.</small>
+      <div><button onClick={() => { setOpened(null); setSecrets({}); }}>Cancel</button><button className="primary" disabled={Boolean(busy)} onClick={() => install(opened)}>{busy ? 'Installing…' : 'Install'}</button></div>
+    </div>}
+
+    {error && <p className="connection-error">{error}</p>}
+  </section></div>;
+}
+
+function compact(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
+  return String(value);
+}
+// Catalog descriptions are markdown; the grid shows plain text.
+function stripLinks(text: string) { return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)'); }

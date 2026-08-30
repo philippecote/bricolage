@@ -67,7 +67,7 @@ Verified end to end: a clean action writes through a connection; the same action
 
 ## What is still not a boundary
 
-**MCP servers.** `npx -y some-package` is remote code execution by design, and a bare stdio server inherits Bricolage's environment — unlike actions, it is not confined. The catalog mitigates this with publisher provenance and pinned versions. The **Docker MCP Gateway** mitigates it properly, by running each server in its own container; prefer it when Docker Desktop is available. Anything added through "Add manually" has whatever access you give it, and the UI shows the exact command before spawning it.
+**MCP servers added outside Docker.** `npx -y some-package` is remote code execution by design, and a bare stdio server inherits Bricolage's environment — unlike actions, it is not confined. The catalog mitigates this with publisher provenance and pinned versions. The **Docker MCP Gateway** mitigates it properly, by running each server in its own container; prefer it when Docker Desktop is available. Anything added through "Add manually" has whatever access you give it, and the UI shows the exact command before spawning it.
 
 **Claude Code builds.** Codex runs turns inside an OS-level `workspace-write` sandbox. Claude Code in print mode has no equivalent, so the tool allowlist (`Read,Write,Edit,Glob,Grep,Bash(node:*)`) is the only boundary, and it is not enforced by the operating system. This applies to *building* apps, not to running them.
 

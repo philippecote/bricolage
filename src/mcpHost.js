@@ -187,6 +187,17 @@ export class McpHost {
     await this.save();
   }
 
+  // The Docker gateway is long-lived and lists its tools once at startup, so
+  // enabling or disabling a server behind it means restarting the connection.
+  async restart(id) {
+    await this.load();
+    const connection = this.connections.get(id);
+    if (!connection) return null;
+    connection.stop();
+    connection.tools = [];
+    return connection;
+  }
+
   async get(id) {
     await this.load();
     const connection = this.connections.get(id);
