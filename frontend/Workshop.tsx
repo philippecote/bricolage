@@ -86,6 +86,8 @@ export function Workshop() {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSpotlight((value) => !value); }
       if (event.key === 'Escape') { setSpotlight(false); setLibrary(false); setSettings(false); setActivityOpen(false); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'w') { event.preventDefault(); setWindows((current) => { const top = [...current].filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]; return top ? current.filter((win) => win.id !== top.id) : current; }); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'm') { event.preventDefault(); setWindows((current) => { const top = [...current].filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]; return top ? current.map((win) => win.id === top.id ? { ...win, minimized: true } : win) : current; }); }
     };
     window.addEventListener('keydown', onKey);
     return () => { mounted = false; clearInterval(timer); clearInterval(reconciler); if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); streams.current.forEach((stream) => stream.close()); };
@@ -111,6 +113,7 @@ export function Workshop() {
         if (message.type === 'action') result = await api.action(message.appId, message.payload.name, message.payload.payload);
         else if (message.type === 'storage.get') result = await api.storage(message.appId, 'get', { key: message.payload.key });
         else if (message.type === 'storage.set') result = await api.storage(message.appId, 'set', message.payload);
+        else if (message.type === 'focus') { focusWindow(message.appId); return; }
         else if (message.type === 'notify') { showToast(String(message.payload.message)); result = true; }
         else if (message.type === 'title') { await renameApp(message.appId, String(message.payload.title)); result = true; }
         else if (message.type === 'link') { const url = new URL(message.payload.url); if (url.protocol !== 'https:') throw new Error('Only HTTPS links are allowed.'); window.open(url, '_blank', 'noopener,noreferrer'); result = true; }
@@ -259,8 +262,16 @@ export function Workshop() {
     } catch { /* app may still be creating */ }
   }
 
-  function focusWindow(id: string) { setWindows((current) => current.map((win) => win.id === id ? { ...win, z: ++maxZ.current } : win)); }
+  function focusWindow(id: string) {
+    setWindows((current) => {
+      const target = current.find((win) => win.id === id);
+      if (!target || target.z === maxZ.current) return current;
+      return current.map((win) => win.id === id ? { ...win, z: ++maxZ.current, minimized: false } : win);
+    });
+  }
   function closeWindow(id: string) { setWindows((current) => current.filter((win) => win.id !== id)); if (inspectorAppId === id) setInspectorAppId(null); }
+  function minimizeWindow(id: string) { windowPatch(id, { minimized: true }); }
+  function restoreWindow(id: string) { setWindows((current) => current.map((win) => win.id === id ? { ...win, minimized: false, z: ++maxZ.current } : win)); }
   function windowPatch(id: string, patch: Partial<WindowState>) { setWindows((current) => current.map((win) => win.id === id ? { ...win, ...patch } : win)); }
 
   function startWindowDrag(event: ReactPointerEvent, win: WindowState) {
@@ -286,6 +297,18 @@ export function Workshop() {
   async function duplicate(app: WorkshopApp) { const result = await api.duplicate(app.id); setApps((items) => [result.app, ...items]); openApp(result.app); showToast('App duplicated'); }
   async function restoreRevision(app: WorkshopApp, revision: number) { await api.restore(app.id, revision); refresh(); windowPatch(app.id, { z: ++maxZ.current }); showToast(`Restored version ${revision}`); }
 
+  const activeWindowId = useMemo(() => [...windows].filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]?.id || null, [windows]);
+  const minimized = useMemo(() => windows.filter((win) => win.minimized), [windows]);
+  // The dock carries pinned apps plus anything currently open, the way a real one does.
+  const docked = useMemo(() => {
+    const byId = new Map(apps.filter((app) => app.pinned && !app.archived).slice(0, 7).map((app) => [app.id, app]));
+    for (const win of windows) {
+      if (byId.has(win.id) || win.minimized) continue;
+      const app = apps.find((item) => item.id === win.id);
+      if (app && !app.archived) byId.set(app.id, app);
+    }
+    return [...byId.values()];
+  }, [apps, windows]);
   const pinned = useMemo(() => apps.filter((app) => app.pinned && !app.archived).slice(0, 7), [apps]);
   const visibleApps = apps.filter((app) => !app.archived);
 
@@ -337,9 +360,9 @@ export function Workshop() {
       const app = apps.find((item) => item.id === win.id); if (!app || win.minimized) return null;
       const inspectorOpen = inspectorAppId === app.id;
       const building = activity.some((item) => item.app.id === app.id && item.working);
-      return <section key={win.id} className={`app-window ${win.maximized ? 'maximized' : ''} ${building ? 'building' : ''}`} style={win.maximized ? { zIndex: win.z } : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.z }} onPointerDown={() => focusWindow(win.id)} aria-label={`${app.name} window`}>
+      return <section key={win.id} className={`app-window ${win.maximized ? 'maximized' : ''} ${building ? 'building' : ''} ${activeWindowId === win.id ? 'active' : 'inactive'}`} style={win.maximized ? { zIndex: win.z } : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.z }} onPointerDown={() => focusWindow(win.id)} aria-label={`${app.name} window`}>
         <header className="window-bar" onPointerDown={(event) => startWindowDrag(event, win)} onDoubleClick={() => windowPatch(win.id, { maximized: !win.maximized })}>
-          <div className="traffic"><button className="close" onClick={() => closeWindow(win.id)} aria-label="Close" /><button className="min" onClick={() => windowPatch(win.id, { minimized: true })} aria-label="Minimize" /><button className="max" onClick={() => windowPatch(win.id, { maximized: !win.maximized })} aria-label="Maximize" /></div>
+          <div className="traffic"><button className="close" onClick={() => closeWindow(win.id)} aria-label="Close" /><button className="min" onClick={() => minimizeWindow(win.id)} aria-label="Minimize" /><button className="max" onClick={() => windowPatch(win.id, { maximized: !win.maximized })} aria-label="Maximize" /></div>
           <span className="window-title"><AppIcon app={app} compact />{app.name}</span>
           <button className={`inspector-toggle ${inspectorOpen ? 'active' : ''}`} onClick={() => setInspectorAppId(inspectorOpen ? null : app.id)} aria-label="Open build studio" title="Build studio">✦</button>
         </header>
@@ -347,7 +370,20 @@ export function Workshop() {
       </section>;
     })}
 
-    <nav className="dock" aria-label="Dock"><button className="dock-item creator" onClick={() => setSpotlight(true)} aria-label="Create app"><span>✦</span><em>Create</em></button><i className="dock-separator" />{pinned.map((app) => <button key={app.id} className={`dock-item ${activity.some((item) => item.app.id === app.id) ? 'working' : ''}`} onClick={() => openApp(app)} aria-label={`Open ${app.name}`}><AppIcon app={app} /><em>{app.name}</em>{windows.some((win) => win.id === app.id) && <b />}</button>)}<i className="dock-separator" /><button className="dock-item" onClick={() => setLibrary(true)} aria-label="App library"><span className="library-icon">⌘</span><em>Library</em></button><button className="dock-item" onClick={() => setSettings(true)} aria-label="Settings"><span className="settings-icon">⚙</span><em>Settings</em></button></nav>
+    <nav className="dock" aria-label="Dock">
+      <button className="dock-item creator" onClick={() => setSpotlight(true)} aria-label="Create app"><span>✦</span><em>Create</em></button>
+      <i className="dock-separator" />
+      {docked.map((app) => <button key={app.id} className={`dock-item ${activity.some((item) => item.app.id === app.id) ? 'working' : ''}`} onClick={() => (windows.some((win) => win.id === app.id) ? focusWindow(app.id) : openApp(app))} aria-label={`Open ${app.name}`}><AppIcon app={app} /><em>{app.name}</em>{windows.some((win) => win.id === app.id && !win.minimized) && <b />}</button>)}
+      {minimized.length > 0 && <i className="dock-separator" />}
+      {minimized.map((win) => {
+        const app = apps.find((item) => item.id === win.id);
+        if (!app) return null;
+        return <button key={`min-${win.id}`} className="dock-item minimized" onClick={() => restoreWindow(win.id)} aria-label={`Restore ${app.name}`}><AppIcon app={app} /><em>{app.name}</em></button>;
+      })}
+      <i className="dock-separator" />
+      <button className="dock-item" onClick={() => setLibrary(true)} aria-label="App library"><span className="library-icon">⌘</span><em>Library</em></button>
+      <button className="dock-item" onClick={() => setSettings(true)} aria-label="Settings"><span className="settings-icon">⚙</span><em>Settings</em></button>
+    </nav>
     {activityOpen && <ActivityRail items={activity} onClose={() => setActivityOpen(false)} onOpen={(app) => { openApp(app, true); setActivityOpen(false); }} onApprove={resolveApproval} />}
     {spotlight && <Spotlight apps={visibleApps} onClose={() => setSpotlight(false)} onCreate={create} onOpen={(app) => { openApp(app); setSpotlight(false); }} />}
     {library && <Library apps={apps} onClose={() => setLibrary(false)} onOpen={openApp} onRestore={async (app) => { await api.patch(app.id, { archived: false }); refresh(); }} />}

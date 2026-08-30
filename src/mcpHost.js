@@ -51,9 +51,9 @@ class McpConnection {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: {},
         clientInfo: { name: 'workshop', version: '1.0.0' },
-      });
+      }, config.mcpStartTimeoutMs);
       this.notify('notifications/initialized', {});
-      const listed = await this.request('tools/list', {});
+      const listed = await this.request('tools/list', {}, config.mcpStartTimeoutMs);
       this.tools = (listed?.tools || []).map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || {} }));
     })();
     try { await this.ready; } catch (error) { this.ready = null; throw error; }
@@ -70,7 +70,7 @@ class McpConnection {
     else pending.resolve(message.result);
   }
 
-  request(method, params) {
+  request(method, params, timeoutMs = config.mcpTimeoutMs) {
     if (!this.process?.stdin.writable) return Promise.reject(new Error(`${this.definition.label} is not running.`));
     const id = this.nextId++;
     const promise = new Promise((resolve, reject) => {
@@ -79,7 +79,7 @@ class McpConnection {
         if (!this.pending.has(id)) return;
         this.pending.delete(id);
         reject(new Error(`${this.definition.label} did not respond in time.`));
-      }, config.mcpTimeoutMs);
+      }, timeoutMs);
     });
     this.process.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
     return promise;

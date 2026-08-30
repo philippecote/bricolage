@@ -1,6 +1,6 @@
 {
   "id": "an-app-to-help-29683",
-  "name": "Library",
+  "name": "Today",
   "description": "A guided stretching coach with image-led exercises, personalized routines, progress tracking, and configurable reminders.",
   "icon": "✦",
   "accent": "#f57862",
@@ -9,13 +9,15 @@
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T02:30:03.618Z",
-  "updatedAt": "2026-08-30T02:44:47.222Z",
+  "updatedAt": "2026-08-30T10:36:32.455Z",
   "window": {
     "width": 920,
     "height": 680
   },
   "actions": [],
+  "connections": [],
   "threadId": "01a05080-a695-7aa2-ada7-88ca2f070227",
+  "threadAgent": null,
   "revision": 2,
   "model": "luna-high",
   "error": null

@@ -1,6 +1,6 @@
 import type { BuildSummary, Connection, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const method = options.method || 'GET';
@@ -8,7 +8,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const trace = (event: string, extra: Record<string, unknown> = {}) => console.info('[Workshop trace]', event, { method, endpoint, at: Date.now(), ...extra });
     trace('request:start', { hasBody: Boolean(options.body), query: path.includes('?') });
     xhr.open(method, path);
-    xhr.timeout = 10_000;
+    xhr.timeout = options.timeoutMs ?? 10_000;
     // Keep bodyless GETs simple; the embedded browser can reject non-simple headers.
     const headers = new Headers(options.body ? { 'content-type': 'application/json', ...options.headers } : options.headers);
     headers.forEach((value, name) => xhr.setRequestHeader(name, value));
@@ -90,8 +90,10 @@ export const api = {
   answerBuild: (id: string, answers: Record<string, string>) => request<{ build: BuildSummary }>(`/api/builds/${id}/answers`, { method: 'POST', body: JSON.stringify({ answers }) }),
   cancelBuild: (id: string) => request<{ build: BuildSummary }>(`/api/builds/${id}/cancel`, { method: 'POST', body: '{}' }),
   connections: () => request<{ connections: Connection[] }>('/api/connections'),
+  // Starting a server can mean npx downloading a package first, which is far
+  // past the default budget.
   addConnection: (definition: { id: string; label: string; command: string; args: string[] }) =>
-    request<{ connection: Connection; tools: string[]; error: string | null }>('/api/connections', { method: 'POST', body: JSON.stringify(definition) }),
+    request<{ connection: Connection; tools: string[]; error: string | null }>('/api/connections', { method: 'POST', body: JSON.stringify(definition), timeoutMs: 120_000 }),
   removeConnection: (id: string) => request(`/api/connections/${id}`, { method: 'DELETE', body: '{}' }),
   action: (id: string, name: string, payload: unknown) => request(`/api/apps/${id}/actions/${name}`, { method: 'POST', body: JSON.stringify({ payload }) }),
   storage: (id: string, operation: 'get' | 'set', payload: unknown) => request(`/api/apps/${id}/storage/${operation}`, { method: 'POST', body: JSON.stringify(payload) }),

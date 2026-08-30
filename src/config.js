@@ -27,6 +27,8 @@ export const config = {
   llmTimeoutMs: 45_000,
   llmMaxCallsPerAction: 8,
   mcpTimeoutMs: 20_000,
+  // First contact may download the server package; a tool call must not wait that long.
+  mcpStartTimeoutMs: 90_000,
   mcpMaxCallsPerAction: 12,
   actionMaxRepairAttempts: 2,
   // Long enough for an action to make a model call with web search and still

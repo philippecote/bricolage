@@ -204,6 +204,7 @@ Build a polished, dependency-free mini-app. You may only edit files in this work
 Load and follow the workshop-app-builder skill in this workspace (.codex/skills/ or .claude/skills/workshop-app-builder/SKILL.md). A new app begins with a shaping turn that returns the skill's JSON brief and writes nothing; the build request that follows carries the person's answers.
 
 - Write the complete app to runtime/index.html with inline CSS and JavaScript.
+- The person watches runtime/index.html live: Workshop reloads their preview after every write. Make the first write a complete, recognisable document and refine it in passes; never leave the file truncated between edits.
 - Update manifest.json without changing id, createdAt, threadId, revision, or status.
 - Use window.Workshop.callAction(name, payload), notify(message), setTitle(title), and storage.get/set.
 - For server work, add actions/<name>.js exporting async function handler(input, ctx), then list the action in manifest.actions.

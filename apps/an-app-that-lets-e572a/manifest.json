@@ -6,10 +6,10 @@
   "accent": "#6d5dfc",
   "status": "ready",
   "prompt": "An app that lets you explore any topic through a mind map-style interface. When you click a node, it expands with related topics and gives you a little article on the side to read about that topic that you just clicked. It allows you to browse freely through associations through any topic, basically to dive deeper or go back. Make it super easy to navigate and really engaging. Make the front end very appealing and well animated.",
-  "pinned": false,
+  "pinned": true,
   "archived": false,
   "createdAt": "2026-08-30T02:04:27.616Z",
-  "updatedAt": "2026-08-30T02:36:32.783Z",
+  "updatedAt": "2026-08-30T10:38:03.967Z",
   "window": {
     "width": 920,
     "height": 680
@@ -17,7 +17,9 @@
   "actions": [
     "explore-topic"
   ],
+  "connections": [],
   "threadId": "01a05069-366b-7d40-9cd9-a55f709bcc36",
+  "threadAgent": null,
   "revision": 7,
   "model": "luna-high",
   "error": null

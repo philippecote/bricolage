@@ -58,6 +58,15 @@ export async function handler(input, ctx) {
 - Surface `sources` in the interface whenever an answer came from the web, and design a visible loading state — these calls take a second or two.
 - Handle the failure: a model call can time out or return unusable JSON, and the app must stay usable when it does.
 
+## The person is watching
+
+Workshop reloads the live preview every time you finish writing to `runtime/`. The window beside you is not a build log — it is the app, updating as you work. Build for that.
+
+- **Write a complete document on your first pass.** Real structure, real copy, a visible empty state — something a person can look at and recognise as their app. Never leave `runtime/index.html` truncated or half-written between edits; a preview that reloads onto a blank file reads as a crash.
+- **Then refine in place, in passes with meaning**: layout → visual design → interaction → states and details. Each pass should visibly improve the thing on screen.
+- **Get something on screen early.** A plain but honest first version after your first minute beats a polished one that appears only at the end. The wait is the worst part of the experience and you are the only one who can shorten it.
+- Do not write scaffolding, lorem ipsum, or "TODO" content into the runtime. Whatever lands there is what the person sees.
+
 ## Product judgment
 
 - Prefer a focused app with one excellent workflow over a collection of shallow features.

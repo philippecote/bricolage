@@ -451,11 +451,44 @@ button { cursor: pointer; }
   border-bottom: 1px solid var(--line-soft);
   user-select: none;
 }
+/* A window that is not frontmost recedes: shallower shadow, muted lights, quiet
+   title — the same cue that makes a real desktop readable at a glance. */
+.app-window.inactive { box-shadow: var(--elev-2); }
+.app-window.inactive .window-bar { background: color-mix(in srgb, var(--surface-solid) 45%, transparent); }
+.app-window.inactive .window-title { color: var(--ink-faint); }
+.app-window.inactive .traffic button { background: var(--line-strong); box-shadow: none; }
+
 .traffic { display: flex; gap: var(--s2); }
-.traffic button { width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .09); }
+.traffic button {
+  position: relative;
+  width: 12px; height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .09);
+  transition: background var(--dur-fast) var(--ease);
+}
 .traffic .close { background: #ff5f57; }
 .traffic .min { background: #febc2e; }
 .traffic .max { background: #28c840; }
+/* Glyphs appear on hover anywhere in the cluster, as they do on macOS. */
+.traffic button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(0, 0, 0, .55);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.traffic:hover button::after { opacity: 1; }
+.traffic .close::after { content: "✕"; }
+.traffic .min::after { content: "–"; }
+.traffic .max::after { content: "+"; }
 .window-title { display: flex; align-items: center; gap: var(--s2); font-size: var(--text-sm); font-weight: var(--weight-semi); }
 .inspector-toggle {
   justify-self: end;
@@ -727,6 +760,8 @@ button { cursor: pointer; }
 }
 .dock-item > b { position: absolute; bottom: -3px; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-muted); }
 .dock-separator { width: 1px; height: 40px; margin: 0 var(--s1); background: var(--line); }
+.dock-item.minimized .app-icon { opacity: .72; transform: scale(.86); box-shadow: var(--elev-1); }
+.dock-item.minimized:hover .app-icon { opacity: 1; }
 
 /* ============================================================================
    Overlays: spotlight, library, settings

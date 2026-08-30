@@ -9,7 +9,7 @@
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T00:57:56.335Z",
-  "updatedAt": "2026-08-30T02:43:05.662Z",
+  "updatedAt": "2026-08-30T10:37:44.993Z",
   "window": {
     "width": 920,
     "height": 680
@@ -17,7 +17,9 @@
   "actions": [
     "search-books"
   ],
+  "connections": [],
   "threadId": "01a0502c-4f8e-79b3-b310-f4d4e4698d26",
+  "threadAgent": null,
   "revision": 1,
   "model": "luna-high",
   "error": null
