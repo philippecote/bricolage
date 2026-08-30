@@ -1369,18 +1369,19 @@ button { cursor: pointer; }
   resize: none;
   z-index: 50000 !important;
 }
+/* The bar stays. An auto-hiding one cannot work here: the window body is an
+   iframe, and pointer events inside it never reach anything outside that frame,
+   so nothing can reveal a bar that has slid away — it left a 5px target that was
+   effectively unclickable. Full screen still gains the menu bar and the Dock, so
+   the bar just gets quieter and slimmer instead of disappearing. */
 .app-window.fullscreen .window-bar {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  z-index: 2;
-  background: color-mix(in srgb, var(--surface-solid) 82%, transparent);
-  backdrop-filter: blur(20px);
-  transform: translateY(-100%);
-  transition: transform var(--dur) var(--ease);
+  height: 34px;
+  background: color-mix(in srgb, var(--surface-solid) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border-bottom-color: transparent;
 }
-.app-window.fullscreen:hover .window-bar,
-.app-window.fullscreen .window-bar:focus-within { transform: translateY(0); }
-.app-window.fullscreen .window-body { height: 100%; }
+.app-window.fullscreen .window-title { font-size: var(--text-xs); color: var(--ink-muted); }
+.app-window.fullscreen .window-body { height: calc(100% - 34px); }
 
 .library-tools { flex-wrap: wrap; gap: var(--s2); }
 .library-tools input { flex: 1; min-width: 180px; }

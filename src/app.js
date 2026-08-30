@@ -218,7 +218,19 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
     try { await store.disable(req.params.name); await mcp.restart('docker'); res.json({ status: 'ok' }); } catch (e) { e.statusCode ||= 400; next(e); }
   });
 
-  app.get('/api/connections', async (_req, res, next) => { try { res.json({ connections: await mcp.list() }); } catch (e) { next(e); } });
+  app.get('/api/connections', async (req, res, next) => {
+    try {
+      const connections = await mcp.list();
+      // list() reports what a connection has already told us, which is nothing
+      // until it starts. ?probe=1 starts them, for callers that need the tools.
+      if (req.query.probe) {
+        const described = await mcp.describe(connections.filter((item) => item.enabled).map((item) => item.id));
+        const detail = new Map(described.map((entry) => [entry.id, entry]));
+        return res.json({ connections: connections.map((item) => ({ ...item, tools: (detail.get(item.id)?.tools || []).map((tool) => ({ name: tool.name, args: Object.keys(tool.inputSchema?.properties || {}), required: tool.inputSchema?.required || [] })), error: detail.get(item.id)?.error || item.error })) });
+      }
+      res.json({ connections });
+    } catch (e) { next(e); }
+  });
   app.post('/api/connections', async (req, res, next) => {
     try {
       const definition = await mcp.add(parse(connectionSchema, req.body));

@@ -12,7 +12,7 @@ Turn a personal app idea into a polished, dependable mini-app without exposing i
 1. Shape the idea. A new app starts with a shaping turn that produces the JSON brief below; Workshop shows your questions to the person and hands their answers back. Follow-up edits skip shaping.
 2. Make a compact plan. Three to five outcome-oriented steps, including one that verifies the primary user journey.
 3. Implement the complete experience. Keep the first usable version small, cohesive, and visually intentional. Preserve working behavior during follow-up edits.
-4. Check the result. Validate JavaScript syntax, exercise the main interaction, and confirm loading, empty, error, and saved-state behavior where relevant.
+4. Check the result. Run every action you wrote with `node .bricolage/try.mjs <action> '<json>'` — it calls the real server with the real connections, so the output is what the person will get. Validate JavaScript syntax, and confirm loading, empty, error and saved-state behaviour where relevant. Do not build a harness or fake a DOM to test: run the action.
 5. Finish clearly. Summarize what changed and what was checked. Do not leave the user wondering whether work is still running.
 
 ## The shaping turn

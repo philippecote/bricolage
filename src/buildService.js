@@ -175,7 +175,7 @@ export class BuildService extends EventEmitter {
     ]);
     const usable = described.filter((entry) => entry.tools?.length);
     if (!usable.length) return '';
-    const lines = usable.map((entry) => `- ${entry.id} (${entry.label}): ${entry.tools.map((tool) => tool.name + (tool.description ? ` — ${tool.description.slice(0, 90)}` : '')).join('; ')}`);
+    const lines = usable.map((entry) => `- ${entry.id} (${entry.label}):\n${entry.tools.map((tool) => `    ${tool.name}(${signature(tool)})${tool.description ? ` — ${tool.description.split('\n')[0].slice(0, 100)}` : ''}`).join('\n')}`);
     return `\n\nConnections this Workshop can reach from an action, as ctx.mcp('<id>').call('<tool>', args):\n${lines.join('\n')}\nUse one only if the app genuinely needs it, list every one you use in manifest.connections, and never invent an id or tool that is not above.`;
   }
 
@@ -444,6 +444,15 @@ function slugQuestionId(id, prompt, seen) {
   let suffix = 2;
   while (seen.has(candidate)) candidate = `${base}-${suffix++}`;
   return candidate;
+}
+
+// Argument names, so an action does not have to guess between `path` and `directory`.
+function signature(tool) {
+  const schema = tool.inputSchema || {};
+  const properties = Object.keys(schema.properties || {});
+  if (!properties.length) return '';
+  const required = new Set(schema.required || []);
+  return properties.slice(0, 8).map((name) => (required.has(name) ? name : `${name}?`)).join(', ');
 }
 
 function makePlan(edit) {
