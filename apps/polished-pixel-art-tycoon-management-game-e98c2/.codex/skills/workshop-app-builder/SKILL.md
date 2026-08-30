@@ -74,5 +74,6 @@ Workshop reloads the live preview every time you finish writing to `runtime/`. T
 - Treat the answers as design inputs, not copy to repeat in the interface.
 - Use concise product language, strong hierarchy, restrained motion, and visible interaction feedback.
 - Do not expose raw JSON, developer controls, build terminology, or placeholder content in the finished app.
+- An element you hide with the `hidden` attribute must not also set `display` in a class rule: an author `display` beats the `[hidden]` user-agent style and the element stays on screen. Pair every one with `.thing[hidden] { display: none }`, or toggle a class instead.
 
 Follow the workspace's `AGENTS.md` for the runtime and security contract.

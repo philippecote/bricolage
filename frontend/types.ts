@@ -2,7 +2,7 @@ export type AppStatus = 'draft' | 'building' | 'ready' | 'failed' | 'archived';
 export interface WorkshopApp {
   id: string; name: string; description: string; icon: string; accent: string; status: AppStatus;
   prompt: string; pinned: boolean; archived: boolean; createdAt: string; updatedAt: string;
-  window: { width: number; height: number }; actions: string[]; connections?: string[]; threadId: string | null; revision: number; model: ModelPreset; error: string | null;
+  window: { width: number; height: number }; actions: string[]; connections?: string[]; category?: string; handles?: string[]; threadId: string | null; revision: number; model: ModelPreset; error: string | null;
 }
 export type ModelPreset = 'luna-high' | 'luna-max' | 'sol-medium' | 'opus-5-high';
 export interface BuildQuestion { id: string; prompt: string; options: string[] }

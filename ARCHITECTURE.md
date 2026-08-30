@@ -125,6 +125,16 @@ window.Workshop.notify(message) / .setTitle(title) / .openLink(httpsUrl)
 
 Every call is a postMessage round-trip with a **15-second timeout** — without one, a lost reply left the promise pending forever and the app stuck in its loading state. The bridge also forwards `pointerdown`, because events inside an iframe never reach the parent document and the window manager needs to know you clicked.
 
+## Opening files
+
+Opening a file is a desktop verb. An app calls `Bricolage.open({ connection, path })`; the host finds an app whose `manifest.handles` covers that extension, mints a **grant** — an opaque id standing for one file, from one connection, for ten minutes — and opens the handler with it. The asking app never learns which app answered, and the handler never receives a path it could walk.
+
+Bytes do not travel through the action bridge, which caps request payloads at 128KB and would need base64 on top. Media is fetched from `/api/files/<grant>` as a normal `src`; text comes back over the bridge via `Bricolage.readFile(grant)`, since a viewer is an opaque origin and cannot read even a same-host subframe.
+
+An app that declares `handles` is served a widened CSP: its own origin is added to `img-src`, `media-src`, `frame-src` and `object-src` — **`connect-src` stays `'none'`**, so it can display a file it was handed and still cannot fetch or exfiltrate anything.
+
+When nothing handles a type, that is not an error: the desktop agent is asked whether a viewer for it is worth building.
+
 ## Actions
 
 Action code runs server-side in `node:vm` with an injected, frozen context:

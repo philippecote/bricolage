@@ -101,6 +101,8 @@ export const api = {
   cancelBuild: (id: string) => request<{ build: BuildSummary }>(`/api/builds/${id}/cancel`, { method: 'POST', body: '{}' }),
   connections: () => request<{ connections: Connection[] }>('/api/connections'),
   catalog: () => request<{ catalog: CatalogEntry[] }>('/api/connections/catalog'),
+  openFile: (connection: string, path: string) =>
+    request<{ grant: string; name: string; ext: string; mime: string; handler: { id: string; name: string } | null }>('/api/files/open', { method: 'POST', body: JSON.stringify({ connection, path }), timeoutMs: 30_000 }),
   store: () => request<Store>('/api/store', { timeoutMs: 60_000 }),
   // Pulling an image and starting a container is well past the default budget.
   install: (name: string, secrets: Record<string, string>) =>

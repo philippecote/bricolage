@@ -14,6 +14,7 @@ import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildSer
 import { executeAction } from './sandbox.js';
 import { safeFetch } from './network.js';
 import { createTaintGuard } from './taint.js';
+import { FileGrants, extensionOf, mimeFor, readThroughConnection } from './fileGrants.js';
 import { ensureStorage, hasActionCode, readActionCode, readSpec, writeActionCode, writeSpec } from './storage.js';
 import {
   atomicWrite, createRevision, duplicateApp, ensureAgentContract, ensureWorkshopStorage, getAppActionPath, getAppDataPath,
@@ -72,6 +73,7 @@ function optionalAppLlm() { if (!config.openaiApiKey) return null; try { return 
 
 export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), store = new DockerCatalog(), desktop = optionalDesktopAgent(appLlm, (appId, action, payload) => runAppAction(appId, action, payload)), buildService = null } = {}) {
   const builds = buildService || new BuildService({ codex, claude, mcp });
+  const grants = new FileGrants();
   const app = express();
   app.disable('x-powered-by');
   // Trace before body parsing so a stalled/blocked request is visible.
@@ -158,6 +160,34 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
   });
   // The Docker MCP Catalog, browsable. Docker curates and pins these; Bricolage
   // reads its catalog rather than reproducing any of it.
+  // An app asks to open a file; the host decides which app handles it and mints
+  // a grant for that one file. The asking app never learns the answer's path.
+  app.post('/api/files/open', async (req, res, next) => {
+    try {
+      const input = parse(z.object({ connection: z.string().min(1).max(64), path: z.string().min(1).max(4096), from: z.string().max(64).optional() }), req.body);
+      const apps = await listApps();
+      const ext = extensionOf(input.path);
+      const handler = apps.find((item) => (item.handles || []).includes(ext) && item.status === 'ready') || null;
+      const grant = grants.issue({ connection: input.connection, filePath: input.path, appId: handler?.id || null });
+      res.json({ grant: grant.id, name: grant.name, ext, mime: grant.mime, handler: handler ? { id: handler.id, name: handler.name } : null });
+    } catch (e) { e.statusCode ||= 400; next(e); }
+  });
+
+  app.get('/api/files/:grant', async (req, res, next) => {
+    try {
+      const grant = grants.get(req.params.grant);
+      const connection = await mcp.get(grant.connection);
+      const bytes = await readThroughConnection(connection, grant.filePath);
+      if (bytes.length > config.maxOpenFileBytes) throw new Error('That file is too large to open.');
+      res.setHeader('content-type', mimeFor(grant.filePath));
+      // Viewers render this inside a sandboxed frame; never let it navigate away.
+      res.setHeader('content-security-policy', "default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; sandbox");
+      res.setHeader('x-content-type-options', 'nosniff');
+      res.setHeader('cache-control', 'no-store');
+      res.send(bytes);
+    } catch (e) { e.statusCode ||= 502; next(e); }
+  });
+
   app.get('/api/store', async (_req, res, next) => {
     try {
       const state = await store.available();
@@ -263,7 +293,14 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       const html = await fs.readFile(getRuntimePath(req.params.appId), 'utf8');
       const bridge = `<script>${runtimeBridge(req.params.appId)}</script>`;
       const output = html.includes('</head>') ? html.replace('</head>', `${bridge}</head>`) : bridge + html;
-      res.setHeader('content-security-policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'");
+      // A viewer needs to render bytes the host serves, so its own origin is
+      // added for media and frames only. connect-src stays 'none': it can show
+      // a file it was handed, and still cannot fetch or exfiltrate anything.
+      const manifest = await readManifest(req.params.appId).catch(() => null);
+      const origin = `${req.protocol}://${req.get('host')}`;
+      const viewer = (manifest?.handles || []).length > 0;
+      const media = viewer ? `img-src data: blob: https: ${origin}; media-src blob: ${origin}; frame-src blob: ${origin}; object-src blob: ${origin};` : "img-src data: https:;";
+      res.setHeader('content-security-policy', `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; ${media} font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'`);
       res.type('html').send(output);
     } catch (e) { e.statusCode = e.code === 'ENOENT' ? 404 : 400; next(e); }
   });
@@ -394,7 +431,7 @@ function createAppStorage(appId) {
 // The bridge also forwards pointerdown: events inside an iframe never reach the
 // parent document, so without this only the title bar could raise a window.
 function runtimeBridge(appId) {
-  return `(function(){let n=0;const p=new Map();window.Bricolage=window.Workshop={callAction:(name,payload)=>call('action',{name,payload}),notify:(message)=>call('notify',{message}),setTitle:(title)=>call('title',{title}),openLink:(url)=>call('link',{url}),storage:{get:(key)=>call('storage.get',{key}),set:(key,value)=>call('storage.set',{key,value})}};addEventListener('pointerdown',function(){parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},type:'focus'},'*')},true);function call(type,payload){const id=++n;parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},id,type,payload},'*');return new Promise((resolve,reject)=>{p.set(id,{resolve,reject});setTimeout(function(){if(p.has(id)){p.delete(id);reject(new Error('Workshop did not respond.'))}},15000)})}addEventListener('message',e=>{const m=e.data;if(!m||m.source!=='workshop-host'||!p.has(m.id))return;const q=p.get(m.id);p.delete(m.id);m.error?q.reject(new Error(m.error)):q.resolve(m.result)})})();`;
+  return `(function(){let n=0;const p=new Map();window.Bricolage=window.Workshop={open:(ref)=>call('open',ref),readFile:(grant)=>call('readFile',{grant}),callAction:(name,payload)=>call('action',{name,payload}),notify:(message)=>call('notify',{message}),setTitle:(title)=>call('title',{title}),openLink:(url)=>call('link',{url}),storage:{get:(key)=>call('storage.get',{key}),set:(key,value)=>call('storage.set',{key,value})}};addEventListener('pointerdown',function(){parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},type:'focus'},'*')},true);function call(type,payload){const id=++n;parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},id,type,payload},'*');return new Promise((resolve,reject)=>{p.set(id,{resolve,reject});setTimeout(function(){if(p.has(id)){p.delete(id);reject(new Error('Workshop did not respond.'))}},15000)})}addEventListener('message',e=>{const m=e.data;if(!m||m.source!=='workshop-host'||!p.has(m.id))return;const q=p.get(m.id);p.delete(m.id);m.error?q.reject(new Error(m.error)):q.resolve(m.result)})})();`;
 }
 
 async function migrateStarters() {

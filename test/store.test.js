@@ -73,3 +73,23 @@ describe('docker catalog', () => {
     expect(await new DockerCatalog({ spawnFn }).available()).toEqual({ available: false, error: 'Docker Desktop is not running' });
   });
 });
+
+describe('mcp result shape', () => {
+  it('treats a text wrapper as no structure at all', async () => {
+    const { usefulStructure } = await import('../src/mcpHost.js');
+
+    // Some servers put their own text in structuredContent. That is not
+    // structure, and preferring it made apps parse the wrapper instead of the
+    // answer — which is exactly how a working file browser showed nothing.
+    expect(usefulStructure({ content: 'Allowed:\n/a' })).toBeNull();
+    expect(usefulStructure({ text: 'hello' })).toBeNull();
+
+    // Real structure passes through untouched.
+    expect(usefulStructure({ entries: [1, 2] })).toEqual({ entries: [1, 2] });
+    expect(usefulStructure({ content: 'x', more: 1 })).toEqual({ content: 'x', more: 1 });
+    expect(usefulStructure({ content: ['not a string'] })).toEqual({ content: ['not a string'] });
+
+    expect(usefulStructure(null)).toBeNull();
+    expect(usefulStructure('a string')).toBeNull();
+  });
+});

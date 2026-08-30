@@ -30,6 +30,8 @@ export const config = {
   desktopMaxSteps: 6,
   dockerBin: process.env.DOCKER_BIN || 'docker',
   dockerCatalogTtlMs: 5 * 60_000,
+  fileGrantTtlMs: 10 * 60_000,
+  maxOpenFileBytes: 32 * 1024 * 1024,
   mcpTimeoutMs: 20_000,
   // First contact may download the server package; a tool call must not wait that long.
   mcpStartTimeoutMs: 90_000,

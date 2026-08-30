@@ -17,6 +17,7 @@ const MODEL_PRESETS = {
 };
 export const MODEL_KEYS = Object.keys(MODEL_PRESETS);
 export const DEFAULT_MODEL = 'luna-high';
+export const CATEGORIES = ['utilities', 'productivity', 'creativity', 'games', 'information', 'data', 'wellbeing', 'other'];
 
 export class BuildService extends EventEmitter {
   constructor({ codex, claude = null, agents = null, mcp = null }) {
@@ -113,10 +114,11 @@ export class BuildService extends EventEmitter {
 
   async completeDiscovery(build, turn) {
     const brief = parseDiscovery(agentTextFrom(turn) || build.agentText);
-    if (brief?.name || brief?.summary) {
+    if (brief?.name || brief?.summary || brief?.category) {
       await writeManifest(build.appId, {
         ...(brief.name ? { name: brief.name.slice(0, 64) } : {}),
         ...(brief.summary ? { description: brief.summary.slice(0, 240) } : {}),
+        ...(brief.category ? { category: brief.category } : {}),
       }).catch(() => {});
     }
     build.plan = brief?.plan?.length ? brief.plan.slice(0, 6) : makePlan(false);
@@ -401,6 +403,7 @@ export function parseDiscovery(text = '') {
     if (!('questions' in parsed) && !('summary' in parsed) && !('plan' in parsed)) continue;
     return {
       name: typeof parsed.name === 'string' ? parsed.name.trim() : null,
+      category: CATEGORIES.includes(parsed.category) ? parsed.category : null,
       summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : null,
       plan: Array.isArray(parsed.plan) ? parsed.plan.filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim().slice(0, 120)) : [],
       questions: normalizeQuestions(parsed.questions),
@@ -460,6 +463,7 @@ Reply with nothing but a single \`\`\`json fenced block in exactly this shape:
 {
   "name": "Short app name, at most four words",
   "summary": "One sentence describing the app you intend to build",
+  "category": "one of: utilities, productivity, creativity, games, information, data, wellbeing, other",
   "questions": [
     { "id": "kebab-case-id", "prompt": "A short plain-language question", "options": ["Concrete choice", "Concrete choice", "Concrete choice"] }
   ],

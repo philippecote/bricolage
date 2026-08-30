@@ -121,10 +121,21 @@ class McpConnection {
     // the structure; the text is the fallback so an action always gets something.
     const text = (result?.content || []).filter((part) => part.type === 'text').map((part) => part.text).join('\n');
     if (result?.isError) throw new Error(text || `${toolName} failed.`);
-    return { output: result?.structuredContent ?? null, text, raw: result?.content || [] };
+    // `output` is whichever representation is actually useful. Some servers put
+    // real structure in structuredContent; others just wrap their text in it
+    // ({ content: "..." }), which is worse than the text and led apps that
+    // reasonably prefer `output` to parse the wrapper instead of the answer.
+    return { output: usefulStructure(result?.structuredContent) ?? (text || null), text, raw: result?.content || [] };
   }
 
   stop() { this.process?.kill(); this.process = null; this.ready = null; }
+}
+
+export function usefulStructure(value) {
+  if (!value || typeof value !== 'object') return null;
+  const keys = Object.keys(value);
+  if (keys.length === 1 && (keys[0] === 'content' || keys[0] === 'text') && typeof value[keys[0]] === 'string') return null;
+  return value;
 }
 
 export class McpHost {

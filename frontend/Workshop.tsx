@@ -12,7 +12,7 @@ const JOURNEY = [
   ['questions', 'Shape'], ['planning', 'Plan'], ['editing', 'Make'], ['checking', 'Check'], ['previewing', 'Preview'], ['complete', 'Done'],
 ] as const;
 
-type WindowState = { id: string; x: number; y: number; width: number; height: number; minimized: boolean; maximized: boolean; z: number };
+type WindowState = { id: string; x: number; y: number; width: number; height: number; minimized: boolean; maximized: boolean; z: number; file?: { grant: string; name: string } };
 type Point = { x: number; y: number };
 
 // Column-major from the right edge: fill down, then step left. The old default
@@ -129,6 +129,14 @@ export function Workshop() {
         else if (message.type === 'storage.get') result = await api.storage(message.appId, 'get', { key: message.payload.key });
         else if (message.type === 'storage.set') result = await api.storage(message.appId, 'set', message.payload);
         else if (message.type === 'focus') { focusWindow(message.appId); return; }
+        else if (message.type === 'open') { result = await openFile(message.payload); }
+        else if (message.type === 'readFile') {
+          // The desktop is same-origin with the host, so it can read the grant
+          // and hand the text down to an app that cannot fetch anything itself.
+          const response = await fetch(`/api/files/${encodeURIComponent(String(message.payload.grant))}`);
+          if (!response.ok) throw new Error('That file could not be read.');
+          result = { text: await response.text() };
+        }
         else if (message.type === 'notify') { showToast(String(message.payload.message)); result = true; }
         else if (message.type === 'title') { await renameApp(message.appId, String(message.payload.title)); result = true; }
         else if (message.type === 'link') { const url = new URL(message.payload.url); if (url.protocol !== 'https:') throw new Error('Only HTTPS links are allowed.'); window.open(url, '_blank', 'noopener,noreferrer'); result = true; }
@@ -335,6 +343,29 @@ export function Workshop() {
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
 
+  // Resolving a handler is the host's job, so a finder does not have to know how
+  // to render anything — and when nothing handles the type, that is a moment to
+  // offer to build one rather than an error.
+  async function openFile(ref: { connection?: string; path?: string }) {
+    if (!ref?.connection || !ref?.path) throw new Error('open needs { connection, path }.');
+    const result = await api.openFile(ref.connection, ref.path);
+    if (!result.handler) {
+      showToast(`Nothing opens .${result.ext} yet`);
+      sayToDesktop(`I tried to open ${result.name} and nothing on my desktop handles .${result.ext} files. Would a small viewer for them be worth building?`);
+      return { opened: false, reason: 'no-handler', ext: result.ext };
+    }
+    const app = apps.find((item) => item.id === result.handler!.id);
+    if (!app) throw new Error('That viewer is no longer installed.');
+    setWindows((current) => {
+      const rest = current.filter((win) => win.id !== app.id);
+      const memory = stored<Record<string, WindowState>>('workshop-window-positions', {})[app.id];
+      const base = memory || { id: app.id, x: 92, y: 88, width: Math.min(app.window.width, innerWidth - 48), height: Math.min(app.window.height, innerHeight - 120), minimized: false, maximized: false, z: 0 };
+      return [...rest, { ...base, id: app.id, minimized: false, z: ++maxZ.current, file: { grant: result.grant, name: result.name } }];
+    });
+    loadDetails(app.id);
+    return { opened: true, handler: app.name, name: result.name };
+  }
+
   function tidyIcons() { setIconPositions({}); showToast('Icons tidied'); }
 
   async function renameApp(id: string, name: string) { const result = await api.patch(id, { name }); setApps((items) => items.map((item) => item.id === id ? result.app : item)); }
@@ -413,7 +444,7 @@ export function Workshop() {
           <span className="window-title"><AppIcon app={app} compact />{app.name}</span>
           <button className={`inspector-toggle ${inspectorOpen ? 'active' : ''}`} onClick={() => setInspectorAppId(inspectorOpen ? null : app.id)} aria-label="Open build studio" title="Build studio">✦</button>
         </header>
-        <div className="window-body"><iframe title={app.name} src={`/runtime/${app.id}?v=${app.revision}.${previewNonce[app.id] || 0}`} sandbox="allow-scripts allow-forms allow-popups" />{inspectorOpen && <Inspector app={app} events={currentEvents} buildId={buildForApp[app.id]} revisions={revisions[app.id] || []} editing={editing} setEditing={setEditing} improve={improve} answer={(answers) => answerBuild(app.id, answers)} cancel={() => cancelBuild(app.id)} setModel={(next) => setAppModel(app, next)} pin={() => togglePin(app)} duplicate={() => duplicate(app)} archive={() => archive(app)} restore={(revision) => restoreRevision(app, revision)} approve={async (id, accepted) => { await api.approval(id, accepted); }} />}</div>
+        <div className="window-body"><iframe title={app.name} src={`/runtime/${app.id}?v=${app.revision}.${previewNonce[app.id] || 0}${win.file ? `&file=${encodeURIComponent(win.file.grant)}&name=${encodeURIComponent(win.file.name)}` : ''}`} sandbox="allow-scripts allow-forms allow-popups" />{inspectorOpen && <Inspector app={app} events={currentEvents} buildId={buildForApp[app.id]} revisions={revisions[app.id] || []} editing={editing} setEditing={setEditing} improve={improve} answer={(answers) => answerBuild(app.id, answers)} cancel={() => cancelBuild(app.id)} setModel={(next) => setAppModel(app, next)} pin={() => togglePin(app)} duplicate={() => duplicate(app)} archive={() => archive(app)} restore={(revision) => restoreRevision(app, revision)} approve={async (id, accepted) => { await api.approval(id, accepted); }} />}</div>
       </section>;
     })}
 
@@ -594,12 +625,70 @@ function Spotlight({ apps, onClose, onCreate, onOpen }: { apps: WorkshopApp[]; o
   </section></div>;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  utilities: 'Utilities', productivity: 'Productivity', creativity: 'Creativity', games: 'Games',
+  information: 'Information', data: 'Data', wellbeing: 'Wellbeing', other: 'Other',
+};
+
+// A launcher rather than a list: scattered desktop icons stop scaling at about a
+// dozen, and the categories come from what each app is actually for, because the
+// shaping turn assigned one when it was built.
 function Library({ apps, onClose, onOpen, onRestore, onTidy }: { apps: WorkshopApp[]; onClose: () => void; onOpen: (app: WorkshopApp) => void; onRestore: (app: WorkshopApp) => void; onTidy: () => void }) {
-  const [query, setQuery] = useState(''); const [archived, setArchived] = useState(false); const [sort, setSort] = useState<'recent' | 'name'>('recent');
-  const shown = apps
-    .filter((app) => app.archived === archived && app.name.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : b.updatedAt.localeCompare(a.updatedAt)));
-  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="library-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">BRICOLAGE</span><h2>App Library</h2></div><button onClick={onClose}>Done</button></header><div className="library-tools"><input placeholder="Search apps" value={query} onChange={(e) => setQuery(e.target.value)} /><div className="segmented"><button className={!archived ? 'active' : ''} onClick={() => setArchived(false)}>Apps</button><button className={archived ? 'active' : ''} onClick={() => setArchived(true)}>Archive</button></div><div className="segmented"><button className={sort === 'recent' ? 'active' : ''} onClick={() => setSort('recent')}>Recent</button><button className={sort === 'name' ? 'active' : ''} onClick={() => setSort('name')}>A–Z</button></div><button className="library-tidy" onClick={onTidy}>Tidy icons</button></div><div className="library-grid">{shown.map((app) => <button key={app.id} onClick={() => archived ? onRestore(app) : onOpen(app)}><AppIcon app={app} /><div><strong>{app.name}</strong><small>{app.description}</small></div><span>{archived ? 'Restore' : 'Open'}</span></button>)}</div>{!shown.length && <div className="library-empty">Nothing here yet.</div>}</section></div>;
+  const [query, setQuery] = useState('');
+  const [archived, setArchived] = useState(false);
+  const [category, setCategory] = useState('all');
+  const [cursor, setCursor] = useState(0);
+
+  const pool = useMemo(() => apps.filter((app) => app.archived === archived), [apps, archived]);
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const app of pool) counts.set(app.category || 'other', (counts.get(app.category || 'other') || 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [pool]);
+
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return pool
+      .filter((app) => (category === 'all' || (app.category || 'other') === category))
+      .filter((app) => !needle || app.name.toLowerCase().includes(needle) || (app.description || '').toLowerCase().includes(needle))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [pool, category, query]);
+
+  useEffect(() => { setCursor(0); }, [query, category, archived]);
+
+  function onKeyDown(event: React.KeyboardEvent) {
+    if (!shown.length) return;
+    const perRow = 6;
+    const moves: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: perRow, ArrowUp: -perRow };
+    if (event.key in moves) { event.preventDefault(); setCursor((c) => Math.max(0, Math.min(shown.length - 1, c + moves[event.key]))); }
+    else if (event.key === 'Enter') { event.preventDefault(); const app = shown[cursor]; if (app) (archived ? onRestore(app) : onOpen(app)); }
+  }
+
+  return <div className="overlay launcher-overlay" onMouseDown={onClose}>
+    <section className="launcher" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="launcher-search">
+        <span>✦</span>
+        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKeyDown} placeholder="Search your apps" aria-label="Search apps" />
+        <button onClick={onTidy} title="Reset dragged desktop icons back to the grid">Tidy icons</button>
+        <button onClick={onClose}>Done</button>
+      </div>
+
+      <div className="launcher-cats">
+        <button className={category === 'all' ? 'active' : ''} onClick={() => setCategory('all')}>All <b>{pool.length}</b></button>
+        {categories.map(([name, count]) => <button key={name} className={category === name ? 'active' : ''} onClick={() => setCategory(name)}>{CATEGORY_LABELS[name] || name} <b>{count}</b></button>)}
+        <button className={`launcher-archive ${archived ? 'active' : ''}`} onClick={() => setArchived(!archived)}>{archived ? 'Archive' : 'Show archive'}</button>
+      </div>
+
+      <div className="launcher-grid">
+        {shown.map((app, index) => <button key={app.id} className={index === cursor ? 'cursor' : ''} onMouseEnter={() => setCursor(index)} onClick={() => (archived ? onRestore(app) : onOpen(app))}>
+          <AppIcon app={app} />
+          <span>{app.name}</span>
+          <small>{app.description}</small>
+        </button>)}
+      </div>
+      {!shown.length && <p className="launcher-empty">{archived ? 'Nothing archived.' : 'Nothing matches that.'}</p>}
+    </section>
+  </div>;
 }
 
 function Settings({ status, theme, setTheme, sounds, setSounds, dockHides, setDockHides, onClose, onOpenStore }: { status: SystemStatus | null; theme: string; setTheme: (v: string) => void; sounds: boolean; setSounds: (v: boolean) => void; dockHides: boolean; setDockHides: (v: boolean) => void; onClose: () => void; onOpenStore: () => void }) {

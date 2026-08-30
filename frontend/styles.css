@@ -1386,3 +1386,45 @@ button { cursor: pointer; }
 .library-tools input { flex: 1; min-width: 180px; }
 .library-tidy { padding: var(--s1) var(--s3); border: 1px solid var(--line); border-radius: var(--r-sm); background: transparent; color: var(--ink-muted); font-size: var(--text-2xs); }
 .library-tidy:hover { background: var(--surface-hover); color: var(--ink); }
+
+/* ---- Launcher ---- */
+
+.launcher-overlay { place-items: stretch; padding: 0; background: color-mix(in srgb, var(--ground) 30%, transparent); backdrop-filter: blur(24px) saturate(1.2); }
+.launcher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  height: 100%;
+  padding: 7vh 8vw 6vh;
+  overflow: hidden;
+  animation: rise var(--dur) var(--ease-out) both;
+}
+.launcher-search { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); background: var(--surface); border: 1px solid var(--glass-edge); border-radius: var(--r-lg); box-shadow: var(--elev-2); }
+.launcher-search > span { color: var(--ink-faint); font-size: var(--text-xl); }
+.launcher-search input { flex: 1; border: 0; outline: 0; background: transparent; font-size: var(--text-xl); letter-spacing: var(--track-title); }
+.launcher-search button { flex: none; padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--r-sm); background: transparent; color: var(--ink-muted); font-size: var(--text-2xs); }
+.launcher-search button:last-child { background: var(--ground); color: var(--canvas); border-color: transparent; }
+
+.launcher-cats { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.launcher-cats button { padding: var(--s1) var(--s3); border: 1px solid var(--glass-edge); border-radius: var(--r-pill); background: var(--glass); color: var(--ink-muted); font-size: var(--text-xs); }
+.launcher-cats button b { font-weight: var(--weight-medium); opacity: .5; }
+.launcher-cats button.active { background: var(--ground); color: var(--canvas); border-color: transparent; }
+.launcher-archive { margin-left: auto; }
+
+.launcher-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); align-content: start; gap: var(--s5) var(--s3); overflow-y: auto; padding: var(--s2); }
+.launcher-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s2);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: center;
+}
+.launcher-grid button:hover, .launcher-grid button.cursor { background: var(--surface-hover); border-color: var(--glass-edge); }
+.launcher-grid .app-icon { width: 62px; height: 62px; font-size: 26px; }
+.launcher-grid span { font-size: var(--text-sm); font-weight: var(--weight-medium); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.launcher-grid small { font-size: var(--text-2xs); color: var(--ink-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.launcher-empty { margin: 0; padding: var(--s10); text-align: center; color: var(--ink-faint); font-size: var(--text-sm); }
