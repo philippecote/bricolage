@@ -12,6 +12,7 @@ import { CONNECTION_CATALOG, buildFromCatalog } from './connectionCatalog.js';
 import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildService.js';
 import { executeAction } from './sandbox.js';
 import { safeFetch } from './network.js';
+import { createTaintGuard } from './taint.js';
 import { ensureStorage, hasActionCode, readActionCode, readSpec, writeActionCode, writeSpec } from './storage.js';
 import {
   atomicWrite, createRevision, duplicateApp, ensureAgentContract, ensureWorkshopStorage, getAppActionPath, getAppDataPath,
@@ -245,8 +246,41 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       const llm = createActionLlm(appLlm, { appId: req.params.appId, action: req.params.action });
       const manifest = await readManifest(req.params.appId).catch(() => ({ connections: [] }));
       const mcpFor = createActionMcp(mcp, { appId: req.params.appId, granted: manifest.connections || [] });
-      const result = await executeAction({ code, input: payload ?? {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId, nowIso: new Date().toISOString(), fetch: safeFetch, storage, llm, mcp: mcpFor }, fetchFn: safeFetch, timeoutMs: config.actionTimeoutMs });
-      return { output: result.output, logs: result.logs, codeHash: sha256(code), meta: { durationMs: Date.now() - started } };
+      const taint = createTaintGuard();
+
+      // The child process has no capabilities of its own. Each one is granted
+      // here, behind the check that belongs to it.
+      const host = {
+        async fetch({ url, options }) {
+          const response = await safeFetch(url, options || {});
+          const body = await response.text();
+          taint.taint('the web');
+          return { status: response.status, statusText: response.statusText, headers: [...response.headers], body };
+        },
+        'storage.get': ({ key }) => storage.get(key ?? null),
+        'storage.set': ({ key, value }) => storage.set(key, value),
+        'llm.ask': async (options) => {
+          const result = await llm.ask(taint.constrainLlm(options));
+          if (result.sources?.length) taint.taint('a web search');
+          return result;
+        },
+        'mcp.call': async ({ id, tool, args }) => {
+          await taint.assertMayCall(mcp, id, tool);
+          const result = await mcpFor(id).call(tool, args);
+          taint.taint(`the ${id} connection`);
+          return result;
+        },
+        'mcp.tools': ({ id }) => mcpFor(id).tools(),
+      };
+
+      const result = await executeAction({
+        code,
+        input: payload ?? {},
+        ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId, nowIso: new Date().toISOString() },
+        host,
+        timeoutMs: config.actionTimeoutMs,
+      });
+      return { output: result.output, logs: result.logs, codeHash: sha256(code), meta: { durationMs: Date.now() - started, tainted: taint.source } };
     }
   }
   app.post('/api/apps/:appId/storage/get', async (req, res, next) => {
@@ -265,7 +299,7 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       const spec = await readSpec(req.params.appId); let code; let cacheStatus = 'hit';
       if (await hasActionCode(req.params.appId, req.params.action)) code = await readActionCode(req.params.appId, req.params.action);
       else { if (!llmService) throw new Error('Legacy action generation is not configured.'); code = await llmService.generateActionCode({ appId: req.params.appId, action: req.params.action, spec, payload: req.body?.payload }); await writeActionCode(req.params.appId, req.params.action, code); cacheStatus = 'generated'; }
-      const result = await executeAction({ code, input: req.body?.payload || {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId }, timeoutMs: config.actionTimeoutMs });
+      const result = await executeAction({ code, input: req.body?.payload || {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId }, host: {}, timeoutMs: config.actionTimeoutMs });
       res.json({ status: 'ok', output: result.output, logs: result.logs, codeHash: sha256(code), meta: { cacheStatus, repairAttempts: 0, durationMs: Date.now() - req.startedAt } });
     } catch (e) { e.statusCode ||= 502; next(e); }
   });

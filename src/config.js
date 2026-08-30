@@ -32,6 +32,7 @@ export const config = {
   // First contact may download the server package; a tool call must not wait that long.
   mcpStartTimeoutMs: 90_000,
   mcpMaxCallsPerAction: 12,
+  actionMemoryMb: 256,
   actionMaxRepairAttempts: 2,
   // Long enough for an action to make a model call with web search and still
   // return; ctx.llm bounds its own call below this, and safeFetch bounds its own.

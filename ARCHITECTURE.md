@@ -20,7 +20,7 @@ Bricolage is one Node process that serves a React desktop, orchestrates coding a
 │                                                                      │
 │  DesktopAgent ──── tool loop ──► desktopTools ──► apps, actions      │
 │  McpHost      ──── stdio ──────► MCP servers (incl. Docker gateway)  │
-│  sandbox.js   ──── node:vm ────► action handlers                     │
+│  sandbox.js   ──spawn─► action runner (--permission, no fs/net)      │
 └──────────────────────────────┬───────────────────────────────────────┘
                                │ plain files
                         apps/ · .workshop/
@@ -39,7 +39,8 @@ Bricolage is one Node process that serves a React desktop, orchestrates coding a
 | `mcpHost.js` | MCP client and connection registry |
 | `connectionCatalog.js` | The curated server list and its provenance rules |
 | `llmService.js` | `AppLlmService` — `ask()` for apps, `raw()` for the tool loop |
-| `sandbox.js` | Runs generated action code in `node:vm` |
+| `sandbox.js` / `actionRunner.js` | Runs generated action code in a confined child process |
+| `taint.js` | Blocks the private-data + untrusted-content + act combination |
 | `network.js` | `safeFetch` — public-HTTPS-only egress |
 | `workshopStorage.js` | Manifests, revisions, workspace layout, the agent contract |
 
@@ -134,7 +135,9 @@ Action code runs server-side in `node:vm` with an injected, frozen context:
 | `ctx.fetch` | `safeFetch`: HTTPS only, private-IP and metadata-host blocked, redirect and size limits |
 | `ctx.mcp('<id>').call(tool, args)` | Only connections in `manifest.connections` |
 
-⚠️ **`node:vm` is not a security boundary.** See [SECURITY.md](SECURITY.md).
+Action code runs in a **child process** started with `--permission` and read access to nothing but the runner file, with the network modules removed from its loader and `fetch` deleted. It holds no capabilities of its own — each `ctx` call above is a round trip to the parent, where the checks live. Reaching the host realm from inside is expected and worthless; see [SECURITY.md](SECURITY.md) for the table of attempts and results.
+
+An action that reads untrusted content loses write access to connections for the rest of that run, enforced against each tool's MCP `readOnlyHint`.
 
 ## Connections (MCP)
 

@@ -1,117 +1,76 @@
-import vm from 'node:vm';
-import { ensureSerializable } from './utils.js';
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
+import { config } from './config.js';
 
-const MAX_LOG_LINES = 200;
-const MAX_LOG_LINE_LENGTH = 500;
-const BANNED_TOKENS = [
-  /\brequire\s*\(/,
-  /\bprocess\b/,
-  /\bchild_process\b/,
-  /\bfs\b/,
-  /\bimport\s*\(/,
-  /\bimport\s+[^('"`]/,
-  /\beval\s*\(/,
-];
+const RUNNER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'actionRunner.js');
 
-function formatLogParts(parts) {
-  return parts
-    .map((part) => {
-      if (typeof part === 'string') {
-        return part;
-      }
-      try {
-        return JSON.stringify(part);
-      } catch {
-        return String(part);
-      }
-    })
-    .join(' ')
-    .slice(0, MAX_LOG_LINE_LENGTH);
-}
+/**
+ * Runs a generated action in a child process that cannot read a file, spawn a
+ * process, or open a socket. See actionRunner.js for how that is enforced.
+ *
+ * The previous implementation used `node:vm` with a regex denylist inside this
+ * process, which Node's own documentation says is not a security mechanism: an
+ * escape landed you in the server's realm with everything it could reach. The
+ * boundary is now the process, so a `vm` escape inside the child buys nothing.
+ */
+export async function executeAction({ code, input, ctx, timeoutMs = config.actionTimeoutMs, host = {} }) {
+  const child = spawn(process.execPath, [
+    '--permission',
+    // The runner is the only file this process may read. Nothing else — not the
+    // app workspace, not node_modules, not the user's home directory.
+    `--allow-fs-read=${RUNNER}`,
+    `--max-old-space-size=${config.actionMemoryMb}`,
+    '--no-warnings',
+    RUNNER,
+  ], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: '', NODE_ENV: process.env.NODE_ENV || '' } });
 
-function makeConsole(logs) {
-  const push = (...parts) => {
-    if (logs.length >= MAX_LOG_LINES) {
-      return;
+  let settle;
+  const finished = new Promise((resolve, reject) => { settle = { resolve, reject }; });
+  let done = false;
+  let stderr = '';
+
+  const timer = setTimeout(() => {
+    if (done) return;
+    done = true;
+    child.kill('SIGKILL');
+    settle.reject(new Error(`Action timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  timer.unref?.();
+
+  const finish = (fn, value) => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    child.kill('SIGKILL');
+    fn(value);
+  };
+
+  child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-2000); });
+  child.on('error', (error) => finish(settle.reject, new Error(`Action runner could not start: ${error.message}`)));
+  child.on('close', () => finish(settle.reject, new Error(stderr.trim() || 'The action stopped without returning anything.')));
+
+  readline.createInterface({ input: child.stdout }).on('line', async (line) => {
+    let message;
+    try { message = JSON.parse(line); } catch { return; }
+
+    if (message.t === 'done') return finish(settle.resolve, { output: message.output, logs: message.logs || [] });
+    if (message.t === 'fail') return finish(settle.reject, new Error(message.message || 'The action failed.'));
+    if (message.t !== 'call') return;
+
+    // The child has no capabilities of its own; every one is granted here, after
+    // the same checks that would apply to any other caller.
+    try {
+      const handler = host[message.method];
+      if (!handler) throw new Error(`Actions cannot use ${message.method}.`);
+      const value = await handler(message.args || {});
+      if (!done) child.stdin.write(`${JSON.stringify({ t: 'reply', id: message.id, ok: true, value })}\n`);
+    } catch (error) {
+      if (!done) child.stdin.write(`${JSON.stringify({ t: 'reply', id: message.id, ok: false, error: error?.message || String(error) })}\n`);
     }
-    logs.push(formatLogParts(parts));
-  };
-
-  return {
-    log: push,
-    info: push,
-    warn: push,
-    error: push,
-    debug: push,
-  };
-}
-
-function timeoutPromise(timeoutMs) {
-  return new Promise((_, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`Action timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-    timer.unref?.();
-  });
-}
-
-function assertNoBannedTokens(code) {
-  for (const pattern of BANNED_TOKENS) {
-    if (pattern.test(code)) {
-      throw new Error(`Action code contains banned token: ${pattern}`);
-    }
-  }
-}
-
-function normalizeModuleExports(code) {
-  return code
-    .replace(/(^|\n)\s*export\s+async\s+function\s+handler\s*\(/, '$1async function handler(')
-    .replace(/(^|\n)\s*export\s+function\s+handler\s*\(/, '$1function handler(')
-    .replace(/(^|\n)\s*export\s+const\s+handler\s*=\s*/g, '$1const handler = ')
-    .replace(/(^|\n)\s*export\s*\{\s*handler\s*(?:as\s+\w+)?\s*\};?/g, '$1')
-    .trim();
-}
-
-export async function executeAction({ code, input, ctx, timeoutMs, fetchFn = fetch }) {
-  assertNoBannedTokens(code);
-
-  const logs = [];
-  const sandbox = {
-    console: makeConsole(logs),
-    fetch: fetchFn,
-    URL,
-    URLSearchParams,
-    TextEncoder,
-    TextDecoder,
-    setTimeout,
-    clearTimeout,
-    __input: input,
-    __ctx: Object.freeze({ ...ctx }),
-  };
-
-  const context = vm.createContext(sandbox, {
-    codeGeneration: {
-      strings: false,
-      wasm: false,
-    },
   });
 
-  const normalizedCode = normalizeModuleExports(code);
-  const wrappedSource = [
-    '"use strict";',
-    normalizedCode,
-    'if (typeof handler !== "function") { throw new Error("Generated action must define handler(input, ctx)."); }',
-    '(async () => await handler(__input, __ctx))()',
-  ].join('\n');
-
-  const script = new vm.Script(wrappedSource, { filename: 'generated-action.js' });
-  const rawOutput = await Promise.race([
-    script.runInContext(context, { timeout: timeoutMs }),
-    timeoutPromise(timeoutMs),
-  ]);
-
-  return {
-    output: ensureSerializable(rawOutput),
-    logs,
-  };
+  child.stdin.write(`${JSON.stringify({ t: 'run', code, input, meta: ctx })}\n`);
+  return finished;
 }

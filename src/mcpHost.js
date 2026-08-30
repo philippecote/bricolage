@@ -72,7 +72,8 @@ class McpConnection {
       }, config.mcpStartTimeoutMs);
       this.notify('notifications/initialized', {});
       const listed = await this.request('tools/list', {}, config.mcpStartTimeoutMs);
-      this.tools = (listed?.tools || []).map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || {} }));
+      // annotations.readOnlyHint is what lets the taint guard tell a lookup from a write.
+      this.tools = (listed?.tools || []).map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || {}, annotations: tool.annotations || null }));
     })();
     try { await this.ready; } catch (error) { this.ready = null; throw error; }
     return this.ready;

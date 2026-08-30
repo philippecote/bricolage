@@ -76,6 +76,6 @@ Nothing is agentic if it only runs when clicked. Scheduled and event triggers â€
 
 It builds real apps that do real things, with two different coding agents, and the partner grounds its answers in your actual data.
 
-The gap between this and something you'd trust with your life is mostly **isolation** â€” the action sandbox is `node:vm` plus a regex denylist, which stops accidents, not attacks. That was fine when the only code running was written by your own agent for your own apps. It stops being fine the moment an action pipes a fetched web page into a model. See [SECURITY.md](SECURITY.md).
+Actions run in a process that cannot read a file, spawn anything, or open a socket, and an action that has read untrusted content loses the ability to write to the outside world for the rest of that run. Both are enforced, and both are tested.
 
-Everything above is downstream of fixing that.
+What remains is narrower: an MCP server added outside the Docker gateway is still unconfined, and building with Claude Code has no OS-level sandbox. See [SECURITY.md](SECURITY.md).

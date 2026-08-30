@@ -29,39 +29,47 @@ Within that model, three parties are treated differently:
 
 **Catalog provenance.** Every npm entry sits under an org scope only its vendor can publish to, at a pinned version. Tests enforce both, so a future entry cannot quietly weaken it.
 
-## What is **not** a real boundary
+## The action sandbox
 
-### The action sandbox
+Generated action code runs in a **child process spawned with Node's permission model** and read access to exactly one file — the runner itself. Inside that process the network modules are removed from the module loader and `fetch` is deleted from the global object.
 
-Generated action code runs in `node:vm` behind a regex denylist for `require`, `process`, `fs`, `import`, `eval`. **This stops accidents, not attacks.** Node's own documentation is explicit that `node:vm` is not a security mechanism, and reaching the host realm from inside a vm context through ordinary object graph traversal is a well-known technique that a denylist of identifiers does not prevent.
+The process is the boundary, not the JavaScript context. Reaching the host realm from action code is *expected* and worthless:
 
-This was an acceptable trade when the only code in there was written by your own agent for your own apps. It stops being acceptable when an action pipes untrusted content into a model that can influence what code does next.
+| Attempt | Result |
+|---|---|
+| `Function('return process')()` | succeeds — and buys nothing |
+| `require('node:fs').readFileSync('/etc/passwd')` | `ERR_ACCESS_DENIED` |
+| reading `~/.ssh`, or Bricolage's own `.env` | `ERR_ACCESS_DENIED` |
+| `child_process.execSync('id')` | `ERR_ACCESS_DENIED` |
+| `require('node:net')` / `node:dns` / `node:https` | refused by the loader |
+| `fetch(...)` | `undefined` |
+| `process.binding('fs')` | refused by Node |
+| native addon via `dlopen` | `ERR_DLOPEN_DISABLED` |
 
-**If you change one thing, change this**: run actions in a separate process with an explicit permission model, or a worker with no ambient filesystem or network beyond the injected context. Bricolage already spawns child processes for agents, so it is not a new pattern.
+The child is handed an environment of three variables, none of them secret. It gets no capabilities of its own: `ctx.fetch`, `ctx.storage`, `ctx.llm` and `ctx.mcp` are round trips to the parent, where the checks live. A run that will not finish is killed, and memory is capped.
 
-### MCP servers
+The cost is a process per action — measured at **~24ms**, against a 15s-plus budget for anything that calls a model.
 
-`npx -y some-package` is **remote code execution by design**. An MCP server is an arbitrary process that Bricolage spawns, and a bare stdio server inherits Bricolage's environment — it can read `~/.ssh`, `~/.aws`, anything you can.
-
-The catalog mitigates this with provenance and pinning. The **Docker MCP Gateway** mitigates it properly, by running each server in its own container; prefer it when Docker Desktop is available.
-
-Anything added through "Add manually" has whatever access you give it. The UI shows the exact command before spawning it. Read it.
-
-### Claude Code builds
-
-Codex runs turns inside an OS-level `workspace-write` sandbox. Claude Code in print mode has no equivalent, so the tool allowlist (`Read,Write,Edit,Glob,Grep,Bash(node:*)`) is the only boundary. It is narrower than Codex's, and it is not enforced by the operating system.
+`test/sandbox.test.js` runs each escape in the table above and requires it to fail.
 
 ## Prompt injection
 
-The dangerous combination is **private data + untrusted content + the ability to act**. All three are reachable in one action today: `ctx.storage`, `ctx.fetch`/`ctx.llm` web search/`ctx.mcp` results, and a writing connection.
+The dangerous combination is **private data + untrusted content + the ability to act**. This is now enforced rather than advised.
 
-What exists:
+Every action run is tracked. The moment it ingests something a stranger could have written — a page from `ctx.fetch`, a web-search-backed `ctx.llm` answer, a result from an outside connection — it loses the ability to act on the outside world for the rest of that run:
 
-- `AppLlmService` prepends instructions stating that search results and quoted material are untrusted data, never instructions.
-- The agent contract forbids letting fetched or generated text decide what the app does next, or choose a storage key.
-- The contract requires splitting: an action that reads untrusted content returns a *proposal* a person confirms; the write happens in a separate action.
+- Further `ctx.mcp` calls are permitted **only** for tools the server marks `readOnlyHint: true` in its MCP annotations. A tool that is unannotated, or annotated as anything else, is refused.
+- Further `ctx.llm` calls lose web search, so injected text cannot steer a fresh lookup.
 
-**These are conventions, not enforcement.** Nothing in the runtime prevents a generated action from combining all three. Making that structural — refusing to hand a writing connection to an action that has already ingested untrusted content — is unbuilt and is the right next security change after the sandbox.
+Reads keep working, so the pattern the contract asks for still holds: read, return a proposal a person confirms, and do the write in a separate action. The refusal message says exactly that.
+
+Verified end to end: a clean action writes through a connection; the same action preceded by one `ctx.fetch` is refused and the file never reaches disk, while a read-only call on the same connection still succeeds.
+
+## What is still not a boundary
+
+**MCP servers.** `npx -y some-package` is remote code execution by design, and a bare stdio server inherits Bricolage's environment — unlike actions, it is not confined. The catalog mitigates this with publisher provenance and pinned versions. The **Docker MCP Gateway** mitigates it properly, by running each server in its own container; prefer it when Docker Desktop is available. Anything added through "Add manually" has whatever access you give it, and the UI shows the exact command before spawning it.
+
+**Claude Code builds.** Codex runs turns inside an OS-level `workspace-write` sandbox. Claude Code in print mode has no equivalent, so the tool allowlist (`Read,Write,Edit,Glob,Grep,Bash(node:*)`) is the only boundary, and it is not enforced by the operating system. This applies to *building* apps, not to running them.
 
 ## Cost as a safety property
 
@@ -71,14 +79,13 @@ Agent turns cost real money and take minutes. Two guards exist: `ctx.llm` is cap
 
 | | |
 |---|---|
-| Action sandbox is not an isolation boundary | Highest priority |
-| Injection defences are conventions, not enforcement | |
-| `safeFetch` DNS rebinding window | |
-| Claude Code builds have no OS-level sandbox | |
-| No global spend ceiling | |
+| MCP servers are unconfined unless run through the Docker gateway | Highest remaining |
+| Claude Code builds have no OS-level sandbox | Affects building, not running |
+| No global spend ceiling — only per-invocation caps | |
 | No auth by default (`API_TOKEN` optional) | Fine locally, not otherwise |
 | Literal connection secrets sit in plaintext in `.workshop/connections.json` | Prefer `$NAME` references |
 | Remote/OAuth MCP servers unsupported | Only stdio with env auth today |
+| Response bodies cross the sandbox boundary as text | Binary payloads are not supported by `ctx.fetch` |
 
 ## Reporting
 
