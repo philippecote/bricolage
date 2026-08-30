@@ -9,7 +9,7 @@
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-29T22:37:03.415Z",
-  "updatedAt": "2026-08-29T23:33:37.043Z",
+  "updatedAt": "2026-08-30T01:44:33.013Z",
   "window": {
     "width": 900,
     "height": 650
@@ -17,5 +17,6 @@
   "actions": [],
   "threadId": "01a04fae-9fec-7ed0-9d96-51dcc1012cc0",
   "revision": 1,
+  "model": "luna-high",
   "error": null
 }

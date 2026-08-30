@@ -20,8 +20,16 @@ export const config = {
   appsDir: path.join(dataDir, 'apps'),
   workshopDir: path.join(dataDir, '.workshop'),
   publicDir: path.join(rootDir, 'public'),
+  // The app-facing model primitive: fast and cheap, because apps call it inline
+  // during an interaction rather than as a background job.
+  llmModel: process.env.WORKSHOP_LLM_MODEL || 'gpt-5.6-luna',
+  llmEffort: process.env.WORKSHOP_LLM_EFFORT || 'low',
+  llmTimeoutMs: 45_000,
+  llmMaxCallsPerAction: 8,
   actionMaxRepairAttempts: 2,
-  actionTimeoutMs: 15_000,
+  // Long enough for an action to make a model call with web search and still
+  // return; ctx.llm bounds its own call below this, and safeFetch bounds its own.
+  actionTimeoutMs: 60_000,
   maxPayloadBytes: 128 * 1024,
   maxRuntimeAssetBytes: 1024 * 1024,
   maxNetworkResponseBytes: 2 * 1024 * 1024,

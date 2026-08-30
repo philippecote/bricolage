@@ -3,7 +3,7 @@ import path from 'node:path';
 import express from 'express';
 import { z } from 'zod';
 import { config } from './config.js';
-import { OpenAiLlmService } from './llmService.js';
+import { AppLlmService, OpenAiLlmService } from './llmService.js';
 import { CodexAppServer } from './codexAppServer.js';
 import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildService.js';
 import { executeAction } from './sandbox.js';
@@ -28,8 +28,9 @@ function errorPayload(req, error, reason = 'request_failed') { return { status: 
 function escapeHtml(value) { return String(value).replace(/[&<>]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[character]); }
 function sendFormPayload(res, status, payload) { res.status(status).type('html').send(`<pre>${escapeHtml(JSON.stringify(payload))}</pre>`); }
 function optionalLlm() { if (!config.openaiApiKey) return null; try { return new OpenAiLlmService(); } catch { return null; } }
+function optionalAppLlm() { if (!config.openaiApiKey) return null; try { return new AppLlmService(); } catch { return null; } }
 
-export function createApp({ llmService = optionalLlm(), codex = new CodexAppServer(), buildService = null } = {}) {
+export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), buildService = null } = {}) {
   const builds = buildService || new BuildService({ codex });
   const app = express();
   app.disable('x-powered-by');
@@ -139,7 +140,8 @@ export function createApp({ llmService = optionalLlm(), codex = new CodexAppServ
       const code = await fs.readFile(getAppActionPath(req.params.appId, req.params.action), 'utf8');
       const storage = createAppStorage(req.params.appId);
       const started = Date.now();
-      const result = await executeAction({ code, input: payload ?? {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId, nowIso: new Date().toISOString(), fetch: safeFetch, storage }, fetchFn: safeFetch, timeoutMs: config.actionTimeoutMs });
+      const llm = createActionLlm(appLlm, { appId: req.params.appId, action: req.params.action });
+      const result = await executeAction({ code, input: payload ?? {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId, nowIso: new Date().toISOString(), fetch: safeFetch, storage, llm }, fetchFn: safeFetch, timeoutMs: config.actionTimeoutMs });
       res.json({ status: 'ok', output: result.output, logs: result.logs, codeHash: sha256(code), meta: { durationMs: Date.now() - started } });
     } catch (e) { e.statusCode ||= 502; next(e); }
   });
@@ -183,6 +185,23 @@ export function createApp({ llmService = optionalLlm(), codex = new CodexAppServ
     await Promise.all(existingApps.map((item) => ensureAgentContract(item.id)));
   };
   return app;
+}
+
+// One facade per action invocation so the call cap is per-run, not per-process.
+// A generated loop that forgets to break should cost a few calls, not an account.
+function createActionLlm(appLlm, { appId, action }) {
+  let calls = 0;
+  return Object.freeze({
+    async ask(options = {}) {
+      if (!appLlm) throw new Error('Workshop has no model configured. Add OPENAI_API_KEY to .env and restart.');
+      if (calls >= config.llmMaxCallsPerAction) throw new Error(`An action may make at most ${config.llmMaxCallsPerAction} model calls.`);
+      calls += 1;
+      const started = Date.now();
+      const result = await appLlm.ask(options);
+      console.log(JSON.stringify({ trace: 'action:llm', appId, action, call: calls, search: options.search !== false, structured: Boolean(options.schema), durationMs: Date.now() - started, ...result.usage }));
+      return result;
+    },
+  });
 }
 
 function createAppStorage(appId) {
