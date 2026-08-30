@@ -54,6 +54,11 @@ class McpConnection {
       const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...resolveEnv(this.definition.env) } });
       this.process = child;
       child.once('error', (error) => { this.lastError = error.message; this.process = null; this.ready = null; this.rejectAll(error); });
+      // A command that cannot start still hands back streams, and an unhandled
+      // error on one of them takes the whole process down.
+      child.stdin.on('error', () => {});
+      child.stdout.on('error', () => {});
+      child.stderr.on('error', () => {});
       child.stderr.on('data', (chunk) => { this.lastError = String(chunk).trim().slice(0, 400) || this.lastError; });
       // The server's own stderr says why far better than an exit code does:
       // "Docker Desktop is not running" beats "exited (1)".
@@ -143,6 +148,8 @@ export class McpHost {
     this.file = file;
     this.connections = new Map();
     this.loaded = null;
+    this.toolsFile = path.join(path.dirname(file), 'connection-tools.json');
+    this.toolCache = null;
   }
 
   async load() {
@@ -187,6 +194,7 @@ export class McpHost {
     const parsed = connectionSchema.parse(definition);
     this.connections.get(parsed.id)?.stop();
     this.connections.set(parsed.id, new McpConnection(parsed));
+    await this.forgetTools(parsed.id);
     await this.save();
     return parsed;
   }
@@ -195,6 +203,7 @@ export class McpHost {
     await this.load();
     this.connections.get(id)?.stop();
     this.connections.delete(id);
+    await this.forgetTools(id);
     await this.save();
   }
 
@@ -206,6 +215,7 @@ export class McpHost {
     if (!connection) return null;
     connection.stop();
     connection.tools = [];
+    await this.forgetTools(id);
     return connection;
   }
 
@@ -219,20 +229,85 @@ export class McpHost {
 
   // Tool schemas for the build agent, so it writes calls against what a server
   // actually exposes instead of guessing at names.
+  /**
+   * Tool schemas for the build agent, so it writes calls against what a server
+   * actually exposes instead of guessing at names.
+   *
+   * Starting a server takes seconds — a cold npx download or the Docker gateway
+   * spinning up containers — which a build turn cannot wait on. So what a server
+   * reported last time is remembered on disk and answered instantly, and the
+   * live connection refreshes it in the background.
+   */
   async describe(ids = []) {
     await this.load();
+    const cache = await this.loadToolCache();
     const described = [];
+
     for (const id of ids) {
       const connection = this.connections.get(id);
       if (!connection?.definition.enabled) continue;
+      const label = connection.definition.label;
+
+      if (connection.tools.length) { described.push({ id, label, tools: connection.tools }); continue; }
+
+      const remembered = cache[id]?.tools;
+      if (remembered?.length) {
+        described.push({ id, label, tools: remembered, remembered: true });
+        this.warm(id);
+        continue;
+      }
+
       try {
         await connection.start();
-        described.push({ id, label: connection.definition.label, tools: connection.tools });
+        described.push({ id, label, tools: connection.tools });
       } catch (error) {
-        described.push({ id, label: connection.definition.label, tools: [], error: error.message });
+        described.push({ id, label, tools: [], error: error.message });
       }
     }
+
+    await this.rememberTools(described);
     return described;
+  }
+
+  // Starts a connection without anyone waiting on it, so the next describe is
+  // instant and the cache stays current.
+  warm(id) {
+    const connection = this.connections.get(id);
+    if (!connection || connection.warming || connection.tools.length) return;
+    connection.warming = true;
+    connection.start()
+      .then(() => this.rememberTools([{ id, label: connection.definition.label, tools: connection.tools }]))
+      .catch(() => {})
+      .finally(() => { connection.warming = false; });
+  }
+
+  warmAll() {
+    for (const [id, connection] of this.connections) if (connection.definition.enabled) this.warm(id);
+  }
+
+  async loadToolCache() {
+    if (this.toolCache) return this.toolCache;
+    const raw = await fs.readFile(this.toolsFile, 'utf8').catch(() => '{}');
+    try { this.toolCache = JSON.parse(raw) || {}; } catch { this.toolCache = {}; }
+    return this.toolCache;
+  }
+
+  async rememberTools(described) {
+    const cache = await this.loadToolCache();
+    let changed = false;
+    for (const entry of described) {
+      if (!entry.tools?.length || entry.remembered) continue;
+      cache[entry.id] = { tools: entry.tools, at: new Date().toISOString() };
+      changed = true;
+    }
+    if (changed) await atomicWrite(this.toolsFile, `${JSON.stringify(cache, null, 2)}\n`).catch(() => {});
+  }
+
+  async forgetTools(id) {
+    const cache = await this.loadToolCache();
+    if (!(id in cache)) return;
+    delete cache[id];
+    await atomicWrite(this.toolsFile, `${JSON.stringify(cache, null, 2)}\n`).catch(() => {});
   }
 
   stopAll() { for (const connection of this.connections.values()) connection.stop(); }

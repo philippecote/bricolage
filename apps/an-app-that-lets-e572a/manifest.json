@@ -9,7 +9,7 @@
   "pinned": true,
   "archived": false,
   "createdAt": "2026-08-30T02:04:27.616Z",
-  "updatedAt": "2026-08-30T16:12:59.957Z",
+  "updatedAt": "2026-08-30T19:53:44.383Z",
   "window": {
     "width": 920,
     "height": 680
@@ -18,6 +18,8 @@
     "explore-topic"
   ],
   "connections": [],
+  "category": "other",
+  "handles": [],
   "threadId": "01a05069-366b-7d40-9cd9-a55f709bcc36",
   "threadAgent": null,
   "revision": 7,

@@ -160,6 +160,8 @@ The built-in catalog's rules are enforced by tests: org-scoped packages only, pi
 
 **The Docker catalog is browsable as a store.** Docker Desktop already curates ~270 servers, each an image pinned by digest and each declaring the secrets it wants, so `dockerCatalog.js` reads `docker mcp catalog show` rather than reproducing any of it. Installing means `docker mcp server enable`; secrets go to Docker Desktop's own store via `docker mcp secret set` and are never held here.
 
+What each server offers is remembered in `.workshop/connection-tools.json` and answered from there. Starting a server takes seconds — a cold `npx` download, or the Docker gateway spinning up containers — which a build turn cannot wait on; before this the brief lost its own timeout and reached the agent empty. Connections are warmed in the background at startup and refreshed after a cached answer, and the cache is dropped when a connection is redefined or removed.
+
 The gateway is one long-lived process that lists its tools at startup, so enabling or disabling a server behind it restarts that connection — otherwise a freshly installed server is enabled in Docker but invisible to Bricolage.
 
 ## The desktop agent

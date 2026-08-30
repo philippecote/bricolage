@@ -93,3 +93,58 @@ describe('mcp result shape', () => {
     expect(usefulStructure('a string')).toBeNull();
   });
 });
+
+describe('remembered tool descriptions', () => {
+  const scratch = async () => {
+    const { config } = await import('../src/config.js');
+    const nodePath = await import('node:path');
+    return nodePath.join(config.workshopDir, `tools-fixture-${Math.random().toString(36).slice(2)}.json`);
+  };
+
+  it('answers from disk instead of starting a server a build cannot wait for', async () => {
+    const { McpHost } = await import('../src/mcpHost.js');
+    const fsp = await import('node:fs/promises');
+    const file = await scratch();
+    const host = new McpHost({ file });
+
+    // A command that cannot possibly start, so anything returned came from cache.
+    await host.add({ id: 'slow', label: 'Slow', command: '/usr/bin/false', args: [] });
+    await fsp.writeFile(host.toolsFile, JSON.stringify({ slow: { tools: [{ name: 'list_directory', inputSchema: { properties: { path: {} }, required: ['path'] } }], at: 'x' } }));
+    host.toolCache = null;
+
+    const started = Date.now();
+    const [described] = await host.describe(['slow']);
+    expect(Date.now() - started).toBeLessThan(1500);
+    expect(described.remembered).toBe(true);
+    expect(described.tools[0].name).toBe('list_directory');
+    // Signatures survive the round trip, which is the whole point.
+    expect(Object.keys(described.tools[0].inputSchema.properties)).toEqual(['path']);
+
+    host.stopAll();
+    await fsp.rm(file, { force: true });
+    await fsp.rm(host.toolsFile, { force: true });
+  });
+
+  it('forgets a connection\'s tools when it is redefined or removed', async () => {
+    const { McpHost } = await import('../src/mcpHost.js');
+    const fsp = await import('node:fs/promises');
+    const file = await scratch();
+    const host = new McpHost({ file });
+
+    await host.add({ id: 'thing', label: 'Thing', command: '/usr/bin/false', args: [] });
+    await host.rememberTools([{ id: 'thing', tools: [{ name: 'old_tool' }] }]);
+    expect((await host.loadToolCache()).thing.tools[0].name).toBe('old_tool');
+
+    // Pointing the id at a different server must not answer with the old tools.
+    await host.add({ id: 'thing', label: 'Thing', command: '/usr/bin/true', args: [] });
+    expect((await host.loadToolCache()).thing).toBeUndefined();
+
+    await host.rememberTools([{ id: 'thing', tools: [{ name: 'new_tool' }] }]);
+    await host.remove('thing');
+    expect((await host.loadToolCache()).thing).toBeUndefined();
+
+    host.stopAll();
+    await fsp.rm(file, { force: true });
+    await fsp.rm(host.toolsFile, { force: true });
+  });
+});

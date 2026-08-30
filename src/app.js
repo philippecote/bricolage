@@ -411,6 +411,9 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
     await migrateStarters();
     const existingApps = await listApps({ includeArchived: true });
     await Promise.all(existingApps.map((item) => ensureAgentContract(item.id)));
+    // Learn what each connection offers without holding up startup, so the
+    // first build prompt already carries real tool signatures.
+    mcp.warmAll?.();
   };
   return app;
 }

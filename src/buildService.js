@@ -169,9 +169,11 @@ export class BuildService extends EventEmitter {
     const listed = await this.mcp.list().catch(() => []);
     const ids = listed.filter((item) => item.enabled).map((item) => item.id);
     if (!ids.length) return '';
+    // Remembered descriptions come back immediately; only a connection never
+    // seen before can be slow, and that one is worth a short wait.
     const described = await Promise.race([
       this.mcp.describe(ids).catch(() => []),
-      new Promise((resolve) => setTimeout(() => resolve([]), 8000)),
+      new Promise((resolve) => setTimeout(() => resolve([]), 12_000)),
     ]);
     const usable = described.filter((entry) => entry.tools?.length);
     if (!usable.length) return '';
@@ -254,7 +256,8 @@ export class BuildService extends EventEmitter {
           build.threadId = null;
           build.threadAgent = null;
           this.push(build, 'editing', 'That conversation would not resume — starting a fresh one');
-          writeManifest(build.appId, { threadId: null, threadAgent: null }).catch(() => {});
+          // No need to write the cleared thread: run() mints a new one and
+          // persists that. Writing null here raced it and won.
           queueMicrotask(() => this.run(build).catch((error) => this.fail(build, error)));
           return;
         }
