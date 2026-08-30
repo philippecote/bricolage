@@ -1,0 +1,24 @@
+{
+  "id": "polished-pixel-art-tycoon-management-game-e98c2",
+  "name": "Fossil Frontier",
+  "description": "A hand-drawn pixel-art dinosaur fossil tycoon: excavate dig sites tile by tile, sell or donate your finds, upgrade the camp, and build a museum legacy.",
+  "icon": "✺",
+  "accent": "#e5a744",
+  "status": "ready",
+  "prompt": "Build a polished pixel-art tycoon/management game called \"Fossil Frontier\". The player is an aspiring archaeologist running a dinosaur fossil expedition company. Make it a fun, replayable desktop game with a warm retro pixel-art visual style: dark navy/earthy brown backgrounds, amber excavation highlights, teal accents, chunky pixel-style UI, animated dig site particles, and satisfying buttons.\n\nCore loop:\n- Start with a small camp, basic shovel, $500, and one accessible dig site in Montana.\n- Choose a dig site/country on a map or expedition board, pay travel costs, then excavate fossil tiles in a dig grid. Each site has different fossil species, rarity, hazards, weather, and potential value.\n- Digging should be interactive: click/tap tiles to excavate, consume energy and tool durability, reveal bones/artifacts, and occasionally trigger hazards or bonus finds. Include a progress meter and a clear \"pack expedition\" outcome.\n- Return to camp and choose to sell finds to collectors for quick cash, donate/display them to museums for reputation and recurring income, or keep them in a collection gallery.\n- Use money and reputation to unlock countries/sites, upgrade equipment, hire helpers, and expand the camp.\n\nInclude these screens/tabs:\n1. Expedition map/board: cards for Montana Badlands, Patagonia, Gobi Desert, Alberta, and Madagascar; locked sites show unlock requirements. Site cards show travel cost, danger, fossil types, and expected value.\n2. Active dig site: 6x5 or 7x5 tile excavation grid, tool selection, energy, durability, weather/hazard status, discovered fossils list, and expedition timer/progress.\n3. Camp dashboard: cash, reputation, day/expedition count, museum income, active upgrades, and quick actions.\n4. Fossil collection/inventory: fossil cards with pixel-art icons, rarity tiers, condition, estimated value, species, and buttons to sell, donate, or archive.\n5. Upgrades shop: better shovels (Brush, Steel Spade, Power Trowel), tools (brush, pickaxe, ground scanner, field jack, drone survey), gear (canopy, water pack, reinforced crates, fossil maps), camp upgrades (lab tent, museum wing, workshop), and assistants (student, geologist, preparator). Each item has cost and tangible gameplay effects.\n6. Museum/collections: donated fossils build themed exhibits that generate reputation and passive daily income; show exhibit completion progress.\n\nGame systems:\n- Resource balances: cash, reputation, energy, tool durability, crate capacity, and museum income.\n- Fossil rarity: common, uncommon, rare, epic, legendary. Species examples: Triceratops, Velociraptor, T. rex, Brachiosaurus, Ankylosaurus, Spinosaurus, Microraptor, and ammonites.\n- Random events: flash storm, rival team, local guide tip, fossil bonanza, damaged crate. Make choices with tradeoffs.\n- Contracts/missions with rewards, e.g. \"Find 3 herbivore fossils\" or \"Donate a rare fossil\".\n- Save progress in local app state; include a new game/reset option and a short onboarding/tutorial.\n- Make the game playable without external APIs. Use generated pixel-art-style shapes/icons or emoji-like fossil silhouettes rather than external image dependencies.\n\nImportant UX: clear tutorial hints, responsive controls, strong feedback for every action, no dead ends, accessible contrast, and compact but rich layout. Make the first session immediately playable: the user should be able to start a dig from the dashboard and uncover their first fossil within a few clicks. Add sound-like visual feedback (sparkles, shake, toast messages) even if no audio is used. Ensure all game actions update state reliably and are fun to test quickly.",
+  "pinned": false,
+  "archived": false,
+  "createdAt": "2026-08-30T11:52:33.559Z",
+  "updatedAt": "2026-08-30T13:05:47.372Z",
+  "window": {
+    "width": 920,
+    "height": 680
+  },
+  "actions": [],
+  "connections": [],
+  "threadId": "b6b571c2-cdc0-41a3-9581-c7e48ef8fe9c",
+  "threadAgent": "claude",
+  "revision": 4,
+  "model": "luna-high",
+  "error": null
+}

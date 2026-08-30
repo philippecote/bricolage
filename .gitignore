@@ -10,6 +10,7 @@ apps/*
 !apps/a-tip-calculator-that-7980a
 !apps/an-app-that-lets-e572a
 !apps/the-game-of-ur-da849
+!apps/polished-pixel-art-tycoon-management-game-e98c2
 apps/*/data.json
 apps/*/.workshop/
 /actions/*

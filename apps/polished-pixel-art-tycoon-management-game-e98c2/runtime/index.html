@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fossil Frontier</title>
+<style>
+:root{--ink:#0f1d31;--ink2:#162943;--ink3:#203b55;--paper:#f3e5c4;--sand:#bf9a63;--amber:#efb44d;--gold:#ffd26e;--teal:#65d4c8;--teal2:#2fa69f;--rust:#c86c4d;--red:#ed7d67;--muted:#94a9b1;--line:#385871;--shadow:0 10px 0 rgba(5,12,23,.28),0 20px 32px rgba(3,10,20,.18);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--paper);background:#0b1729}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--ink);overflow-x:hidden}button{font:inherit;cursor:pointer;color:inherit}button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.app{min-height:100vh;background:radial-gradient(circle at 78% 7%,rgba(55,116,125,.13),transparent 26rem),linear-gradient(135deg,#0f2038,#132740 58%,#182b42)}
+.topbar{height:64px;display:flex;align-items:center;gap:20px;padding:0 25px;border-bottom:1px solid rgba(157,185,195,.16);background:rgba(8,17,32,.8);position:sticky;top:0;z-index:10;backdrop-filter:blur(10px)}
+.brand{display:flex;align-items:center;gap:11px;min-width:225px}.brand-mark{width:34px;height:34px;display:grid;place-items:center;color:var(--gold);background:var(--rust);border:2px solid var(--amber);font-size:20px;box-shadow:3px 3px 0 #0a1321;transform:rotate(-4deg)}.brand-title{font-size:17px;letter-spacing:2px;color:#fff}.brand-sub{display:block;font-size:9px;color:var(--sand);letter-spacing:1.3px;margin-top:3px}.top-metrics{display:flex;gap:10px;align-items:center;flex:1;justify-content:center}.day-note{font-size:10px;color:var(--muted);letter-spacing:1px}.day-note b{color:var(--gold);font-size:12px;margin-left:4px}.save{color:var(--teal);font-size:9px;letter-spacing:.4px}.top-actions{display:flex;gap:8px}.icon-btn{border:1px solid var(--line);background:transparent;color:var(--paper);padding:8px 10px;font-size:10px}.icon-btn:hover{background:var(--ink3);color:#fff}
+.world{display:flex;gap:20px;padding:19px 25px 17px;border-bottom:1px solid rgba(157,185,195,.12);align-items:stretch}.scene{height:106px;min-width:246px;position:relative;overflow:hidden;border:1px solid #35536c;background:linear-gradient(#233b54 0 48%,#3a3140 48% 54%,#674b3b 54%);box-shadow:inset 0 -15px 0 rgba(26,18,27,.2)}.scene:before{content:"";position:absolute;left:-10px;bottom:35px;width:190px;height:82px;background:#132a43;clip-path:polygon(0 100%,22% 35%,32% 63%,53% 0,75% 58%,100% 20%,100% 100%);opacity:.88}.scene:after{content:"";position:absolute;right:15px;bottom:22px;width:3px;height:59px;background:#142539;box-shadow:0 -26px 0 -1px var(--amber),0 -13px 0 -1px var(--amber)}.sun{position:absolute;right:40px;top:15px;width:20px;height:20px;border-radius:50%;background:var(--amber);box-shadow:0 0 22px rgba(240,180,76,.65)}.tent{position:absolute;bottom:21px;left:154px;width:56px;height:34px;background:var(--rust);clip-path:polygon(50% 0,100% 100%,0 100%);border-bottom:4px solid #efb25e}.flag{position:absolute;bottom:58px;left:185px;width:2px;height:24px;background:#efb25e}.flag:after{content:"";position:absolute;top:0;left:2px;border-style:solid;border-width:5px 0 5px 9px;border-color:transparent transparent transparent var(--teal)}.dust{position:absolute;bottom:12px;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,rgba(235,170,85,.8),transparent);animation:drift 5s linear infinite}
+.brief{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}.eyebrow{font-size:10px;color:var(--teal);letter-spacing:1.7px;text-transform:uppercase;margin-bottom:6px}.brief h1{font-size:22px;line-height:1.1;margin:0 0 7px;color:#fff;letter-spacing:-.7px}.brief p{margin:0;max-width:590px;color:#b3c0c3;font-size:11px;line-height:1.55}.brief .hint{margin-top:8px;color:var(--gold);font-size:10px}.resources{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end;max-width:380px}.resource{min-width:76px;padding:9px 10px;border:1px solid #304b63;background:rgba(11,23,41,.5);font-size:10px;color:var(--muted)}.resource strong{display:block;color:#fff;font-size:15px;margin-top:3px}.resource.cash strong{color:var(--gold)}.resource.teal strong{color:var(--teal)}
+.tabs{display:flex;padding:0 25px;border-bottom:1px solid rgba(157,185,195,.16);gap:4px;overflow-x:auto}.tab{border:0;border-bottom:3px solid transparent;background:transparent;color:#91a1ae;padding:13px 13px 11px;font-size:10px;letter-spacing:1px;white-space:nowrap}.tab:hover{color:#fff;background:rgba(255,255,255,.025)}.tab.active{color:var(--gold);border-bottom-color:var(--amber);background:rgba(240,180,76,.055)}
+main{padding:20px 25px 40px;max-width:1300px;margin:auto}.view{display:none;animation:rise .3s ease both}.view.active{display:block}.view-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:16px}.view-head h2{font-size:19px;margin:0 0 5px;color:#fff;letter-spacing:-.5px}.view-head p{font-size:11px;color:var(--muted);margin:0;line-height:1.5}.label{font-size:10px;color:var(--teal);letter-spacing:1.6px;text-transform:uppercase;margin:23px 0 10px}.panel{background:rgba(18,37,59,.84);border:1px solid #36516a;box-shadow:var(--shadow);position:relative}.panel:before{content:"";position:absolute;top:-1px;left:-1px;width:28px;height:2px;background:var(--amber)}
+.button{border:1px solid var(--amber);background:var(--amber);color:#171d29;padding:10px 13px;font-weight:800;font-size:10px;letter-spacing:.7px;box-shadow:3px 3px 0 #7c512b;transition:transform .12s,filter .12s}.button:hover{filter:brightness(1.1);transform:translate(-1px,-1px)}.button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #7c512b}.button.secondary{background:#1f3d51;border-color:#4c8490;color:#d9ffff;box-shadow:3px 3px 0 #122735}.button.ghost{background:transparent;color:var(--paper);border-color:var(--line);box-shadow:none}.button.danger{background:#5b2d36;border-color:#ad6258;color:#ffe2c6;box-shadow:3px 3px 0 #281923}.button:disabled{opacity:.46;cursor:not-allowed;transform:none;filter:none}
+.dashboard{display:grid;grid-template-columns:1.12fr .88fr;gap:16px}.camp{min-height:246px;padding:21px;overflow:hidden;background:linear-gradient(150deg,#1e4052,#163047 58%,#47373b)}.camp:after{content:"";position:absolute;inset:auto 0 0;height:42%;background:linear-gradient(165deg,transparent 18%,rgba(147,96,69,.7) 19% 72%,#3d2b31 73%)}.camp-copy{position:relative;z-index:1;max-width:300px}.camp-copy h3{font-size:26px;line-height:1.08;color:#fff;margin:3px 0 10px;letter-spacing:-1.3px}.camp-copy p{font-size:11px;line-height:1.6;color:#c0d0cc;margin:0}.camp-visual{position:absolute;right:30px;bottom:48px;width:175px;height:110px;z-index:1}.hill{position:absolute;bottom:0;right:0;width:160px;height:93px;background:#21414d;clip-path:polygon(0 100%,31% 46%,45% 62%,67% 10%,100% 100%)}.hut{position:absolute;bottom:10px;left:36px;width:78px;height:54px;background:#74483d;border:3px solid #b7774d}.hut:before{content:"";position:absolute;left:-10px;top:-23px;border-style:solid;border-width:0 49px 26px;border-color:transparent transparent #a3674b}.door{position:absolute;left:30px;bottom:0;width:16px;height:29px;background:#2a2930}.light{position:absolute;right:17px;top:11px;width:7px;height:7px;background:var(--amber);box-shadow:0 0 15px var(--amber)}.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.stat{padding:14px;background:rgba(8,20,36,.38);border:1px solid #314d65}.stat small{font-size:9px;color:var(--muted);letter-spacing:1px}.stat strong{display:block;font-size:22px;color:#fff;margin-top:6px}.stat em{font-size:10px;color:var(--teal);font-style:normal}.quick-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}.contracts{padding:16px}.contract{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px 0;border-bottom:1px solid rgba(151,174,182,.14)}.contract:last-child{border-bottom:0}.contract h4{font-size:11px;color:#fff;margin:0 0 5px}.contract p{font-size:10px;color:var(--muted);margin:0}.reward{font-size:10px;color:var(--gold);text-align:right}.contract progress{width:125px;height:5px;display:block;margin-top:8px;accent-color:var(--teal)}
+.site-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:11px}.site-card{padding:15px;min-height:216px;display:flex;flex-direction:column;background:#172e47;border:1px solid #36536a;position:relative;overflow:hidden}.site-card:after{content:"";position:absolute;right:-31px;top:-35px;width:105px;height:105px;border-radius:50%;background:var(--site-color,#b47a50);opacity:.13}.site-card.locked{filter:saturate(.35);opacity:.8}.site-top{display:flex;justify-content:space-between;align-items:start}.site-icon{font-size:24px;color:var(--site-color,var(--amber));line-height:1}.status{font-size:9px;color:var(--teal);border:1px solid #387b7c;padding:4px 5px}.status.lock{color:#c4b9a1;border-color:#6b675b}.site-card h3{font-size:13px;color:#fff;margin:14px 0 4px}.country{font-size:10px;color:var(--sand);margin-bottom:11px}.desc{font-size:9px;color:#a8b9bc;line-height:1.45;min-height:28px}.site-meta{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:12px;font-size:9px;color:var(--muted)}.site-meta b{display:block;color:#e8dcc2;font-weight:400;margin-top:3px}.site-card .button{margin-top:auto;width:100%;padding:8px 5px}.locked-note{margin-top:auto;font-size:9px;color:#bdb49c;padding-top:12px}
+.dig-layout{display:grid;grid-template-columns:minmax(0,1fr) 276px;gap:16px}.dig-main{padding:17px}.dig-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}.dig-title h2{font-size:18px;color:#fff;margin:0 0 4px}.dig-title p{font-size:10px;color:var(--muted);margin:0}.dig-readings{display:flex;gap:8px}.reading{padding:8px 9px;background:#0f2438;border:1px solid #35556a;font-size:9px;color:var(--muted)}.reading b{display:block;font-size:13px;color:var(--gold);margin-top:4px}.reading.teal b{color:var(--teal)}.progress{height:9px;background:#0b1b2d;border:1px solid #39566b;margin-bottom:15px}.progress span{display:block;height:100%;background:linear-gradient(90deg,var(--teal2),var(--amber));transition:width .45s ease;position:relative}.progress span:after{content:"";position:absolute;right:0;top:0;height:100%;width:20px;background:rgba(255,255,255,.35);animation:sweep 1.3s infinite}.grid-wrap{position:relative;padding:10px;background:#7f5b42;border:3px solid #a88357;box-shadow:inset 0 0 0 3px #453b3d}.dig-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;aspect-ratio:6/5}.tile{position:relative;border:2px solid #9a7251;background:linear-gradient(135deg,#8b6347,#674b3d);box-shadow:inset -3px -3px 0 rgba(54,34,34,.22),inset 3px 3px 0 rgba(213,162,95,.16);color:#182433;font-size:22px;transition:transform .1s,background .25s,border .25s;overflow:hidden}.tile:hover:not(:disabled){transform:translateY(-2px);border-color:var(--gold);background:#a06e46}.tile:disabled{cursor:default}.tile.signal{animation:pulse 1.8s ease-in-out infinite;border-color:var(--gold)}.tile.signal:after{content:"✦";position:absolute;top:4px;right:6px;color:var(--gold);font-size:9px;animation:twinkle 1s infinite}.tile.dug{background:#392f38;border-color:#5f4b4b;color:#6e807f}.tile.find{background:#214b50;border-color:var(--teal);color:var(--gold);animation:pop .4s ease both}.tile.hazard{background:#693c3b;border-color:var(--red);color:#ffd57a;animation:shake .4s ease both}.tile-num{position:absolute;bottom:3px;right:4px;font-size:8px;color:rgba(255,231,190,.37)}.tool-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:13px;flex-wrap:wrap}.tool-list{display:flex;gap:6px}.tool{border:1px solid #3c5a6c;background:#142a40;color:#a9bec0;padding:8px 9px;font-size:9px}.tool.active{border-color:var(--amber);color:var(--gold);background:#3b3440}.tool small{display:block;color:#748f94;margin-top:3px}.dig-hint{font-size:9px;color:var(--gold);margin-top:11px}.dig-side{display:flex;flex-direction:column;gap:14px}.side-panel{padding:15px}.side-panel h3{font-size:11px;color:#fff;margin:0 0 12px;text-transform:uppercase;letter-spacing:1.1px}.weather{display:flex;align-items:center;gap:10px;padding:10px;background:#173a4a;border-left:3px solid var(--teal);font-size:10px}.weather strong{display:block;color:#fff;margin-bottom:4px}.weather span{color:#9fc5c1;font-size:9px}.banner{padding:9px 11px;border:1px solid #8e6650;background:#3e3040;color:#f5d69f;font-size:9px;line-height:1.4;margin-top:11px}.find-list{display:flex;flex-direction:column;gap:8px;max-height:235px;overflow:auto}.find-row{display:grid;grid-template-columns:33px 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(155,179,185,.15)}.find-icon,.fossil-icon{width:32px;height:32px;display:grid;place-items:center;background:#3c3944;border:1px solid #6f6a69;font-size:18px}.find-row b{display:block;font-size:10px;color:#fff}.find-row small{font-size:9px;color:var(--muted)}.value{font-size:10px;color:var(--gold)}.empty-find{text-align:center;color:#778c91;font-size:10px;line-height:1.6;padding:20px 7px;border:1px dashed #3d5b68}.pack{width:100%;margin-top:13px}
+.collection-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.fossil-card{padding:14px;min-height:185px;background:#19324a;border:1px solid #3c5b6c;display:flex;flex-direction:column;position:relative}.fossil-head{display:flex;gap:10px;align-items:center}.fossil-icon{width:48px;height:48px;border:2px solid #5f6870;box-shadow:3px 3px 0 #102031;font-size:26px}.fossil-card h3{font-size:12px;color:#fff;margin:0 0 5px}.species{font-size:9px;color:var(--sand)}.rarity{position:absolute;right:11px;top:12px;font-size:8px;text-transform:uppercase;letter-spacing:1px}.common{color:#aebaa8}.uncommon{color:#a4e3b0}.rare{color:#6bd3e1}.epic{color:#d3a4ff}.legendary{color:#ffbd61}.fossil-details{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:16px 0 auto;font-size:9px;color:var(--muted)}.fossil-details b{display:block;color:#e4d5b6;font-size:10px;margin-top:3px}.fossil-actions{display:flex;gap:6px;margin-top:12px}.fossil-actions .button{padding:7px 5px;flex:1;font-size:9px}.empty-state{padding:42px 22px;text-align:center;border:1px dashed #496371;background:rgba(14,33,52,.35)}.empty-icon{font-size:32px;color:var(--amber);margin-bottom:9px}.empty-state h3{font-size:14px;color:#fff;margin:0 0 7px}.empty-state p{font-size:10px;color:var(--muted);margin:0 auto 16px;max-width:390px;line-height:1.6}
+.shop-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.shop-group{grid-column:1/-1;font-size:10px;color:var(--teal);letter-spacing:1.5px;text-transform:uppercase;margin:12px 0 -1px}.shop-item{padding:13px;background:#172f47;border:1px solid #35546b;min-height:165px;display:flex;flex-direction:column}.shop-item.owned{border-color:#468a83;background:#183b46}.shop-icon{font-size:22px;color:var(--amber);margin-bottom:10px}.shop-item h3{font-size:11px;color:#fff;margin:0 0 5px}.shop-item p{font-size:9px;line-height:1.45;color:#aabcc0;margin:0}.shop-foot{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-top:auto;padding-top:12px}.price{font-size:10px;color:var(--gold)}.owned-tag{font-size:9px;color:#a4e3b0;border:1px solid #468a83;padding:6px 7px}
+.museum-layout{display:grid;grid-template-columns:1.16fr .84fr;gap:16px}.exhibit{padding:18px;margin-bottom:12px}.exhibit-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.exhibit h3{font-size:14px;color:#fff;margin:0 0 6px}.exhibit p{font-size:10px;color:var(--muted);margin:0;line-height:1.5}.income{font-size:10px;color:var(--gold);text-align:right}.exhibit-progress{height:8px;background:#0c1d30;border:1px solid #395467;margin:16px 0 12px}.exhibit-progress span{display:block;height:100%;background:var(--teal);transition:width .4s}.specimen-row{display:flex;gap:8px;flex-wrap:wrap}.specimen{width:42px;height:42px;display:grid;place-items:center;border:1px solid #536b75;background:#223b4a;font-size:21px;position:relative}.specimen.missing{opacity:.32;filter:grayscale(1)}.specimen:after{content:"";position:absolute;bottom:3px;left:4px;right:4px;height:2px;background:var(--amber);opacity:.6}.museum-list{padding:18px}.museum-list h3{font-size:11px;color:#fff;text-transform:uppercase;letter-spacing:1px;margin:0 0 13px}.museum-find{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(155,179,185,.13)}.museum-find .fossil-icon{width:36px;height:36px;font-size:18px}.museum-find strong{display:block;font-size:10px;color:#fff}.museum-find small{font-size:9px;color:var(--muted)}.rep-burst{padding:13px;background:#263b3e;border:1px solid #4b8e82;font-size:10px;color:#c7edcf;line-height:1.5;margin-top:16px}
+.modal-backdrop{position:fixed;inset:0;background:rgba(3,9,18,.77);display:grid;place-items:center;z-index:30;padding:20px;animation:fade .2s}.modal{width:min(500px,100%);padding:22px;background:#172f47;border:1px solid #698090;box-shadow:0 20px 0 rgba(0,0,0,.25),0 30px 60px #0009;position:relative;animation:rise .28s}.modal:before{content:"";position:absolute;top:-1px;left:-1px;width:80px;height:3px;background:var(--amber)}.modal h2{font-size:18px;color:#fff;margin:0 0 8px}.modal p{font-size:10px;color:#b4c7c7;line-height:1.6;margin:0 0 16px}.modal-icon{font-size:30px;color:var(--amber);margin-bottom:10px}.modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}.modal-actions .button{min-width:120px}.event-choices{display:grid;gap:8px}.event-choice{text-align:left;border:1px solid #46677a;background:#193a4d;padding:11px;color:#e7e0c9;font-size:10px}.event-choice:hover{border-color:var(--amber);background:#274254}.event-choice b{display:block;color:#fff;margin-bottom:4px}.tutorial-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:16px 0}.tutorial-step{padding:11px;border:1px solid #3f5c68;background:#19384a}.tutorial-step b{display:block;color:var(--gold);font-size:13px;margin-bottom:6px}.tutorial-step span{font-size:9px;color:#afc0c0;line-height:1.45}.toast-zone{position:fixed;right:20px;bottom:20px;z-index:50;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}.toast{padding:11px 14px;border:1px solid var(--amber);background:#172c40;color:#fff;font-size:10px;box-shadow:5px 5px 0 rgba(5,12,23,.42);animation:toastIn .3s ease both}.toast.teal{border-color:var(--teal)}.toast.warn{border-color:var(--red)}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes fade{from{opacity:0}to{opacity:1}}@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}@keyframes pop{0%{transform:scale(.86)}70%{transform:scale(1.09)}100%{transform:scale(1)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}@keyframes pulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(255,205,104,.1)}50%{box-shadow:inset 0 0 0 4px rgba(255,205,104,.12)}}@keyframes twinkle{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}@keyframes sweep{0%{opacity:0;transform:translateX(-20px)}40%{opacity:.7}100%{opacity:0;transform:translateX(20px)}}@keyframes drift{0%{transform:translateX(-20%);opacity:0}30%{opacity:.8}100%{transform:translateX(20%);opacity:0}}
+@media(max-width:1000px){.site-grid{grid-template-columns:repeat(3,1fr)}.shop-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:760px){.topbar{padding:0 14px;gap:10px}.brand{min-width:auto}.brand-sub,.top-metrics{display:none}.world{padding:14px;flex-wrap:wrap}.scene{min-width:100%;height:85px}.resources{justify-content:flex-start;max-width:none}.tabs{padding:0 14px}main{padding:16px 14px 32px}.dashboard,.dig-layout,.museum-layout{grid-template-columns:1fr}.site-grid,.collection-grid,.shop-grid{grid-template-columns:repeat(2,1fr)}.dig-side{display:grid;grid-template-columns:1fr 1fr}.view-head{align-items:flex-start;flex-direction:column}.tutorial-steps{grid-template-columns:1fr}.camp-visual{right:-5px;opacity:.65}}@media(max-width:460px){.site-grid,.collection-grid,.shop-grid{grid-template-columns:1fr}.dig-side{display:flex}.top-actions .icon-btn{font-size:0}.top-actions .icon-btn:first-child:after{content:"↻";font-size:14px}.top-actions .icon-btn:last-child:after{content:"?";font-size:14px}}
+</style>
+<style>
+/* ---- Classic tycoon skin: beveled stone plates, hard shadows, pixel sprites ---- */
+:root{--night:#0d1826;--plate:#cbb78f;--plate-hi:#ecdfc0;--plate-lo:#a38d64;--plate-dk:#7b6748;--edge:#181109;--cap:#284a63;--cap-hi:#4a7396;--ink:#2b2118;--ink2:#634d34;--amber:#e8a63c;--amber-hi:#ffd074;--amber-lo:#8b5a1a;--teal:#2f9e93;--teal-hi:#6fdccd;--red:#bf4535;--green:#4d8d42;--gold:#f5c04a}
+body{background:#0d1826;image-rendering:pixelated}
+.app{background:#0d1826;background-image:linear-gradient(#122135,#0d1826 42%,#141d27)}
+.app:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;background-image:linear-gradient(45deg,rgba(255,255,255,.022) 25%,transparent 25% 75%,rgba(255,255,255,.022) 75%);background-size:4px 4px}
+.px{image-rendering:pixelated;display:block;flex:none}
+.plate,.panel,.win{background:var(--plate);background-image:linear-gradient(45deg,rgba(255,255,255,.07) 25%,transparent 25% 75%,rgba(255,255,255,.07) 75%),linear-gradient(45deg,rgba(0,0,0,.045) 25%,transparent 25% 75%,rgba(0,0,0,.045) 75%);background-size:4px 4px;background-position:0 0,2px 2px;border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge),5px 5px 0 rgba(3,8,15,.5);color:var(--ink);border-radius:0}
+.panel:before{display:none}
+.inset{background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk);box-shadow:inset 0 0 0 2px rgba(0,0,0,.35)}
+.cap{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;background:var(--cap);box-shadow:inset 0 2px 0 var(--cap-hi),inset 0 -2px 0 rgba(0,0,0,.35);border-bottom:2px solid var(--edge);color:#dcecf7;font-size:9px;letter-spacing:1.7px;text-transform:uppercase}
+.cap b{color:var(--gold);font-weight:400;letter-spacing:1.2px}
+.pad{padding:13px}
+/* topbar */
+.topbar{position:relative;z-index:5;height:auto;min-height:58px;padding:8px 14px;gap:12px;background:#1b3348;background-image:linear-gradient(#2a4a63,#16293a);border-bottom:3px solid var(--edge);box-shadow:inset 0 2px 0 #4a7396;backdrop-filter:none}
+.brand{gap:9px;min-width:auto}.brand-mark{display:none}
+.brand-title{font-size:15px;letter-spacing:2.4px;color:#ffe6ae;text-shadow:2px 2px 0 #10202e}
+.brand-sub{color:#8fb4c6;letter-spacing:1.6px}
+.top-metrics{gap:8px;flex-wrap:wrap}
+.day-note{padding:5px 8px;font-size:9px;letter-spacing:1.2px;color:var(--ink2)}
+.icon-btn{border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);background:var(--plate);color:var(--ink);box-shadow:0 0 0 2px var(--edge),2px 2px 0 rgba(3,8,15,.5);padding:7px 9px;font-size:9px;letter-spacing:1.2px;font-weight:700}
+.icon-btn:hover{background:var(--plate-hi);color:var(--ink)}
+.icon-btn:active{transform:translate(2px,2px);box-shadow:0 0 0 2px var(--edge)}
+.save{color:#9fe4d8;font-size:9px;letter-spacing:1px;padding:5px 6px}
+/* world strip */
+.world{position:relative;z-index:2;padding:0;border-bottom:3px solid var(--edge);display:block}
+#scene{display:block;image-rendering:pixelated}
+.brief h1{font-size:19px;text-shadow:2px 2px 0 #0a1420;letter-spacing:0}
+.brief p{color:#c8d8dd;font-size:10px}
+.brief .hint{color:var(--gold);text-shadow:1px 1px 0 #0a1420}
+.eyebrow{color:#8fdcd0;text-shadow:1px 1px 0 #0a1420}
+.resource{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;font-size:8px;letter-spacing:1.1px;color:var(--ink2);background:var(--plate);border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge)}
+.resource strong{display:inline;margin:0;font-size:12px;color:var(--ink)}
+.resource.cash strong{color:#7a4e05}.resource.teal strong{color:#155e57}
+/* tabs */
+.tabs{position:relative;z-index:3;gap:5px;padding:9px 14px 0;border-bottom:3px solid var(--edge);background:#16283a;box-shadow:inset 0 -3px 0 rgba(0,0,0,.3)}
+.tab{border:2px solid;border-color:var(--plate) var(--plate-dk) var(--plate-dk) var(--plate);background:var(--plate-lo);color:#2b2118;box-shadow:0 0 0 2px var(--edge);padding:7px 11px;font-size:9px;letter-spacing:1.3px;font-weight:700;margin-bottom:5px}
+.tab:hover{background:var(--plate);color:var(--ink)}
+.tab.active{background:var(--amber);border-color:var(--amber-hi) var(--amber-lo) var(--amber-lo) var(--amber-hi);color:#2c1d06;transform:translateY(1px)}
+main{position:relative;z-index:2;padding:18px 16px 44px;max-width:1240px}
+.view-head h2{color:#ffe6ae;text-shadow:2px 2px 0 #0a1420;font-size:17px}
+.view-head p{color:#a3b6bd;font-size:10px}
+.label{color:#8fdcd0;text-shadow:1px 1px 0 #0a1420}
+/* buttons */
+.button{border:2px solid;border-color:var(--amber-hi) var(--amber-lo) var(--amber-lo) var(--amber-hi);background:var(--amber);color:#2c1d06;box-shadow:0 0 0 2px var(--edge),3px 3px 0 rgba(3,8,15,.5);padding:9px 12px;font-size:9px;letter-spacing:1.1px;font-weight:800;text-transform:uppercase}
+.button:hover{filter:none;background:var(--amber-hi);transform:none}
+.button:active{transform:translate(2px,2px);box-shadow:0 0 0 2px var(--edge)}
+.button.secondary{background:#3f7f86;border-color:#6fbcbd #1f5359 #1f5359 #6fbcbd;color:#eafcfb}
+.button.secondary:hover{background:#4c959a}
+.button.ghost{background:var(--plate-lo);border-color:var(--plate) var(--plate-dk) var(--plate-dk) var(--plate);color:var(--ink);box-shadow:0 0 0 2px var(--edge),3px 3px 0 rgba(3,8,15,.5)}
+.button.ghost:hover{background:var(--plate)}
+.button.danger{background:#b4483a;border-color:#e07f6d #6d2318 #6d2318 #e07f6d;color:#ffe8de}
+.button:disabled{opacity:1;filter:grayscale(.72) brightness(.82);cursor:not-allowed;transform:none}
+/* camp */
+.camp{background:#243a4d;background-image:none;padding:0;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi)}
+.camp:after{display:none}
+.camp-copy{padding:15px;max-width:none;color:var(--ink)}
+.camp-copy h3{font-size:21px;letter-spacing:-.4px;color:#ffe6ae;text-shadow:2px 2px 0 #101c28}
+.camp-copy p{color:#c6d5d5;font-size:10px}
+.camp-visual{display:none}
+.stat{padding:11px;background:var(--plate);border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge);display:flex;align-items:center;gap:10px}
+.stat small{color:var(--ink2);letter-spacing:1.1px;display:block}
+.stat strong{font-size:19px;color:var(--ink);margin-top:2px}
+.stat em{color:#1f6a63;font-size:9px}
+.contract{border-bottom:2px dashed rgba(60,42,22,.3)}
+.contract h4{color:var(--ink);font-size:10px;letter-spacing:.6px}
+.contract p{color:var(--ink2);font-size:9px}
+.reward{color:#7a4e05}
+.contract progress{height:8px;border:2px solid var(--plate-dk);background:#332718}
+.contract progress::-webkit-progress-bar{background:#332718}
+.contract progress::-webkit-progress-value{background:var(--teal)}
+/* site cards */
+.site-grid{grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px}
+.site-card{background:var(--plate);background-image:linear-gradient(45deg,rgba(255,255,255,.07) 25%,transparent 25% 75%,rgba(255,255,255,.07) 75%);background-size:4px 4px;border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge),5px 5px 0 rgba(3,8,15,.5);color:var(--ink);padding:0;min-height:0}
+.site-card:after{display:none}
+.site-card.locked{filter:grayscale(.62) brightness(.9);opacity:1}
+.site-art{border-bottom:2px solid var(--edge);background:#3c6688;overflow:hidden;position:relative}
+.site-art img{width:100%;height:auto}
+.site-art .status{position:absolute;top:5px;right:5px;z-index:2}
+.site-card{display:flex;flex-direction:column}
+.site-inner{padding:11px;display:flex;flex-direction:column;flex:1}
+.site-card h3{color:var(--ink);font-size:11px;margin:0 0 3px;letter-spacing:.4px}
+.country{color:var(--ink2);font-size:8px;letter-spacing:1.1px;margin-bottom:8px}
+.desc{color:#4e3b26;font-size:9px;min-height:26px}
+.site-meta{color:var(--ink2);gap:4px 6px;font-size:8px}
+.site-meta b{color:#3b2c1a;font-weight:700;font-size:9px}
+.status{background:#284a63;color:#cfe8f2;border:2px solid;border-color:var(--cap-hi) #14293a #14293a var(--cap-hi);font-size:8px;padding:3px 5px;letter-spacing:1px}
+.status.lock{background:#6b5c44;color:#efe4cc;border-color:#8f7d5f #3b3122 #3b3122 #8f7d5f}
+.locked-note{color:#5b4526;font-size:9px}
+/* dig */
+.dig-main{padding:0}
+.dig-inner{padding:14px}
+.dig-title h2{color:#ffe6ae;text-shadow:2px 2px 0 #101c28;font-size:15px}
+.dig-title p{color:var(--ink2);font-size:9px}
+.reading{background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk);color:#c3ae87;font-size:8px;letter-spacing:1px;min-width:62px}
+.reading b{color:var(--gold);font-size:13px}
+.reading.teal b{color:var(--teal-hi)}
+.progress{height:14px;background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk);box-shadow:none;padding:2px}
+.progress span{background:var(--teal);background-image:linear-gradient(90deg,var(--teal) 0 50%,var(--teal-hi) 50%);background-size:6px 100%}
+.progress span:after{display:none}
+.grid-wrap{padding:8px;background:#6b4a33;background-image:linear-gradient(45deg,rgba(0,0,0,.09) 25%,transparent 25% 75%,rgba(0,0,0,.09) 75%);background-size:4px 4px;border:2px solid;border-color:#9c7248 #3d2a1d #3d2a1d #9c7248;box-shadow:0 0 0 2px var(--edge)}
+.dig-grid{gap:4px}
+.tile{border:2px solid;border-color:#a67c50 #4a3324 #4a3324 #a67c50;background-color:#7d5a3f;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated;box-shadow:none;display:grid;place-items:center;padding:0}
+.tile:hover:not(:disabled){transform:translateY(-2px);border-color:var(--amber-hi) #6b4718 #6b4718 var(--amber-hi);background-color:#a0764b;filter:brightness(1.12)}
+.tile.signal{border-color:var(--amber-hi) #7a5217 #7a5217 var(--amber-hi);animation:beacon 1.1s steps(2,end) infinite}
+.tile.signal:after{content:"";position:absolute;inset:0;background:rgba(255,208,116,.16);pointer-events:none}
+.tile.dug{background-color:#3d2d21;border-color:#5b4433 #241a12 #241a12 #5b4433;animation:none}
+.tile.find{background-color:#2c5f5c;border-color:var(--teal-hi) #123f3c #123f3c var(--teal-hi)}
+.tile.hazard{background-color:#7b4038;border-color:#d08375 #3f1a15 #3f1a15 #d08375}
+.tile img{width:76%;height:auto}
+.tile-num{color:rgba(255,235,196,.3);font-size:7px;z-index:1}
+.tool{border:2px solid;border-color:var(--plate) var(--plate-dk) var(--plate-dk) var(--plate);background:var(--plate-lo);color:var(--ink);box-shadow:0 0 0 2px var(--edge);padding:6px 8px;font-size:8px;letter-spacing:.8px;display:flex;align-items:center;gap:6px;text-align:left;font-weight:700}
+.tool small{color:#5d4a30;letter-spacing:.4px;font-weight:400;margin-top:2px}
+.tool.active{background:var(--amber);border-color:var(--amber-hi) var(--amber-lo) var(--amber-lo) var(--amber-hi);color:#2c1d06}
+.tool.active small{color:#6b4711}
+.tool:disabled{filter:grayscale(.7) brightness(.85);cursor:not-allowed}
+.dig-hint{color:var(--gold);text-shadow:1px 1px 0 #0a1420;font-size:9px}
+.side-panel h3{color:var(--ink);font-size:10px;letter-spacing:1.3px}
+.weather{background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk);border-left-width:4px;border-left-color:var(--teal);color:#c9b48f;font-size:9px;gap:8px}
+.weather strong{color:#ffe6ae}.weather span{color:#a2916f;font-size:8px}
+.banner{background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk);color:#f0cf95;font-size:9px}
+.find-row{border-bottom:2px dashed rgba(60,42,22,.3);grid-template-columns:auto 1fr auto}
+.find-list{max-height:214px;gap:2px}
+.dig-readings,.tool-list{flex-wrap:wrap}
+.tool span{display:block}
+.find-row b{color:var(--ink);font-size:10px}
+.find-row small{color:var(--ink2);font-size:8px}
+.value{color:#7a4e05;font-weight:700}
+.find-icon,.fossil-icon{width:auto;height:auto;background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk);padding:2px;box-shadow:none}
+.empty-find{color:#7d6845;border:2px dashed var(--plate-dk);background:rgba(51,39,24,.14);font-size:9px}
+/* collection */
+.collection-grid{grid-template-columns:repeat(auto-fit,minmax(212px,1fr))}
+.fossil-card{background:var(--plate);background-image:linear-gradient(45deg,rgba(255,255,255,.07) 25%,transparent 25% 75%,rgba(255,255,255,.07) 75%);background-size:4px 4px;border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge),5px 5px 0 rgba(3,8,15,.5);color:var(--ink);min-height:0}
+.fossil-card h3{color:var(--ink);font-size:11px}
+.species{color:var(--ink2);font-size:8px;letter-spacing:.6px}
+.rarity{top:9px;right:9px;font-size:8px;padding:2px 4px;border:2px solid var(--edge);background:#332718;letter-spacing:1px}
+.common{color:#cdbfa4}.uncommon{color:#8fe0a0}.rare{color:#6fd3e1}.epic{color:#d8a8ff}.legendary{color:#ffc561}
+.fossil-details{color:var(--ink2);margin:12px 0 auto;font-size:8px}
+.fossil-details b{color:#3b2c1a;font-size:10px}
+.empty-state{border:2px dashed var(--plate-dk);background:rgba(203,183,143,.07);padding:34px 20px}
+.empty-state h3{color:#ffe6ae;font-size:13px}
+.empty-state p{color:#a3b6bd;font-size:10px}
+.empty-icon{margin-bottom:12px;display:flex;justify-content:center}
+/* shop */
+.shop-grid{grid-template-columns:repeat(auto-fit,minmax(176px,1fr))}
+.shop-group{color:#8fdcd0;text-shadow:1px 1px 0 #0a1420;letter-spacing:1.6px;margin:14px 0 0}
+.shop-item{background:var(--plate);background-image:linear-gradient(45deg,rgba(255,255,255,.07) 25%,transparent 25% 75%,rgba(255,255,255,.07) 75%);background-size:4px 4px;border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge),4px 4px 0 rgba(3,8,15,.5);color:var(--ink);min-height:0;padding:11px}
+.shop-item.owned{background:#a9c0a2;border-color:#d3e2cc #6c8264 #6c8264 #d3e2cc}
+.shop-icon{margin-bottom:8px}
+.shop-item h3{color:var(--ink);font-size:10px;letter-spacing:.5px}
+.shop-item p{color:#4e3b26;font-size:9px}
+.price{color:#7a4e05;font-weight:700}
+.owned-tag{background:#3c6b3f;color:#dff5db;border:2px solid;border-color:#5f9161 #1f3f22 #1f3f22 #5f9161;font-size:8px;letter-spacing:1px;padding:4px 6px}
+/* museum */
+.exhibit{padding:15px;margin-bottom:12px}
+.exhibit h3{color:var(--ink);font-size:12px}
+.exhibit p{color:var(--ink2);font-size:9px}
+.income{color:#7a4e05;font-weight:700}
+.exhibit-progress{height:12px;background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk);padding:2px;margin:12px 0 10px}
+.exhibit-progress span{background:var(--teal);background-image:linear-gradient(90deg,var(--teal) 0 50%,var(--teal-hi) 50%);background-size:6px 100%}
+.specimen{width:auto;height:auto;padding:3px;background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk)}
+.specimen.missing{opacity:.4}
+.specimen:after{display:none}
+.museum-list h3{color:var(--ink)}
+.museum-find{border-bottom:2px dashed rgba(60,42,22,.3)}
+.museum-find strong{color:var(--ink);font-size:10px}
+.museum-find small{color:var(--ink2);font-size:8px}
+.rep-burst{background:#3c6b3f;border:2px solid;border-color:#5f9161 #1f3f22 #1f3f22 #5f9161;color:#e2f6de;font-size:9px}
+.rep-burst b{color:#fff0b8}
+/* modal */
+.modal-backdrop{background:rgba(6,12,20,.8);backdrop-filter:none}
+.modal{background:var(--plate);background-image:linear-gradient(45deg,rgba(255,255,255,.07) 25%,transparent 25% 75%,rgba(255,255,255,.07) 75%);background-size:4px 4px;border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge),8px 8px 0 rgba(3,8,15,.55);color:var(--ink);padding:18px}
+.modal:before{display:none}
+.modal h2{color:var(--ink);font-size:15px;letter-spacing:.2px}
+.modal p{color:#4e3b26;font-size:10px}
+.modal-icon{margin-bottom:10px;display:flex}
+.event-choice{background:var(--plate-lo);border:2px solid;border-color:var(--plate) var(--plate-dk) var(--plate-dk) var(--plate);box-shadow:0 0 0 2px var(--edge);color:var(--ink);font-size:9px;line-height:1.5}
+.event-choice:hover{background:var(--plate);border-color:var(--amber-hi) var(--amber-lo) var(--amber-lo) var(--amber-hi)}
+.event-choice b{color:#2b2118;font-size:10px}
+.tutorial-step{background:#332718;border:2px solid;border-color:var(--plate-dk) var(--plate-hi) var(--plate-hi) var(--plate-dk)}
+.tutorial-step b{color:var(--gold);font-size:11px;letter-spacing:1px}
+.tutorial-step span{color:#c3ae87;font-size:9px}
+/* toasts + fx */
+.toast{background:var(--plate);border:2px solid;border-color:var(--plate-hi) var(--plate-dk) var(--plate-dk) var(--plate-hi);box-shadow:0 0 0 2px var(--edge),4px 4px 0 rgba(3,8,15,.5);color:var(--ink);font-size:9px;letter-spacing:.5px;font-weight:700;display:flex;align-items:center;gap:8px;max-width:300px}
+.toast.teal{background:#a9c0a2;border-color:#d3e2cc #6c8264 #6c8264 #d3e2cc}
+.toast.warn{background:#d9a08f;border-color:#f0c6b8 #8a4f3f #8a4f3f #f0c6b8}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:60;overflow:hidden}
+.particle{position:absolute;width:3px;height:3px;animation:fly .62s steps(7,end) forwards}
+@keyframes fly{to{transform:translate(var(--dx),var(--dy));opacity:0}}
+@keyframes beacon{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
+.quake{animation:quake .34s steps(2,end) 2}
+@keyframes quake{0%,100%{transform:translate(0,0)}25%{transform:translate(-3px,1px)}75%{transform:translate(3px,-1px)}}
+/* responsive excavation sizing: content changes never resize a tile */
+html,body{min-width:0}
+.app{width:100%;min-width:0}
+.world,.tabs,main,.dig-layout,.dig-main,.dig-side{min-width:0}
+.dig-toolbar{flex-wrap:wrap;align-items:flex-start}
+.grid-wrap{width:100%;max-width:640px;margin-inline:auto}
+.dig-grid{width:100%;aspect-ratio:6/5;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(5,minmax(0,1fr));grid-auto-rows:unset}
+.tile{width:100%;height:100%;min-width:0;min-height:0;aspect-ratio:1}
+.tile img{width:76%;height:76%;object-fit:contain}
+.tile.find{animation:tileReveal .4s steps(2,end) both}
+@keyframes tileReveal{0%{opacity:.55;filter:brightness(1.35)}100%{opacity:1;filter:brightness(1)}}
+@media(max-width:940px){.dig-layout{grid-template-columns:minmax(0,1fr)}.dig-side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
+@media(max-width:620px){.dig-side{display:flex}.dig-inner{padding:10px}.dig-toolbar{gap:8px}.dig-readings{width:100%}.reading{flex:1;min-width:0}.grid-wrap{padding:6px}}
+/* collection cards stay readable instead of stretching across wide panels */
+.collection-grid{grid-template-columns:repeat(auto-fit,minmax(212px,280px));justify-content:start;align-items:start}
+.fossil-card{width:100%;max-width:280px;justify-self:start}
+/* ---- top strip: framed scene beside the briefing, resource plates on their own row ---- */
+.world{display:flex;flex-direction:column;gap:8px;padding:10px 14px 11px;background:#16283a;background-image:linear-gradient(45deg,rgba(255,255,255,.02) 25%,transparent 25% 75%,rgba(255,255,255,.02) 75%);background-size:4px 4px}
+.world-top{display:flex;align-items:stretch;gap:14px;min-width:0}
+/* 320x104 is an exact 2x of the 160x52 canvas, so the pixels stay square */
+.scene-wrap{flex:0 0 320px;height:104px;position:relative;overflow:hidden;border:2px solid;border-color:#4a7396 #14293a #14293a #4a7396;box-shadow:0 0 0 2px var(--edge);background:linear-gradient(180deg,#365d7c 0 47%,#4f3b31 47% 54%,#79583f 54% 100%)}
+#scene{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:100%;width:auto;max-width:none;z-index:1}
+.scene-veil{position:absolute;inset:0;z-index:2;pointer-events:none;background:none;box-shadow:inset 0 0 0 1px rgba(10,23,36,.3),inset 0 -12px 16px -10px rgba(10,23,36,.55)}
+.brief .eyebrow{font-size:9px;letter-spacing:1.6px;margin-bottom:3px}
+.brief h1{font-size:17px;margin:0 0 4px}
+.brief p{margin:0;font-size:10px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.brief .hint{margin-top:6px;font-size:9px}
+.resources{gap:6px;justify-content:flex-start;max-width:none}
+.resource{flex:1 1 140px;min-width:0}
+@media(max-width:720px){
+ .world-top{flex-direction:column}
+ .scene-wrap{flex:none;width:100%}
+ .brief{flex:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar"><div class="brand"><span id="brand-logo"></span><div><div class="brand-title">FOSSIL FRONTIER</div><span class="brand-sub">FIELD EXPEDITION CO.</span></div></div><div class="top-metrics"><span class="day-note">FIELD LOG <b id="top-day">DAY 01</b></span><span class="save" id="save-state">● SAVED</span></div><div class="top-actions"><button class="icon-btn" data-action="reset" title="Start a new game">NEW LOG</button><button class="icon-btn" data-action="tutorial" title="Open field guide">FIELD GUIDE</button></div></header>
+<section class="world"><div class="world-top"><div class="scene-wrap"><canvas id="scene" width="160" height="52" role="img" aria-label="Pixel art view of the expedition camp at the dig site"></canvas><div class="scene-veil" aria-hidden="true"></div></div><div class="brief"><div class="eyebrow">Montana / Field season 01</div><h1 id="brief-title">The ground is calling.</h1><p id="brief-copy">Build your little camp into the most respected fossil house on the frontier. Every tile has a story.</p><div class="hint" id="brief-hint">↳ Start close to home. Montana is waiting.</div></div></div><div class="resources" id="resources"></div></section>
+<nav class="tabs" role="tablist" aria-label="Game sections"><button class="tab active" role="tab" data-view="camp">CAMP</button><button class="tab" role="tab" data-view="expeditions">EXPEDITIONS</button><button class="tab" role="tab" data-view="dig">ACTIVE DIG</button><button class="tab" role="tab" data-view="collection">COLLECTION <span id="collection-count"></span></button><button class="tab" role="tab" data-view="private">PRIVATE <span id="private-count"></span></button><button class="tab" role="tab" data-view="upgrades">UPGRADES</button><button class="tab" role="tab" data-view="museum">MUSEUM</button></nav>
+<main><section class="view active" id="view-camp" role="tabpanel"></section><section class="view" id="view-expeditions" role="tabpanel"></section><section class="view" id="view-dig" role="tabpanel"></section><section class="view" id="view-collection" role="tabpanel"></section><section class="view" id="view-private" role="tabpanel"></section><section class="view" id="view-upgrades" role="tabpanel"></section><section class="view" id="view-museum" role="tabpanel"></section></main>
+</div><div id="modal-root"></div><div id="fx" aria-hidden="true"></div><div class="toast-zone" id="toast-zone" aria-live="polite"></div>
+<script>
+(()=>{'use strict';
+/* ===== pixel sprite engine: shapes are rasterised on a pixel grid, then auto-shaded and auto-outlined ===== */
+const OUT='#1d160f',BN={hi:'#f6ead2',mid:'#dbc6a2',lo:'#a98e69'};
+const CL={sky:'#3d6b8f',skyLo:'#2b4f6d',sun:'#ffd26e',rock:'#8b6347',rockLo:'#5c4130',rockHi:'#b08256',sand:'#d9ac6a',sandLo:'#b1854d',sandDk:'#96703f',grn:'#6fae52',grnLo:'#3c6b3f',steel:'#c3ced6',steelLo:'#6d7f8b',wood:'#9a6b40',woodLo:'#61411f',teal:'#65d4c8',white:'#f4f0e4',red:'#d9584a',water:'#3f8fa8',skin:'#e0a878',amber:'#efb44d',grey:'#9aa0a4',greyLo:'#5f666b'};
+function Sp(w,h){return{w:w,h:h,d:new Array(w*h).fill(null)}}
+function st(s,x,y,c){x=Math.round(x);y=Math.round(y);if(c==null||x<0||y<0||x>=s.w||y>=s.h)return;s.d[y*s.w+x]=c}
+function gt(s,x,y){if(x<0||y<0||x>=s.w||y>=s.h)return null;return s.d[y*s.w+x]}
+function rc(s,x,y,w,h,c){for(let j=0;j<h;j++)for(let i=0;i<w;i++)st(s,x+i,y+j,c)}
+function dc(s,cx,cy,r,c){for(let y=Math.floor(cy-r)-1;y<=Math.ceil(cy+r)+1;y++)for(let x=Math.floor(cx-r)-1;x<=Math.ceil(cx+r)+1;x++){const a=x+0.5-cx,b=y+0.5-cy;if(a*a+b*b<=r*r)st(s,x,y,c)}}
+function rg(s,cx,cy,r,c){for(let y=Math.floor(cy-r)-2;y<=Math.ceil(cy+r)+2;y++)for(let x=Math.floor(cx-r)-2;x<=Math.ceil(cx+r)+2;x++){const a=x+0.5-cx,b=y+0.5-cy,d=Math.sqrt(a*a+b*b);if(d<=r+0.5&&d>=r-0.5)st(s,x,y,c)}}
+function ln(s,x0,y0,x1,y1,c){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);const dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx-dy;for(;;){st(s,x0,y0,c);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>-dy){e-=dy;x0+=sx}if(e2<dx){e+=dx;y0+=sy}}}
+function pg(s,pts,c){let a=1e9,b=-1e9;pts.forEach(p=>{a=Math.min(a,p[1]);b=Math.max(b,p[1])});for(let y=Math.floor(a);y<=Math.ceil(b);y++){const yc=y+0.5,xs=[];for(let i=0;i<pts.length;i++){const p=pts[i],q=pts[(i+1)%pts.length];if((p[1]<=yc&&q[1]>yc)||(q[1]<=yc&&p[1]>yc))xs.push(p[0]+(yc-p[1])/(q[1]-p[1])*(q[0]-p[0]))}xs.sort((m,n)=>m-n);for(let i=0;i+1<xs.length;i+=2)for(let x=Math.round(xs[i]);x<Math.round(xs[i+1]);x++)st(s,x,y,c)}}
+function shd(s,c){const o=[];for(let y=0;y<s.h;y++)for(let x=0;x<s.w;x++){const v=gt(s,x,y);if(v==null||v===c)continue;if(gt(s,x,y+1)==null||gt(s,x+1,y)==null)o.push([x,y])}o.forEach(p=>st(s,p[0],p[1],c))}
+function otl(s,c){const o=[];for(let y=0;y<s.h;y++)for(let x=0;x<s.w;x++){if(gt(s,x,y)!=null)continue;if(gt(s,x-1,y)!=null||gt(s,x+1,y)!=null||gt(s,x,y-1)!=null||gt(s,x,y+1)!=null)o.push([x,y])}o.forEach(p=>st(s,p[0],p[1],c))}
+function rnd(seed){let t=seed+1831565813;return()=>{t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+/* ---- sprite library. bone = auto-shaded skeleton pieces, gear = flat colour + outline ---- */
+const ART={
+ammonite:{bone:1,d(s){dc(s,8,8,6.8,BN.mid);for(let a=0;a<12;a++){const t=a/12*Math.PI*2;ln(s,8+Math.cos(t)*2,8+Math.sin(t)*2,8+Math.cos(t)*6.2,8+Math.sin(t)*6.2,BN.hi)}rg(s,8,8,6.4,BN.lo);rg(s,8,8,4,BN.lo);rg(s,8,8,2,BN.lo);dc(s,8,8,1.2,BN.hi)}},
+triceratops:{bone:1,d(s){pg(s,[[3,2],[12,2],[15,7],[12,10],[3,10],[0,7]],BN.mid);pg(s,[[5,8],[10,8],[9,14],[6,14]],BN.hi);pg(s,[[1,3],[5,3],[3,0]],BN.hi);pg(s,[[10,3],[14,3],[12,0]],BN.hi);pg(s,[[6,9],[9,9],[8,5]],BN.hi);rc(s,3,5,2,2,OUT);rc(s,11,5,2,2,OUT)}},
+trex:{bone:1,d(s){pg(s,[[1,4],[5,2],[9,3],[11,5],[11,8],[2,8]],BN.hi);pg(s,[[9,4],[14,6],[14,9],[10,9]],BN.hi);for(let x=6;x<=14;x+=2){st(s,x,9,BN.hi);st(s,x,10,BN.hi)}pg(s,[[3,10],[13,11],[13,13],[4,13]],BN.mid);rc(s,8,5,2,2,OUT);st(s,13,7,OUT)}},
+velociraptor:{bone:1,d(s){pg(s,[[1,5],[4,3],[7,4],[9,6],[9,8],[2,8]],BN.hi);pg(s,[[7,5],[15,8],[15,10],[8,9]],BN.hi);for(let x=8;x<=14;x+=2)st(s,x,10,BN.hi);pg(s,[[3,10],[14,11],[14,12],[4,12]],BN.mid);rc(s,6,5,2,2,OUT)}},
+brachiosaurus:{bone:1,d(s){dc(s,4,12,3.4,BN.mid);pg(s,[[3,12],[7,12],[12,4],[9,3]],BN.hi);rc(s,10,1,5,3,BN.hi);st(s,13,2,OUT);ln(s,1,11,0,8,BN.mid);for(let i=0;i<5;i++)st(s,5+i,11-i*2,BN.lo)}},
+ankylosaurus:{bone:1,d(s){pg(s,[[3,12],[5,7],[10,6],[13,9],[13,12]],BN.mid);for(let x=4;x<13;x+=3){st(s,x,8,BN.hi);st(s,x+1,7,BN.hi)}rc(s,12,10,3,3,BN.hi);dc(s,2,8,2.2,BN.hi);ln(s,3,10,4,12,BN.mid)}},
+spinosaurus:{bone:1,d(s){pg(s,[[3,10],[5,3],[9,2],[12,9]],BN.mid);for(let x=5;x<12;x+=2)ln(s,x,9,x+1,4,BN.lo);pg(s,[[2,10],[13,10],[14,13],[1,13]],BN.hi);rc(s,13,10,2,3,BN.hi);st(s,14,11,OUT)}},
+microraptor:{bone:1,d(s){pg(s,[[4,10],[11,3],[14,6],[7,13]],BN.mid);for(let i=0;i<4;i++)ln(s,5+i*2,10,11+i,4+i,BN.lo);dc(s,3,4,2,BN.hi);ln(s,4,5,7,8,BN.hi);ln(s,8,11,14,14,BN.hi);st(s,2,4,OUT)}},
+bone:{bone:1,d(s){dc(s,4,4,2,BN.hi);dc(s,4,7,2,BN.hi);dc(s,12,9,2,BN.hi);dc(s,12,12,2,BN.hi);pg(s,[[4,4],[12,10],[12,12],[4,7]],BN.mid)}}};
+/* ---- site badges: layered pixel landscapes, drawn full-bleed with no outline ---- */
+Object.assign(ART,{
+site_montana:{w:32,h:16,flat:true,d(s){rc(s,0,0,32,8,CL.sky);rc(s,0,5,32,3,'#4b7593');dc(s,25,3,2.4,CL.sun);pg(s,[[0,9],[5,5],[12,5],[17,9]],CL.rockHi);pg(s,[[12,10],[18,6],[26,6],[32,10]],CL.rock);rc(s,0,10,32,6,CL.sand);rc(s,0,13,32,3,CL.sandLo);for(let x=1;x<32;x+=5)st(s,x,12,CL.sandDk);ln(s,6,12,9,12,BN.hi);ln(s,7,11,7,13,BN.hi);rc(s,20,11,3,2,CL.wood);pg(s,[[19,11],[24,11],[21,9]],CL.red)}},
+site_patagonia:{w:32,h:16,flat:true,d(s){rc(s,0,0,32,9,CL.sky);rc(s,0,6,32,3,CL.skyLo);ln(s,2,3,9,3,'#7fa8c4');ln(s,16,2,24,2,'#7fa8c4');pg(s,[[2,10],[8,5],[15,7],[21,10]],CL.rock);pg(s,[[18,10],[24,6],[32,10]],CL.rockLo);rc(s,0,10,32,6,CL.sandLo);rc(s,0,13,32,3,'#9c7a4a');for(let i=0;i<7;i++){ln(s,2+i*5,12,4+i*5,12,CL.grnLo);st(s,3+i*5,11,CL.grn)}}},
+site_gobi:{w:32,h:16,flat:true,d(s){rc(s,0,0,32,8,'#84a7bb');rc(s,0,4,32,4,'#9dbac9');dc(s,16,4,3.2,CL.sun);rc(s,0,8,32,8,CL.sand);pg(s,[[0,11],[9,8],[19,11],[32,9],[32,16],[0,16]],CL.sandLo);pg(s,[[0,13],[13,11],[32,13],[32,16],[0,16]],CL.sandDk);for(let x=2;x<32;x+=6)st(s,x,10,CL.sand)}},
+site_alberta:{w:32,h:16,flat:true,d(s){rc(s,0,0,32,9,'#4a7fa0');rc(s,0,6,32,3,'#5e93b0');rc(s,0,9,32,7,CL.sandLo);rc(s,0,13,32,3,'#93713f');rc(s,4,5,3,8,CL.rockHi);rc(s,3,4,5,2,CL.rock);rc(s,11,7,3,6,CL.rockHi);rc(s,10,6,5,2,CL.rock);rc(s,18,8,2,5,CL.rockHi);pg(s,[[26,10],[23,13],[29,13]],CL.grnLo);pg(s,[[26,6],[23,11],[29,11]],CL.grn);rc(s,25,13,2,2,CL.woodLo)}},
+site_madagascar:{w:32,h:16,flat:true,d(s){rc(s,0,0,32,10,'#5b93ad');rc(s,0,7,32,3,'#7fb2c4');rc(s,0,10,32,3,CL.grnLo);rc(s,0,13,32,3,CL.water);dc(s,6,3,2,CL.sun);rc(s,15,4,4,7,CL.wood);rc(s,16,4,2,7,CL.woodLo);pg(s,[[9,4],[25,4],[22,1],[12,1]],CL.grn);ln(s,10,3,24,3,CL.grnLo);rc(s,26,7,2,4,CL.wood);pg(s,[[23,7],[31,7],[27,4]],CL.grn);for(let x=0;x<32;x+=4)st(s,x+((x/4)%2),14,CL.white)}},
+/* ---- gear + assistants ---- */
+g_spade:{d(s){ln(s,4,13,10,4,CL.wood);ln(s,5,13,11,4,CL.woodLo);rc(s,9,2,4,2,CL.wood);pg(s,[[2,10],[6,10],[6,15],[4,16],[2,15]],CL.steel);pg(s,[[3,11],[5,11],[5,14],[4,15],[3,14]],CL.steelLo)}},
+g_trowel:{d(s){ln(s,10,3,12,2,CL.wood);rc(s,9,3,3,2,CL.woodLo);pg(s,[[3,13],[9,5],[12,8],[6,15]],CL.steel);pg(s,[[5,12],[9,7],[10,9],[7,13]],CL.steelLo)},post(s){st(s,1,2,CL.sun);st(s,2,1,CL.amber);st(s,14,11,CL.sun)}},
+g_brush:{d(s){rc(s,9,2,4,6,CL.wood);pg(s,[[8,7],[14,7],[13,9],[9,9]],CL.steel);pg(s,[[8,9],[14,9],[15,15],[7,15]],BN.hi);for(let x=8;x<15;x+=2)ln(s,x,10,x+1,15,BN.lo)}},
+g_pick:{d(s){ln(s,7,2,7,14,CL.wood);ln(s,8,2,8,14,CL.woodLo);pg(s,[[1,5],[7,3],[7,6],[2,7]],CL.steel);pg(s,[[14,5],[8,3],[8,6],[13,7]],CL.steel);ln(s,2,6,6,5,CL.steelLo);ln(s,13,6,9,5,CL.steelLo)}},
+g_scanner:{d(s){rc(s,6,10,2,5,CL.steelLo);ln(s,3,15,7,11,CL.steelLo);ln(s,11,15,7,11,CL.steelLo);pg(s,[[2,6],[12,6],[9,10],[5,10]],CL.steel);pg(s,[[4,7],[10,7],[8,9],[6,9]],CL.teal)},post(s){ln(s,4,4,10,4,CL.teal);ln(s,2,2,12,2,CL.teal);ln(s,6,0,8,0,CL.teal)}},
+g_jack:{d(s){rc(s,2,5,12,9,BN.hi);rc(s,2,5,12,2,BN.mid);rc(s,7,5,2,9,CL.rockLo);ln(s,3,8,12,8,BN.lo);ln(s,3,11,12,11,BN.lo);st(s,4,6,CL.red);st(s,11,12,CL.red)}},
+g_drone:{d(s){rc(s,6,7,4,3,CL.steelLo);rc(s,7,8,2,1,CL.teal);ln(s,3,4,6,7,CL.steel);ln(s,13,4,10,7,CL.steel);ln(s,3,12,6,10,CL.steel);ln(s,13,12,10,10,CL.steel);ln(s,1,3,5,3,CL.grey);ln(s,11,3,15,3,CL.grey);ln(s,1,13,5,13,CL.grey);ln(s,11,13,15,13,CL.grey)}},
+g_canopy:{d(s){pg(s,[[1,7],[8,3],[15,7],[15,9],[1,9]],CL.red);for(let x=1;x<15;x+=4)pg(s,[[x,7],[x+2,6],[x+2,9],[x,9]],'#efb25e');rc(s,2,9,2,6,CL.wood);rc(s,12,9,2,6,CL.wood);rc(s,7,10,2,4,CL.woodLo)}},
+g_water:{d(s){rc(s,4,4,8,10,CL.grnLo);rc(s,5,5,6,8,'#4f8f5c');rc(s,6,2,4,2,CL.steelLo);ln(s,3,5,3,12,CL.wood);ln(s,12,5,12,12,CL.wood);rc(s,6,7,4,3,CL.teal)}},
+g_crates:{d(s){rc(s,1,7,7,8,CL.wood);rc(s,8,4,7,11,CL.woodLo);ln(s,1,7,7,14,CL.woodLo);ln(s,7,7,1,14,CL.woodLo);ln(s,8,4,14,14,CL.wood);ln(s,14,4,8,14,CL.wood);rc(s,1,7,7,1,CL.rockHi);rc(s,8,4,7,1,CL.rockHi)}},
+g_maps:{d(s){rc(s,2,3,12,11,BN.hi);rc(s,2,3,12,1,BN.mid);rc(s,2,13,12,1,BN.lo);ln(s,4,6,11,6,CL.rockLo);ln(s,4,9,9,9,CL.rockLo);ln(s,4,11,8,11,CL.rockLo);rc(s,11,10,2,2,CL.red)}},
+g_lab:{d(s){pg(s,[[1,14],[8,4],[15,14]],CL.white);pg(s,[[3,14],[8,7],[13,14]],'#dcd6c4');rc(s,7,9,2,5,CL.rockLo);rc(s,7,2,2,3,CL.teal);rc(s,6,3,4,1,CL.teal);rc(s,1,14,14,1,CL.sandLo)}},
+g_wing:{d(s){pg(s,[[1,6],[8,2],[15,6]],CL.white);rc(s,1,6,14,1,'#dcd6c4');for(let x=2;x<14;x+=3)rc(s,x,7,2,6,CL.white);rc(s,0,13,16,2,'#dcd6c4');rc(s,7,9,2,4,CL.rockLo)}},
+g_workshop:{d(s){ln(s,3,13,10,5,CL.wood);rc(s,8,2,5,3,CL.steel);rc(s,9,3,3,1,CL.steelLo);ln(s,12,13,6,6,CL.steelLo);rc(s,3,3,3,4,CL.steel);st(s,4,4,null);st(s,5,4,null)}},
+p_student:{d(s,a){dc(s,8,4,2.6,CL.skin);pg(s,[[4,3],[12,3],[11,1],[5,1]],CL.amber);rc(s,3,3,10,1,CL.amber);pg(s,[[5,7],[11,7],[12,14],[4,14]],'#5b8fb0');rc(s,4,14,3,2,CL.woodLo);rc(s,9,14,3,2,CL.woodLo);ln(s,4,8,2,11,CL.skin);ln(s,12,8,14,11,CL.skin)}},
+p_geo:{d(s){dc(s,8,5,2.6,CL.skin);rc(s,3,3,10,1,'#8a6b3f');pg(s,[[5,3],[11,3],[11,1],[5,1]],'#8a6b3f');pg(s,[[5,8],[11,8],[12,14],[4,14]],'#7f6a4a');rc(s,4,14,3,2,CL.woodLo);rc(s,9,14,3,2,CL.woodLo);ln(s,12,9,14,12,CL.skin);rc(s,13,12,2,2,CL.steel)}},
+p_prep:{d(s){dc(s,8,4,2.6,CL.skin);pg(s,[[5,7],[11,7],[12,14],[4,14]],CL.teal);rc(s,6,9,4,4,CL.white);rc(s,4,14,3,2,CL.woodLo);rc(s,9,14,3,2,CL.woodLo);ln(s,3,8,1,11,CL.skin);rc(s,0,11,2,3,BN.hi)}},
+/* ---- dig tiles ---- */
+dirt0:{flat:true,d(s){tile(s,7)}},dirt1:{flat:true,d(s){tile(s,31)}},dirt2:{flat:true,d(s){tile(s,97)}},
+hole:{flat:true,d(s){rc(s,0,0,16,16,'#4a3628');dc(s,8,9,6.5,'#2b1e15');dc(s,8,8,5,'#1d150f');ln(s,2,4,13,3,'#5f4632');ln(s,3,13,12,14,'#5f4632');st(s,5,11,BN.lo);st(s,10,6,BN.lo)}},
+rock:{flat:true,d(s){rc(s,0,0,16,16,'#6b4a33');pg(s,[[2,13],[4,6],[8,3],[12,6],[14,13]],CL.grey);pg(s,[[4,13],[6,8],[9,6],[11,9],[12,13]],'#b6bcc0');ln(s,8,4,6,12,CL.greyLo);ln(s,9,7,12,11,CL.greyLo);rc(s,0,14,16,2,'#54402e')}}});
+function tile(s,seed){const r=rnd(seed);rc(s,0,0,16,16,'#7d5a3f');for(let y=0;y<16;y++)for(let x=0;x<16;x++){const v=r();if(v<.14)st(s,x,y,'#8d6748');else if(v<.26)st(s,x,y,'#6b4c35')}for(let i=0;i<5;i++){const px=Math.floor(r()*13)+1,py=Math.floor(r()*13)+1;rc(s,px,py,2,2,'#5b4130');st(s,px,py,'#98724f')}rc(s,0,0,16,1,'#96704e');rc(s,0,15,16,1,'#553d2c')}
+const SPRC={};
+function spr(name,scale){const k=name+'@'+scale;if(SPRC[k]!==undefined)return SPRC[k];const a=ART[name];if(!a)return SPRC[k]='';const s=Sp(a.w||16,a.h||16);a.d(s);if(a.bone)shd(s,BN.lo);if(a.flat!==true)otl(s,OUT);if(a.post)a.post(s);let u='';try{const cv=document.createElement('canvas');cv.width=s.w*scale;cv.height=s.h*scale;const g=cv.getContext('2d');for(let y=0;y<s.h;y++)for(let x=0;x<s.w;x++){const c=s.d[y*s.w+x];if(c){g.fillStyle=c;g.fillRect(x*scale,y*scale,scale,scale)}}u=cv.toDataURL()}catch(e){u=''}return SPRC[k]=u}
+function pic(name,scale,cls,alt){const u=spr(name,scale);if(!u)return '';const a=ART[name]||{};return '<img class="px '+(cls||'')+'" src="'+u+'" width="'+((a.w||16)*scale)+'" height="'+((a.h||16)*scale)+'" alt="'+(alt||'')+'">'}
+const SPECIES_ART={'Triceratops':'triceratops','Velociraptor':'velociraptor','T. rex':'trex','Brachiosaurus':'brachiosaurus','Ankylosaurus':'ankylosaurus','Spinosaurus':'spinosaurus','Microraptor':'microraptor','Ammonite':'ammonite'};
+const artOf=f=>SPECIES_ART[f&&f.species]||'bone';
+const GEAR_ART={steel:'g_spade',power:'g_trowel',brush:'g_brush',pickaxe:'g_pick',scanner:'g_scanner',jack:'g_jack',drone:'g_drone',canopy:'g_canopy',water:'g_water',crates:'g_crates',maps:'g_maps',lab:'g_lab',wing:'g_wing',workshop:'g_workshop',student:'p_student',geologist:'p_geo',preparator:'p_prep'};
+const KEY='fossil-frontier-save-v1',store=window.storage||(window.Workshop&&window.Workshop.storage)||{get:()=>null,set:()=>null};
+const sites=[
+{id:'montana',name:'Montana Badlands',country:'USA · HOME RANGE',icon:'⌁',color:'#e4a451',travel:0,danger:'Low',expected:'$140–280',unlock:0,fossils:'Triceratops · Ammonites',desc:'Wind-carved shale, friendly terrain, very good first finds.'},
+{id:'patagonia',name:'Patagonia Steppe',country:'ARGENTINA · SOUTHERN RUN',icon:'♢',color:'#cb7960',travel:140,danger:'Medium',expected:'$320–700',unlock:10,fossils:'Brachiosaurus · Velociraptor',desc:'Big bones beneath red dust. Bring patience and water.'},
+{id:'gobi',name:'Gobi Desert',country:'MONGOLIA · DUST SEA',icon:'◒',color:'#d8ad55',travel:240,danger:'High',expected:'$500–1,100',unlock:20,fossils:'Velociraptor · Microraptor',desc:'A legendary hunt where the wind hides everything.'},
+{id:'alberta',name:'Alberta Badlands',country:'CANADA · NORTHERN RIDGE',icon:'♣',color:'#69c7ba',travel:180,danger:'Medium',expected:'$410–900',unlock:30,fossils:'T. rex · Ankylosaurus',desc:'Cooler weather, generous deposits, stubborn clay.'},
+{id:'madagascar',name:'Madagascar Basin',country:'MADAGASCAR · ISLAND ARC',icon:'✺',color:'#d486bc',travel:360,danger:'Extreme',expected:'$750–1,600',unlock:50,fossils:'Spinosaurus · Ammonites',desc:'A rare island story for companies with a reputation.'}];
+const fossils={
+triceratops:{species:'Triceratops',group:'Herbivore',icon:'◖',rarities:['common','uncommon','rare'],base:92},
+velociraptor:{species:'Velociraptor',group:'Predator',icon:'⌁',rarities:['uncommon','rare','epic'],base:128},
+trex:{species:'T. rex',group:'Predator',icon:'◢',rarities:['rare','epic','legendary'],base:210},
+brachiosaurus:{species:'Brachiosaurus',group:'Herbivore',icon:'♧',rarities:['uncommon','rare','epic'],base:155},
+ankylosaurus:{species:'Ankylosaurus',group:'Herbivore',icon:'⬡',rarities:['common','uncommon','rare'],base:110},
+spinosaurus:{species:'Spinosaurus',group:'Predator',icon:'⌃',rarities:['rare','epic','legendary'],base:240},
+microraptor:{species:'Microraptor',group:'Predator',icon:'✦',rarities:['uncommon','rare','epic'],base:175},
+ammonite:{species:'Ammonite',group:'Artifact',icon:'◎',rarities:['common','uncommon','rare'],base:58}};
+const upgrades=[
+{id:'steel',group:'SHOVELS',icon:'⟐',name:'Steel Spade',cost:180,desc:'+4 tool durability per dig. Tough enough for clay.',effect:'durability',amount:4},
+{id:'power',group:'SHOVELS',icon:'▰',name:'Power Trowel',cost:520,rep:12,desc:'Excavate a neighbor on every fifth dig.',effect:'power'},
+{id:'brush',group:'TOOLS',icon:'≋',name:'Fine Brush',cost:120,desc:'Fossil finds are worth 15% more.',effect:'value'},
+{id:'pickaxe',group:'TOOLS',icon:'⚒',name:'Pickaxe',cost:230,rep:5,desc:'Crack hard earth. Better find chance.',effect:'find'},
+{id:'scanner',group:'TOOLS',icon:'⌁',name:'Ground Scanner',cost:340,rep:8,desc:'Reveals extra warm-signal tiles.',effect:'scanner'},
+{id:'jack',group:'TOOLS',icon:'⌑',name:'Field Jack',cost:600,rep:18,desc:'Protects a fossil from a damaged crate.',effect:'crate'},
+{id:'drone',group:'TOOLS',icon:'◇',name:'Drone Survey',cost:850,rep:28,desc:'Start each trip with 3 tiles pre-scanned.',effect:'drone'},
+{id:'canopy',group:'GEAR',icon:'⌂',name:'Sun Canopy',cost:160,desc:'Flash storms cost 1 less energy.',effect:'storm'},
+{id:'water',group:'GEAR',icon:'◌',name:'Water Pack',cost:210,desc:'+3 energy at the start of every trip.',effect:'energy'},
+{id:'crates',group:'GEAR',icon:'▤',name:'Reinforced Crates',cost:280,desc:'+2 crate capacity on every trip.',effect:'capacity'},
+{id:'maps',group:'GEAR',icon:'✧',name:'Fossil Maps',cost:310,rep:10,desc:'Travel costs are 20% lower.',effect:'travel'},
+{id:'lab',group:'CAMP EXPANSION',icon:'▱',name:'Lab Tent',cost:380,rep:12,desc:'Donations gain +1 reputation.',effect:'lab'},
+{id:'wing',group:'CAMP EXPANSION',icon:'▥',name:'Museum Wing',cost:700,rep:25,desc:'Museum exhibits make 50% more income.',effect:'wing'},
+{id:'workshop',group:'CAMP EXPANSION',icon:'▦',name:'Workshop',cost:900,rep:35,desc:'Packing restores 2 durability.',effect:'workshop'},
+{id:'student',group:'ASSISTANTS',icon:'☻',name:'Student Intern',cost:260,desc:'Adds a bonus common fossil on trip one.',effect:'student'},
+{id:'geologist',group:'ASSISTANTS',icon:'◉',name:'Field Geologist',cost:560,rep:20,desc:'Hazards are 30% less likely.',effect:'geologist'},
+{id:'preparator',group:'ASSISTANTS',icon:'✚',name:'Museum Preparator',cost:780,rep:30,desc:'Donations grant +3 extra reputation.',effect:'preparator'}];
+const contracts=[{id:'herbivore',title:'Green Bones',detail:'Find 3 herbivore fossils',reward:'$180 + 4 REP',goal:3},{id:'rare',title:'The Curator Calls',detail:'Donate a rare fossil',reward:'$260 + 8 REP',goal:1},{id:'range',title:'Range Finder',detail:'Visit 2 different sites',reward:'$150 + 5 REP',goal:2}];
+const fresh=()=>({cash:500,rep:0,day:1,expeditions:0,museumIncome:0,energy:10,durability:10,maxEnergy:10,maxDurability:10,capacity:6,collection:[],donated:[],upgrades:[],completedContracts:[],visitedSites:['montana'],activeSite:null,activeDig:null,tutorial:true,saveState:'Saved'});
+let state=fresh(),current='camp',clock;
+const $=(s,r=document)=>r.querySelector(s),elapsed=d=>{let n=Math.floor((Date.now()-(d.startedAt||Date.now()))/1000);return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')},money=n=>'$'+Math.max(0,Math.round(n)).toLocaleString('en-US'),site=id=>sites.find(s=>s.id===id)||sites[0],upg=id=>upgrades.find(u=>u.id===id),has=id=>state.upgrades.includes(id),title=s=>s.charAt(0).toUpperCase()+s.slice(1),rarityName=r=>title(r),condition=r=>r==='legendary'?'Pristine':r==='epic'?'Excellent':r==='rare'?'Good':'Field-worn',mult=r=>({common:1,uncommon:1.45,rare:2.2,epic:3.7,legendary:6.5}[r]||1);
+function save(){state.saveState='Saving…';renderTop();try{let p=store.set(KEY,state);if(p&&p.then)p.then(()=>{state.saveState='Saved';renderTop()}).catch(()=>{state.saveState='Local only';renderTop()});else{state.saveState='Saved';renderTop()}}catch(e){state.saveState='Local only';renderTop()}}
+async function load(){try{let x=await store.get(KEY);if(x&&typeof x==='object')state={...fresh(),...x}}catch(e){state=fresh()}state.saveState='Saved';renderAll();if(state.tutorial)openTutorial()}
+function ping(m,t=''){if(window.Workshop&&typeof window.Workshop.notify==='function')window.Workshop.notify(m);let e=document.createElement('div');e.className='toast '+t;e.textContent=m;$('#toast-zone').appendChild(e);setTimeout(()=>e.remove(),3500)}
+function setTitle(){if(window.Workshop&&typeof window.Workshop.setTitle==='function')window.Workshop.setTitle('Fossil Frontier')}
+/* ===== animated pixel scene: repainted 8x a second on a 160x52 pixel grid ===== */
+const SKY={montana:['#33587a','#41678a','#527a99','#6b8fa6'],patagonia:['#2c4f6e','#3a6180','#4e7692','#6a8ca2'],gobi:['#5b7f97','#7fa2b8','#a3bfcd','#c2d2da'],alberta:['#2b4f70','#3d6786','#547e97','#6f93a6'],madagascar:['#37647f','#4b7f99','#63a0b3','#84b8c4'],camp:['#2c4d6c','#3a6084','#4d7593','#688ba3']};
+const GND={montana:['#8b6347','#b08256','#d9ac6a','#b1854d'],patagonia:['#6f5a45','#8b7355','#b1854d','#8d6c42'],gobi:['#b18449','#d9ac6a','#e8c78d','#c2985a'],alberta:['#5d5747','#84775c','#a89372','#7d6a4c'],madagascar:['#4f6b46','#6fae52','#c2a069','#94794b'],camp:['#7a5a41','#a2764e','#cfa367','#a8804f']};
+let sceneF=0,sceneT=null,motes=null;
+function sceneKey(){return state.activeDig?state.activeDig.siteId:'camp'}
+function ridge(g,c,base,amp,freq,ph,step,H,W){for(let x=0;x<W;x++){let h=base+Math.sin(x*freq+ph)*amp+Math.sin(x*freq*2.7+ph*1.6)*amp*.38;h=Math.round(h/step)*step;g.fillStyle=c;g.fillRect(x,h,1,H-h)}}
+function drawScene(){const cv=$('#scene');if(!cv)return;const g=cv.getContext('2d');if(!g)return;const W=160,H=52,f=sceneF,k=sceneKey(),sky=SKY[k]||SKY.camp,gnd=GND[k]||GND.camp,dig=!!state.activeDig;
+if(!motes)motes=Array.from({length:16},()=>({x:Math.random()*W,y:26+Math.random()*24,s:.12+Math.random()*.4}));
+g.clearRect(0,0,W,H);
+sky.forEach((c,i)=>{g.fillStyle=c;g.fillRect(0,i*6,W,7)});
+g.fillStyle=sky[1];for(let x=0;x<W;x+=2)g.fillRect(x,6,1,1);
+g.fillStyle=sky[2];for(let x=0;x<W;x+=2)g.fillRect(x+1,12,1,1);
+g.fillStyle=sky[3];for(let x=0;x<W;x+=2)g.fillRect(x,18,1,1);
+const sx=122,sy=9;g.fillStyle='#ffd26e';for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++)if(x*x+y*y<=9)g.fillRect(sx+x,sy+y,1,1);
+g.fillStyle='rgba(255,210,110,.35)';for(let a=0;a<8;a++){const t=a/8*Math.PI*2+f*.05;g.fillRect(sx+Math.round(Math.cos(t)*5),sy+Math.round(Math.sin(t)*5),1,1)}
+g.fillStyle='rgba(240,236,220,.5)';const cl=(f*.35)%200-40;[[0,3,14],[26,6,10],[54,2,18]].forEach(c=>{const cx=Math.round(cl+c[0]);g.fillRect(cx,c[1]+4,c[2],2);g.fillRect(cx+3,c[1]+2,c[2]-6,2)});
+ridge(g,'#243d52',24,3,.06,0,2,H,W);
+ridge(g,gnd[0],30,4,.045,2.1,2,H,W);
+ridge(g,gnd[1],36,3,.08,4.5,2,H,W);
+g.fillStyle=gnd[2];g.fillRect(0,41,W,H-41);
+g.fillStyle=gnd[3];for(let y=41;y<H;y++)for(let x=(y%2);x<W;x+=2)if(((x+y)%4)===0)g.fillRect(x,y,1,1);
+g.fillStyle=gnd[3];g.fillRect(0,49,W,3);
+const px=(x,y,c)=>{g.fillStyle=c;g.fillRect(x,y,1,1)};
+const bx=(x,y,w,h,c)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+if(dig){/* open trench with exposed ribs and a digger */
+ bx(92,40,52,10,'#57402e');bx(94,42,48,7,'#3d2c20');
+ for(let i=0;i<6;i++){bx(99+i*7,43,2,5,'#f6ead2');px(99+i*7,42,'#dbc6a2')}
+ bx(96,38,6,3,'#8b6347');bx(136,38,7,3,'#8b6347');
+ const swing=[0,1,1,0][f%4];
+ bx(86,33,3,7,'#5b8fb0');bx(86,30,3,3,'#e0a878');bx(85,29,5,1,'#efb44d');
+ bx(89,34-swing,1,3,'#e0a878');bx(90,32-swing,3,1,'#9a6b40');bx(93,31-swing,2,2,'#c3ced6');
+ bx(150,42,8,7,'#9a6b40');bx(150,42,8,1,'#b08256');px(153,45,'#61411f');
+ g.fillStyle='rgba(230,190,120,.5)';for(let i=0;i<7;i++){const dx2=94+((f*3+i*13)%50);px(dx2,41-((f+i*3)%4),'rgba(240,210,150,.6)')}
+ /* left flank: spoil heap, barrow, staked survey line */
+ for(let i=0;i<17;i++){const hh=Math.round(4*Math.sin(i/16*Math.PI));bx(11+i,46-hh,1,hh+5,'#6b4a33')}
+ bx(11,46,17,1,'#8b6347');px(17,44,'#b08256');px(22,45,'#b08256');
+ bx(34,44,9,4,'#9a6b40');bx(34,44,9,1,'#b08256');bx(43,45,3,1,'#61411f');px(36,48,'#3a2b22');px(41,48,'#3a2b22');
+ bx(56,38,1,9,'#9a6b40');bx(74,38,1,9,'#9a6b40');
+ bx(57,39,17,1,'rgba(246,234,210,.6)');
+ for(let i=0;i<4;i++)px(59+i*4,37+((f+i)%2),'#efb44d');
+ bx(62,44,5,3,'#f6ead2');px(62,43,'#dbc6a2');px(66,43,'#dbc6a2');
+}else{/* home camp: tents, fire, flag, crates */
+ bx(112,44,44,3,'#7a5a41');
+ for(let t=0;t<2;t++){const tx=100+t*26,ty=32+t*2;g.fillStyle=t?'#b4553d':'#c86c4d';for(let i=0;i<11;i++)g.fillRect(tx+i,ty+10-Math.min(i,10-i)*2,1,Math.min(i,10-i)*2+1);bx(tx,ty+10,11,1,'#efb25e');bx(tx+4,ty+6,3,5,'#3a2b22')}
+ bx(146,28,1,14,'#c3ced6');const wave=[0,1,0,-1][f%4];bx(147,28+0,6,4,'#65d4c8');px(153,29+wave,'#65d4c8');
+ const fy=44,fl=f%4;bx(88,fy,7,1,'#4a3628');px(88,fy-1,'#8b6347');px(94,fy-1,'#8b6347');
+ bx(90,fy-2,3,2,'#d9584a');bx(91,fy-4+(fl>1?0:1),1,2,'#efb44d');px(90+(fl%2),fy-4,'#ffd26e');px(92,fy-5+(fl>2?1:0),'#ffd26e');
+ g.fillStyle='rgba(200,190,180,.35)';for(let i=0;i<4;i++)px(91+((f+i*2)%3)-1,fy-7-i*2,'rgba(210,200,190,.3)');
+ bx(126,38,7,6,'#9a6b40');bx(126,38,7,1,'#b08256');px(129,41,'#61411f');
+ bx(134,40,5,4,'#61411f');bx(134,40,5,1,'#9a6b40');
+ bx(120,40,3,4,'#f6ead2');px(120,39,'#dbc6a2');
+ /* left flank: the field truck, scrub, and a blinking ground scanner */
+ bx(16,38,18,6,'#3f7f86');bx(16,38,18,1,'#6fbcbd');bx(19,39,5,3,'#a3bfcd');bx(26,36,8,2,'#2f5f66');
+ bx(16,43,18,1,'#1f5359');bx(19,44,4,3,'#2a2930');bx(29,44,4,3,'#2a2930');px(20,45,'#6d7f8b');px(30,45,'#6d7f8b');
+ for(let i=0;i<5;i++){px(56+i,47-i,'#61411f');px(64-i,47-i,'#61411f')}
+ bx(58,40,5,3,'#c3ced6');bx(59,41,3,1,'#6d7f8b');px(60,39,f%4<2?'#65d4c8':'rgba(101,212,200,.28)');
+ for(let b=0;b<2;b++){const gx=44+b*30,gy=46-b;bx(gx,gy,5,3,'#3c6b3f');bx(gx+1,gy-1,3,1,'#6fae52');px(gx+2,gy-2,'#6fae52')}
+}
+motes.forEach(m=>{m.x+=m.s;if(m.x>W)m.x=-2;px(Math.round(m.x),Math.round(m.y),'rgba(240,220,180,.32)')});
+const bird=(f*.6)%220-30;g.fillStyle='#1f3346';[[0,7],[9,4],[16,9]].forEach((b,i)=>{const X=Math.round(bird+b[0]),Y=b[1]+((Math.floor(f/2)+i)%2);g.fillRect(X,Y,1,1);g.fillRect(X-1,Y-1,1,1);g.fillRect(X+1,Y-1,1,1)});
+}
+function sceneLoop(){clearInterval(sceneT);sceneT=setInterval(()=>{if(document.hidden)return;sceneF++;drawScene()},125);drawScene()}
+function burst(x,y,colors,n){const z=$('#fx');if(!z)return;for(let i=0;i<n;i++){const p=document.createElement('i'),a=Math.random()*Math.PI*2,d=14+Math.random()*30;p.className='particle';p.style.cssText='left:'+x+'px;top:'+y+'px;background:'+colors[i%colors.length]+';--dx:'+Math.round(Math.cos(a)*d)+'px;--dy:'+Math.round(Math.sin(a)*d-16)+'px';z.appendChild(p);setTimeout(()=>p.remove(),640)}}
+function quake(sel){const e=$(sel);if(!e)return;e.classList.remove('quake');void e.offsetWidth;e.classList.add('quake')}
+function renderTop(){let r=$('#resources'),crateCount=state.collection.filter(f=>!f.archived).length,privateCount=state.collection.filter(f=>f.archived).length;$('#top-day').textContent='DAY '+String(state.day).padStart(2,'0');$('#save-state').textContent='● '+state.saveState;$('#collection-count').textContent=crateCount?'('+crateCount+')':'';let pc=$('#private-count');if(pc)pc.textContent=privateCount?'('+privateCount+')':'';r.innerHTML='<div class="resource cash">CASH<strong>'+money(state.cash)+'</strong></div><div class="resource teal">REPUTATION<strong>'+state.rep+'</strong></div><div class="resource">MUSEUM / DAY<strong>'+money(state.museumIncome)+'</strong></div><div class="resource">FIELD ENERGY<strong>'+state.energy+' / '+state.maxEnergy+'</strong></div><div class="resource">DURABILITY<strong>'+state.durability+' / '+state.maxDurability+'</strong></div>';let d=state.activeDig;$('#brief-title').textContent=d?site(d.siteId).name:'The ground is calling.';$('#brief-copy').textContent=d?'A quick field window. Read the earth, trust the signal, bring the story home.':'Build your little camp into the most respected fossil house on the frontier. Every tile has a story.';$('#brief-hint').textContent=d?'↳ Warm signals glint with amber. Pack when the field day is spent.':'↳ Start close to home. Montana is waiting.'}
+function go(v){current=v;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));renderView(v);renderTop();drawScene();window.scrollTo({top:0,behavior:'smooth'})}
+function renderView(v){({camp:renderCamp,expeditions:renderBoard,dig:renderDig,collection:renderCollection,private:renderPrivate,upgrades:renderUpgrades,museum:renderMuseum}[v]||renderCamp)()}
+function renderAll(){renderTop();['camp','expeditions','dig','collection','private','upgrades','museum'].forEach(v=>renderView(v));if(!state.activeDig)$('#view-dig').innerHTML=digEmpty();drawScene()}
+function stat(art,label,value,note){return '<div class="stat">'+pic(art,2,'','')+'<div><small>'+label+'</small><strong>'+value+'</strong><em>'+note+'</em></div></div>'}
+function renderCamp(){let cs=contracts.map(c=>{let p=Math.min(c.goal,contractProgress(c)),done=state.completedContracts.includes(c.id);return '<div class="contract"><div><h4>'+c.title+(done?' · COMPLETE':'')+'</h4><p>'+c.detail+'</p><progress value="'+p+'" max="'+c.goal+'"></progress></div><div class="reward">'+(done?'CLAIMED':c.reward)+'<br><span style="color:#8fa6a9">'+p+' / '+c.goal+'</span></div></div>'}).join('');$('#view-camp').innerHTML='<div class="view-head"><div><div class="eyebrow">Company headquarters</div><h2>Camp dashboard</h2><p>Keep the kit moving, keep the museum hungry.</p></div><button class="button" data-go="expeditions">Plan an expedition →</button></div><div class="dashboard"><div class="panel camp"><div class="camp-copy"><div class="eyebrow">Dirt, canvas, possibility</div><h3>Small camp.<br>Big horizon.</h3><p>Your first field season is underway. Montana is a free route — a perfect place to learn the rhythm of the earth.</p><div class="quick-actions"><button class="button" data-go="expeditions">Go to the board</button><button class="button secondary" data-go="collection">Sort the crates</button></div></div><div class="camp-visual"><div class="hill"></div><div class="hut"><div class="door"></div><div class="light"></div></div></div></div><div><div class="stat-grid">'+stat('g_maps','FIELD DAYS',state.day,state.expeditions+' expeditions')+stat('g_wing','MUSEUM / DAY',money(state.museumIncome),'passive income')+stat('g_crates','CRATE CAPACITY',state.capacity+(has('crates')?2:0),'finds per trip')+stat('ammonite','DISCOVERIES',state.collection.length,'awaiting a decision')+'</div><div class="panel contracts"><div class="label" style="margin-top:0">Active contracts</div>'+cs+'</div></div></div><div class="label">Field rhythm</div><div class="panel" style="padding:15px;display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap"><div style="font-size:10px;color:#b6c5c3;line-height:1.6">Museum income pays at the start of each new field day.<br><span style="color:#63d2c8">Donate specimens</span> to grow it; sell when cash is tight.</div><button class="button secondary" data-go="museum">See museum collections →</button></div>'}
+function renderBoard(){let h=sites.map(s=>{let locked=s.unlock>state.rep,t=Math.round(s.travel*(has('maps')?.8:1)),afford=state.cash>=t;return '<article class="site-card '+(locked?'locked':'')+'"><div class="site-art">'+pic('site_'+s.id,6,'',s.name+' terrain')+'<span class="status '+(locked?'lock':'')+'">'+(locked?'LOCKED':'OPEN ROUTE')+'</span></div><div class="site-inner"><h3>'+s.name+'</h3><div class="country">'+s.country+'</div><div class="desc">'+s.desc+'</div><div class="site-meta"><span>TRAVEL<b>'+(t?money(t):'FREE')+'</b></span><span>DANGER<b>'+s.danger+'</b></span><span>FOSSILS<b>'+s.fossils+'</b></span><span>EXPECTED<b>'+s.expected+'</b></span></div>'+(locked?'<div class="locked-note">Needs '+s.unlock+' reputation · '+(s.unlock-state.rep)+' more to go</div>':'<button class="button'+(afford?'':' ghost')+'" data-start="'+s.id+'"'+(afford?'':' disabled')+'>'+(afford?'Start expedition →':'Need '+money(t-state.cash)+' more')+'</button>')+'</div></article>'}).join('');$('#view-expeditions').innerHTML='<div class="view-head"><div><div class="eyebrow">Route atlas · '+state.visitedSites.length+' range(s) charted</div><h2>Expedition board</h2><p>Choose a site, pay the route, and read the ground one tile at a time.</p></div><div style="font-size:10px;color:var(--gold)">✦ '+state.rep+' reputation</div></div><div class="site-grid">'+h+'</div><div class="label">How the board works</div><div class="panel" style="padding:14px;font-size:10px;color:#aebfc0;line-height:1.6">Every range has its own weather, hazard profile, fossil table, and value ceiling. New routes open when your museum story gets loud enough.</div>'}
+function makeDig(id){const s=site(id),n=30,danger={Low:1,Medium:2,High:3,Extreme:4}[s.danger]||1;
+ const order=[...Array(n).keys()];for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=order[i];order[i]=order[j];order[j]=t}
+ const spots=order.slice(0,4+Math.min(3,danger)),haz=order.slice(spots.length,spots.length+danger);
+ const reveal=2+(has('scanner')?2:0)+(has('drone')?3:0),shown=spots.slice(0,Math.min(reveal,spots.length));
+ return{siteId:id,startedAt:Date.now(),dug:0,finds:[],tool:'shovel',event:null,total:n,
+  tiles:Array.from({length:n},(_,i)=>({dug:false,spot:spots.indexOf(i)>=0,haz:haz.indexOf(i)>=0,signal:shown.indexOf(i)>=0,kind:'dirt',dirt:i%3}))}}
+function start(id){let s=site(id);if(s.unlock>state.rep){ping('The curator needs '+(s.unlock-state.rep)+' more reputation for that range.','warn');return}let travel=Math.round(s.travel*(has('maps')?.8:1));if(state.cash<travel){ping('Route needs '+money(travel-state.cash)+' more in the account.','warn');return}state.cash-=travel;state.energy=state.maxEnergy+(has('water')?3:0);state.durability=state.maxDurability+(has('steel')?4:0);state.activeSite=id;state.activeDig=makeDig(id);if(!state.visitedSites.includes(id))state.visitedSites.push(id);state.expeditions++;save();go('dig');drawScene();ping(s.name+' — expedition underway. Follow the amber signals.','teal');burst(window.innerWidth/2,170,['#efb44d','#ffd26e','#c86c4d','#f6ead2'],14)}
+function roll(s){const all=Object.values(fossils),pick=a=>a[Math.floor(Math.random()*a.length)];
+ /* site fossil lists are written for players ("Ammonites"), so match loosely against the species table */
+ const local=s.fossils.split(' · ').map(x=>{const n=x.replace(/s$/,'').toLowerCase();return all.find(f=>f.species.toLowerCase()===x.toLowerCase()||f.species.toLowerCase()===n)}).filter(Boolean);
+ const f=(local.length&&Math.random()>.22)?pick(local):pick(all);
+ let r=pick(f.rarities);
+ if(has('pickaxe')&&Math.random()<.18)r=f.rarities[Math.min(f.rarities.length-1,f.rarities.indexOf(r)+1)];
+ const v=Math.round(f.base*mult(r)*(has('brush')?1.15:1)*(.88+Math.random()*.3));
+ return{id:'f-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),species:f.species,group:f.group,icon:f.icon,rarity:r,value:v,condition:condition(r),site:s.name,day:state.day}}
+function dig(i,cx,cy){let d=state.activeDig;if(!d||!d.tiles[i]||d.tiles[i].dug)return;let cost={shovel:[1,1],brush:[1,0],pickaxe:[2,2]}[d.tool]||[1,1],tile=d.tiles[i];if(state.energy<cost[0]||state.durability<cost[1]){ping('Your kit is spent. Pack the expedition, then upgrade at camp.','warn');return}state.energy-=cost[0];state.durability-=cost[1];tile.dug=true;tile.signal=false;d.dug++;
+ const fx=(c,n)=>{if(cx!=null)burst(cx,cy,c,n)};
+ if(tile.spot){let f=roll(site(d.siteId),i);d.finds.push(f);tile.kind='find';tile.find=f;ping('FOSSIL · '+f.species+' · '+rarityName(f.rarity),'teal');fx(['#f6ead2','#ffd26e','#65d4c8','#dbc6a2'],16)}
+ else if((tile.haz||tile.kind==='hazard')&&Math.random()>(has('geologist')?.3:0)){state.energy=Math.max(0,state.energy-2);tile.kind='hazard';ping('WASHOUT · lost 2 energy clearing the rubble','warn');fx(['#d9584a','#8b6347','#5c4130'],12);quake('.dig-main')}
+ else{tile.kind='dug';fx(['#8b6347','#5c4130','#b08256'],7);if(Math.random()<.08){let f=roll(site(d.siteId),i+3);d.finds.push(f);tile.kind='find';tile.find=f;ping('BONUS FIND · '+f.species,'teal')}else ping('Shale and grit. Nothing sleeping here.')}
+ if(has('power')&&d.dug%5===0){let n=d.tiles.findIndex(x=>!x.dug);if(n>=0){d.tiles[n].dug=true;d.tiles[n].kind='dug';d.dug++;ping('POWER TROWEL · cleared a neighbouring tile','teal')}}
+ if(d.dug>=(d.total||30)||state.energy<=0||state.durability<=0)ping('Your field day is done. Pack the finds when ready.','warn');
+ maybeEvent();save();renderDig();renderTop()}
+function chooseTool(t){if(t==='brush'&&!has('brush')){ping('Unlock the Fine Brush in Upgrades first.','warn');return}if(t==='pickaxe'&&!has('pickaxe')){ping('Unlock the Pickaxe in Upgrades first.','warn');return}state.activeDig.tool=t;renderDig()}
+function maybeEvent(){let d=state.activeDig;if(!d||d.event||d.dug<3||d.dug%5!==0||Math.random()>.55)return;let events=[{art:'trex',title:'Fossil bonanza breaks open',text:'A slab splits under your shovel, exposing a whole little pocket. Take the risk for a second find or mark it for later.',choices:[['Open the pocket','Find one extra fossil, lose 1 energy',()=>{state.energy=Math.max(0,state.energy-1);let f=roll(site(state.activeDig.siteId),state.activeDig.dug+8);state.activeDig.finds.push(f);ping('FOSSIL BONANZA · '+f.species,'teal')}],['Mark the pocket','+$65 for the promising lead',()=>{state.cash+=65;ping('A collector paid for your promising lead.')}]]},{art:'g_crates',title:'A crate takes a hard knock',text:'The road out is rough and one sample is at risk. Secure the load or keep moving.',choices:[['Secure the load','Lose 1 energy, keep every find',()=>{state.energy=Math.max(0,state.energy-1);ping('The crate is secured. Nothing cracked.','teal')}],['Keep moving','Risk losing one lower-value find',()=>{if(state.activeDig.finds.length){state.activeDig.finds.sort((a,b)=>a.value-b.value);state.activeDig.finds.shift();ping('A damaged crate cost you the smallest sample.','warn')}else ping('No sample was lost, but the road was rough.','warn')}]]},{art:'g_maps',title:'A local guide waves you over',text:'“There is a ridge where the red stone rings hollow.” Take the tip or stay on your grid.',choices:[['Follow the tip','+2 energy, reveal a warm tile',()=>{state.energy+=2;let t=state.activeDig.tiles.find(x=>!x.dug);if(t)t.spot=true;ping('The guide was right. A warm signal appeared.','teal')}],['Stay focused','+$45 field bonus',()=>{state.cash+=45;ping('Steady work earns a small field bonus.')}]]},{art:'g_canopy',title:'Flash storm on the horizon',text:'Canvas snaps in the wind. Shelter the crate or race the rain for one more find.',choices:[['Shelter the crate','Lose 1 energy, protect finds',()=>{state.energy=Math.max(0,state.energy-(has('canopy')?0:1));ping('The canopy holds. Your finds stay dry.','teal')}],['Race the rain','Reveal a warm signal, risk 1 find',()=>{let t=state.activeDig.tiles.find(x=>!x.dug);if(t)t.spot=true;ping('One warm signal, but the weather is turning.','warn')}]]},{art:'g_scanner',title:'A rival team crosses your claim',text:'They offer cash for the location notes. It would help today, but they may beat you to the story.',choices:[['Sell the notes · +$80','Quick cash, lose 1 reputation',()=>{state.cash+=80;state.rep=Math.max(0,state.rep-1);ping('The rival team paid up. Keep moving.')}],['Guard the claim · +2 REP','Keep your lead and reputation',()=>{state.rep+=2;ping('The claim is yours. Reputation up.','teal')}]]}];let e=events[(state.day+d.dug)%events.length];d.event=e.title;openEvent(e)}
+function openEvent(e){let r=$('#modal-root');r.innerHTML='<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="modal-icon">'+pic(e.art||'g_maps',3,'','')+'</div><h2>'+e.title+'</h2><p>'+e.text+'</p><div class="event-choices">'+e.choices.map((c,i)=>'<button class="event-choice" data-choice="'+i+'"><b>'+c[0]+'</b>'+c[1]+'</button>').join('')+'</div></div></div>';r.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>{e.choices[Number(b.dataset.choice)][2]();r.innerHTML='';save();renderAll()})}
+function renderDig(){let r=$('#view-dig'),d=state.activeDig;if(!d){if(current==='dig')r.innerHTML=digEmpty();return}
+ const s=site(d.siteId),total=d.total||30,cap=state.capacity+(has('crates')?2:0),spent=state.energy<=0||state.durability<=0||d.dug>=total;
+ const tiles=d.tiles.map((t,i)=>{const cls=t.dug?(t.kind==='find'?'find':t.kind==='hazard'?'hazard':'dug'):(t.signal?'signal':'');
+  const bg=t.dug?(t.kind==='hazard'?spr('rock',3):spr('hole',3)):spr('dirt'+((t.dirt||0)%3),3);
+  const inner=t.dug?(t.kind==='find'&&t.find?pic(artOf(t.find),2,'',t.find.species):''):'<span class="tile-num">'+String(i+1).padStart(2,'0')+'</span>';
+  return '<button class="tile '+cls+'" data-tile="'+i+'" style="background-image:url('+bg+')" aria-label="'+(t.dug?'Tile '+(i+1)+', already excavated':'Excavate tile '+(i+1)+(t.signal?', warm signal':''))+'"'+(t.dug?' disabled':'')+'>'+inner+'</button>'}).join('');
+ const finds=d.finds.length?d.finds.map(f=>'<div class="find-row"><span class="find-icon">'+pic(artOf(f),2,'',f.species)+'</span><div><b>'+f.species+'</b><small>'+rarityName(f.rarity)+' · '+f.condition+'</small></div><div class="value">'+money(f.value)+'</div></div>').join(''):'<div class="empty-find">No specimens yet.<br>Amber-ringed tiles read warm below.</div>';
+ const tool=(id,name,note,owned)=>'<button class="tool '+(d.tool===id?'active':'')+'" data-tool="'+id+'"'+(owned?'':' disabled title="Unlock this in Upgrades"')+'>'+pic(id==='shovel'?'g_spade':id==='brush'?'g_brush':'g_pick',2,'','')+'<span>'+name+'<small>'+note+'</small></span></button>';
+ r.innerHTML='<div class="view-head"><div><div class="eyebrow">Active field log · '+s.country+'</div><h2>'+s.name+'</h2><p>Click a tile to excavate. The field day ends when energy or durability runs out.</p></div><button class="button ghost" data-pack="1">Pack expedition</button></div>'
+ +'<div class="dig-layout"><div class="panel dig-main"><div class="cap"><span>Excavation grid · '+s.name+'</span><b id="dig-time">'+elapsed(d)+'</b></div><div class="dig-inner">'
+ +'<div class="dig-toolbar"><div class="dig-title"><h2>Trench '+d.dug+' / '+total+'</h2><p>Weather: '+(s.danger==='Extreme'?'salt wind':s.danger==='High'?'dust haze':'clear overcast')+' · Hazard risk: '+s.danger+'</p></div><div class="dig-readings"><div class="reading">ENERGY<b>'+state.energy+'</b></div><div class="reading teal">DURABILITY<b>'+state.durability+'</b></div><div class="reading">CRATE<b>'+d.finds.length+'/'+cap+'</b></div></div></div>'
+ +'<div class="progress"><span style="width:'+Math.round(d.dug/total*100)+'%"></span></div>'
+ +'<div class="grid-wrap"><div class="dig-grid">'+tiles+'</div></div>'
+ +'<div class="tool-row"><div class="tool-list">'+tool('shovel','Shovel','1 EN · 1 DUR',true)+tool('brush','Brush','1 EN · no wear',has('brush'))+tool('pickaxe','Pickaxe','2 EN · 2 DUR',has('pickaxe'))+'</div><button class="button'+(spent?'':' secondary')+'" data-pack="1">Pack &amp; return →</button></div>'
+ +'<div class="dig-hint">'+(spent?'✦ The kit is spent — pack up and bring the story home.':has('scanner')?'✦ The scanner rings amber wherever bone lies close.':'✦ Amber-ringed tiles read warm. A ground scanner would reveal more.')+'</div>'
+ +'</div></div><aside class="dig-side"><div class="panel side-panel"><div class="cap"><span>Field conditions</span></div><div class="pad"><div class="weather">'+pic(('site_'+s.id) in ART?'site_'+s.id:'site_montana',2,'','')+'<div><strong>'+(s.danger==='Extreme'?'Hostile ground':s.danger==='High'?'Dry and shifting':'Dry &amp; readable')+'</strong><span>'+s.fossils+'</span></div></div><div class="banner">Crate space · '+d.finds.length+' / '+cap+' finds<br><span style="color:#c3ae87">Anything over capacity stays in the field.</span></div></div></div>'
+ +'<div class="panel side-panel"><div class="cap"><span>Discovered this trip</span><b>'+d.finds.length+'</b></div><div class="pad"><div class="find-list">'+finds+'</div><button class="button pack" data-pack="1">Pack expedition · '+d.finds.length+' find'+(d.finds.length===1?'':'s')+'</button></div></div></aside></div>';
+ clearInterval(clock);clock=setInterval(()=>{const x=$('#dig-time');if(x&&state.activeDig)x.textContent=elapsed(state.activeDig);else clearInterval(clock)},1000);
+ return}
+function digEmpty(){return '<div class="empty-state"><div class="empty-icon">'+pic('g_spade',4,'','')+'</div><h3>No active expedition</h3><p>Pick a route on the expedition board, then come back here with your boots on.</p><button class="button" data-go="expeditions">Choose a site →</button></div>'}
+function pack(){let d=state.activeDig;if(!d)return;if(!d.finds.length&&d.dug<1){ping('Dig at least one tile before packing.','warn');return}let max=state.capacity+(has('crates')?2:0),finds=d.finds.slice(0,max);if(has('student')&&state.expeditions===1&&finds.length<max)finds.push(roll(site(d.siteId),28));let lost=Math.max(0,d.finds.length-finds.length);state.collection.push(...finds);state.cash+=25;state.energy=Math.min(state.maxEnergy,state.energy+2);state.durability=Math.min(state.maxDurability,state.durability+(has('workshop')?2:0));state.activeDig=null;state.activeSite=null;state.day++;state.cash+=state.museumIncome;checkContracts();save();go('camp');ping(lost?'Packed '+finds.length+' finds. '+lost+' stayed in the field.':'EXPEDITION PACKED · '+finds.length+' find(s) secured!','teal')}
+function contractProgress(c){if(c.id==='herbivore')return state.collection.concat(state.donated).filter(f=>f.group==='Herbivore').length;if(c.id==='rare')return state.donated.filter(f=>['rare','epic','legendary'].includes(f.rarity)).length;if(c.id==='range')return Math.min(c.goal,state.visitedSites.length);return 0}
+function checkContracts(){contracts.forEach(c=>{if(!state.completedContracts.includes(c.id)&&contractProgress(c)>=c.goal){state.completedContracts.push(c.id);state.cash+=c.id==='rare'?260:c.id==='herbivore'?180:150;state.rep+=c.id==='rare'?8:c.id==='herbivore'?4:5;ping('CONTRACT COMPLETE · '+c.title,'teal')}})}
+function fossilCard(f,privateView){return '<article class="fossil-card"><span class="rarity '+f.rarity+'">'+rarityName(f.rarity)+'</span><div class="fossil-head"><div class="fossil-icon">'+pic(artOf(f),3,'',f.species)+'</div><div><h3>'+f.species+'</h3><div class="species">'+f.group+' · '+f.site+'</div></div></div><div class="fossil-details"><span>CONDITION<b>'+f.condition+'</b></span><span>EST. VALUE<b>'+money(f.value)+'</b></span></div><div class="fossil-actions">'+(privateView?'<button class="button ghost" data-unarchive="'+f.id+'">Return to crates</button>':'<button class="button" data-sell="'+f.id+'">Sell</button><button class="button secondary" data-donate="'+f.id+'">Donate</button><button class="button ghost" data-archive="'+f.id+'" title="Move to private collection">Keep private</button>')+'</div></article>'}
+function renderCollection(){let finds=state.collection.filter(f=>!f.archived),cards=finds.map(f=>fossilCard(f,false)).join(''),privateCount=state.collection.filter(f=>f.archived).length;$('#view-collection').innerHTML='<div class="view-head"><div><div class="eyebrow">Crate inventory · '+finds.length+' awaiting decisions</div><h2>Fossil collection</h2><p>Every discovery can fund the next dig, build the museum, or stay yours forever.</p></div><div style="font-size:10px;color:var(--gold)">'+money(finds.reduce((a,f)=>a+f.value,0))+' estimated value</div></div>'+(cards?'<div class="collection-grid">'+cards+'</div>':'<div class="empty-state"><div class="empty-icon">'+pic(privateCount?'g_crates':'ammonite',4,'','')+'</div><h3>'+(privateCount?'Your crates are clear.':'Your collection is waiting for its first story.')+'</h3><p>'+(privateCount?'Archived finds are safe in your private collection.':'Start a Montana expedition, follow the amber signal, and bring a specimen back to camp.')+'</p><button class="button '+(privateCount?'secondary':'')+'" data-go="'+(privateCount?'private':'expeditions')+'">'+(privateCount?'View private collection →':'Find a fossil →')+'</button></div>')}
+function renderPrivate(){let finds=state.collection.filter(f=>f.archived),cards=finds.map(f=>fossilCard(f,true)).join('');$('#view-private').innerHTML='<div class="view-head"><div><div class="eyebrow">Personal archive · '+finds.length+' specimens kept</div><h2>Private collection</h2><p>Keep your favorite discoveries close. Archived fossils stay out of the crates, ready to admire whenever you return.</p></div><div style="font-size:10px;color:var(--gold)">'+money(finds.reduce((a,f)=>a+f.value,0))+' preserved value</div></div>'+(cards?'<div class="collection-grid">'+cards+'</div>':'<div class="empty-state"><div class="empty-icon">'+pic('g_crates',4,'','')+'</div><h3>Your private collection is empty.</h3><p>Archive a find from the Collection tab to keep it here without selling or donating it.</p><button class="button" data-go="collection">Open collection crates →</button></div>')}
+function sell(id){let i=state.collection.findIndex(f=>f.id===id);if(i<0)return;let f=state.collection[i];state.cash+=f.value;state.collection.splice(i,1);ping('Sold '+f.species+' for '+money(f.value)+'.');save();renderAll()}
+function donate(id){let i=state.collection.findIndex(f=>f.id===id);if(i<0)return;let f=state.collection[i];state.collection.splice(i,1);state.donated.push(f);let gain=f.rarity==='legendary'?10:f.rarity==='epic'?7:f.rarity==='rare'?5:3;if(has('lab'))gain++;if(has('preparator'))gain+=3;state.rep+=gain;state.museumIncome+=Math.round(f.value*.04*(has('wing')?1.5:1));checkContracts();ping('Donated '+f.species+' · +'+gain+' REP · museum income up!','teal');save();renderAll()}
+function archive(id){let i=state.collection.findIndex(f=>f.id===id&&!f.archived);if(i<0)return;let f=state.collection[i];f.archived=true;ping(f.species+' archived in your private collection.','teal');save();go('private')}
+function unarchive(id){let i=state.collection.findIndex(f=>f.id===id&&f.archived);if(i<0)return;let f=state.collection[i];f.archived=false;ping(f.species+' returned to the collection crates.');save();go('collection')}
+function renderUpgrades(){let last='',h='';upgrades.forEach(u=>{if(u.group!==last){h+='<div class="shop-group">'+u.group+'</div>';last=u.group}let owned=has(u.id),locked=u.rep&&state.rep<u.rep;h+='<article class="shop-item '+(owned?'owned':'')+'"><div class="shop-icon">'+pic(GEAR_ART[u.id]||'g_spade',3,'','')+'</div><h3>'+u.name+'</h3><p>'+u.desc+'</p><div class="shop-foot">'+(owned?'<span class="owned-tag">INSTALLED</span>':'<span class="price">'+money(u.cost)+(u.rep?' · '+u.rep+' REP':'')+'</span><button class="button '+(locked?'ghost':'secondary')+'" data-buy="'+u.id+'" '+(locked||state.cash<u.cost?'disabled':'')+'>'+((locked)?'LOCKED':'Install')+'</button>')+'</div></article>'});$('#view-upgrades').innerHTML='<div class="view-head"><div><div class="eyebrow">Workshop · '+state.upgrades.length+' upgrades installed</div><h2>Upgrade shop</h2><p>Spend cash and reputation on a better field day. Effects are active immediately.</p></div><div style="font-size:10px;color:var(--gold)">'+money(state.cash)+' to spend</div></div><div class="shop-grid">'+h+'</div>'}
+function buy(id){let u=upg(id);if(!u||has(id))return;if(state.cash<u.cost||state.rep<(u.rep||0)){ping('Need '+money(Math.max(0,u.cost-state.cash))+' more cash'+(u.rep&&state.rep<u.rep?' and '+(u.rep-state.rep)+' REP.':'.'),'warn');return}state.cash-=u.cost;state.upgrades.push(id);if(u.effect==='durability')state.maxDurability+=4;if(u.effect==='energy')state.maxEnergy+=3;if(u.effect==='capacity')state.capacity+=2;ping(u.name+' added to the field kit.','teal');save();renderAll()}
+function renderMuseum(){let es=[{name:'The Great Herbivore Hall',desc:'Plant-eaters from the open range.',types:['Triceratops','Brachiosaurus','Ankylosaurus'],income:45},{name:'Teeth of the Frontier',desc:'Predators, talons, and sharp stories.',types:['Velociraptor','T. rex','Spinosaurus','Microraptor'],income:70},{name:'Ancient Sea Cabinet',desc:'Small wonders from before the dinosaurs.',types:['Ammonite'],income:18}],eh=es.map(e=>{let got=e.types.map(s=>state.donated.find(f=>f.species===s)),count=got.filter(Boolean).length,inc=Math.round(e.income*(has('wing')?1.5:1));return '<div class="panel exhibit"><div class="exhibit-top"><div><h3>'+e.name+'</h3><p>'+e.desc+'</p></div><div class="income">+'+money(inc)+' / DAY<br><span style="color:#91a7a8">'+count+' / '+e.types.length+' pieces</span></div></div><div class="exhibit-progress"><span style="width:'+(count/e.types.length*100)+'%"></span></div><div class="specimen-row">'+e.types.map((s,i)=>'<div class="specimen '+(got[i]?'':'missing')+'" title="'+s+(got[i]?' — on display':' — still missing')+'">'+pic(SPECIES_ART[s]||'bone',2,'',s)+'</div>').join('')+'</div></div>'}).join(''),dh=state.donated.map(f=>'<div class="museum-find"><div class="fossil-icon">'+pic(artOf(f),2,'',f.species)+'</div><div><strong>'+f.species+'</strong><small>'+rarityName(f.rarity)+' · donated day '+f.day+'</small></div></div>').join('');$('#view-museum').innerHTML='<div class="view-head"><div><div class="eyebrow">Public collections · '+state.donated.length+' specimens on display</div><h2>Museum collections</h2><p>Donations turn into reputation and recurring income as exhibits take shape.</p></div><div style="font-size:10px;color:var(--gold)">+'+money(state.museumIncome)+' / day</div></div><div class="museum-layout"><div>'+eh+'</div><aside class="panel museum-list"><h3>Donation ledger</h3>'+(dh||'<div class="empty-find">Your first donation will anchor the museum.<br>Rare finds make the biggest splash.</div>')+'<div class="rep-burst">✦ <b>'+state.rep+' reputation</b><br>Unlocks new ranges, contracts, and higher stakes.</div></aside></div>'}
+function openTutorial(){let r=$('#modal-root');r.innerHTML='<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="modal-icon">'+pic('trex',3,'','')+'</div><h2>Welcome to the frontier.</h2><p>You have a shovel, a small camp, and $500. Montana is close, forgiving, and full of stories. Start an expedition, watch for the amber signal, and click the earth to uncover your first fossil.</p><div class="tutorial-steps"><div class="tutorial-step"><b>01 · TRAVEL</b><span>Choose Montana on the Expedition board. It is free while you are starting out.</span></div><div class="tutorial-step"><b>02 · EXCAVATE</b><span>Click tiles to spend energy and durability. Warm signals are your best lead.</span></div><div class="tutorial-step"><b>03 · GROW</b><span>Pack finds, then sell for cash or donate for reputation and museum income.</span></div></div><div class="modal-actions"><button class="button" data-guide>Open the field log →</button></div></div></div>';r.querySelector('[data-guide]').onclick=()=>{state.tutorial=false;save();r.innerHTML='';ping('Your first clue is glowing in Montana.','teal')}}
+function confirmReset(){let r=$('#modal-root');r.innerHTML='<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="modal-icon">'+pic('g_maps',3,'','')+'</div><h2>Start a new field log?</h2><p>Your current company progress will be replaced. This cannot be undone.</p><div class="modal-actions"><button class="button ghost" data-close>Keep this log</button><button class="button danger" data-new>Start fresh</button></div></div></div>';r.querySelector('[data-close]').onclick=()=>r.innerHTML='';r.querySelector('[data-new]').onclick=()=>{state=fresh();save();current='camp';r.innerHTML='';renderAll();ping('A fresh field season begins.','teal');setTimeout(openTutorial,250)}}
+/* every control is wired through one delegated listener, so a re-render can never drop its handlers */
+const SEL='[data-view],[data-go],[data-start],[data-sell],[data-donate],[data-archive],[data-unarchive],[data-buy],[data-tool],[data-tile],[data-pack],[data-action]';
+document.addEventListener('click',e=>{const el=e.target.closest(SEL);if(!el||el.disabled)return;const d=el.dataset;
+ if(d.view!==undefined)return go(d.view);
+ if(d.go!==undefined)return go(d.go);
+ if(d.start!==undefined)return start(d.start);
+ if(d.tile!==undefined){const r=el.getBoundingClientRect();return dig(Number(d.tile),r.left+r.width/2,r.top+r.height/2)}
+ if(d.tool!==undefined)return chooseTool(d.tool);
+ if(d.pack!==undefined)return pack();
+ if(d.sell!==undefined)return sell(d.sell);
+ if(d.donate!==undefined)return donate(d.donate);
+ if(d.archive!==undefined)return archive(d.archive);
+ if(d.unarchive!==undefined)return unarchive(d.unarchive);
+ if(d.buy!==undefined)return buy(d.buy);
+ if(d.action==='reset')return confirmReset();
+ if(d.action==='tutorial')return openTutorial();
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)drawScene()});
+setTitle();
+const logo=$('#brand-logo');if(logo)logo.innerHTML=pic('trex',2,'','');
+sceneLoop();
+load();
+})()
+</script>
+</body>
+</html>
