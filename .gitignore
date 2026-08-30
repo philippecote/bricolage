@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+coverage/
+public/assets/
+.workshop/
+apps/*/data.json
+apps/*/.workshop/
+actions/
+specs/*.md
+!specs/sec.md
+.workshop-test/
+.env
+.env.local

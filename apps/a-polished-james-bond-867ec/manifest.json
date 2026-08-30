@@ -1,0 +1,22 @@
+{
+  "id": "a-polished-james-bond-867ec",
+  "name": "Operation Nightfall",
+  "description": "A polished first-person spy shooter with cinematic missions, stealthy infiltration, armed guards, and a dramatic escape.",
+  "icon": "◈",
+  "accent": "#4ee0bd",
+  "status": "ready",
+  "prompt": "a polished james bond FPS 3d shooter.",
+  "pinned": false,
+  "archived": false,
+  "createdAt": "2026-08-30T01:29:52.817Z",
+  "updatedAt": "2026-08-30T01:39:16.285Z",
+  "window": {
+    "width": 920,
+    "height": 680
+  },
+  "actions": [],
+  "threadId": "01a05049-8de8-77d2-b09b-cf7795b62bdb",
+  "revision": 1,
+  "model": "luna-high",
+  "error": null
+}

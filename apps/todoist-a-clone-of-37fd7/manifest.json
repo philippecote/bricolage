@@ -1,0 +1,22 @@
+{
+  "id": "todoist-a-clone-of-37fd7",
+  "name": "Todoist Clone",
+  "description": "A faithful Todoist-style desktop task manager for Phil with quick add shortcuts, projects, priorities, due dates, and reliable task editing.",
+  "icon": "✦",
+  "accent": "#e44332",
+  "status": "ready",
+  "prompt": "Todoist, a clone of the popular app. Identical and pixel perfect please.",
+  "pinned": false,
+  "archived": false,
+  "createdAt": "2026-08-30T01:06:49.713Z",
+  "updatedAt": "2026-08-30T01:34:07.832Z",
+  "window": {
+    "width": 900,
+    "height": 650
+  },
+  "actions": [],
+  "threadId": "01a05034-731f-7e90-90b7-59c96d391afb",
+  "revision": 7,
+  "model": "luna-max",
+  "error": null
+}

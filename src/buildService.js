@@ -1,0 +1,343 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { config } from './config.js';
+import { randomId } from './utils.js';
+import { atomicWrite, createRevision, createWorkspace, getAppDir, readManifest, validateWorkspace, writeManifest } from './workshopStorage.js';
+
+const BUILD_STATES = ['discovering', 'awaiting_input', 'queued', 'running', 'awaiting_approval', 'completed', 'failed', 'cancelled'];
+const MODEL_PRESETS = {
+  'luna-high': { label: 'Luna · High', model: 'gpt-5.6-luna', effort: 'high' },
+  'luna-max': { label: 'Luna · Max', model: 'gpt-5.6-luna', effort: 'max' },
+  'sol-medium': { label: 'Sol · Medium', model: 'gpt-5.6-sol', effort: 'medium' },
+};
+export const MODEL_KEYS = Object.keys(MODEL_PRESETS);
+export const DEFAULT_MODEL = 'luna-high';
+
+export class BuildService extends EventEmitter {
+  constructor({ codex }) {
+    super();
+    this.codex = codex;
+    this.builds = new Map();
+    this.approvals = new Map();
+    this.initializing = this.hydrate();
+    codex?.on?.('notification', (message) => this.onCodexNotification(message));
+  }
+
+  async ready() { await this.initializing; }
+  listActive() { return [...this.builds.values()].filter((build) => !['completed', 'failed', 'cancelled'].includes(build.status)).map(publicBuild); }
+  get(buildId) { return this.builds.get(buildId); }
+  latestForApp(appId) { return [...this.builds.values()].filter((build) => build.appId === appId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null; }
+
+  async create(prompt, model = DEFAULT_MODEL) {
+    await this.ready();
+    const preset = requirePreset(model);
+    const app = await createWorkspace(prompt, model);
+    const build = this.newBuild(app.id, prompt, null, model, 'create');
+    build.stage = 'discovery';
+    build.status = 'discovering';
+    this.push(build, 'discovering', 'Reading your idea and thinking about what to ask');
+    // Discovery is a real Codex turn, so it must not block the create response.
+    queueMicrotask(() => this.runDiscovery(build).catch((error) => this.fail(build, error)));
+    return { app, build: publicBuild(build), preset };
+  }
+
+  async edit(appId, prompt, model = DEFAULT_MODEL) {
+    await this.ready();
+    requirePreset(model);
+    const app = await readManifest(appId);
+    await writeManifest(appId, { status: 'building', error: null, model });
+    const build = this.newBuild(appId, prompt, app.threadId, model, 'edit');
+    build.stage = 'build';
+    build.plan = makePlan(true);
+    this.push(build, 'planning', 'Making a thoughtful little plan', { plan: build.plan });
+    queueMicrotask(() => this.run(build).catch((error) => this.fail(build, error)));
+    return publicBuild(build);
+  }
+
+  async answer(buildId, answers) {
+    await this.ready();
+    const build = this.builds.get(buildId);
+    if (!build || build.status !== 'awaiting_input') throw new Error('This build is not waiting for answers.');
+    build.answers = answers;
+    build.stage = 'build';
+    build.status = 'queued';
+    this.push(build, 'planning', 'Here’s the plan', { plan: build.plan || makePlan(false), answers });
+    queueMicrotask(() => this.run(build).catch((error) => this.fail(build, error)));
+    return publicBuild(build);
+  }
+
+  newBuild(appId, prompt, threadId = null, model = DEFAULT_MODEL, kind = 'edit') {
+    const now = new Date().toISOString();
+    const build = { id: randomId(), appId, prompt, threadId, turnId: null, status: 'queued', stage: 'build', kind, model, ownerPid: process.pid, createdAt: now, updatedAt: now, events: [], answers: null, plan: null, agentText: '' };
+    this.builds.set(build.id, build);
+    this.push(build, 'queued', 'Added to your workbench');
+    return build;
+  }
+
+  // Discovery asks the Codex agent — not Workshop — what it still needs to know.
+  async runDiscovery(build) {
+    const preset = requirePreset(build.model);
+    const threadId = await this.codex.startThread(getAppDir(build.appId), preset);
+    build.threadId = threadId;
+    build.agentText = '';
+    await writeManifest(build.appId, { threadId });
+    const result = await this.codex.startTurn(threadId, discoveryPrompt(build), preset);
+    build.turnId = result?.turn?.id || null;
+    await this.persist(build);
+  }
+
+  async completeDiscovery(build, turn) {
+    const brief = parseDiscovery(agentTextFrom(turn) || build.agentText);
+    if (brief?.name || brief?.summary) {
+      await writeManifest(build.appId, {
+        ...(brief.name ? { name: brief.name.slice(0, 64) } : {}),
+        ...(brief.summary ? { description: brief.summary.slice(0, 240) } : {}),
+      }).catch(() => {});
+    }
+    build.plan = brief?.plan?.length ? brief.plan.slice(0, 6) : makePlan(false);
+    build.brief = brief?.summary || null;
+    const questions = brief?.questions || [];
+    if (!questions.length) {
+      // The agent decided the request already determines the product.
+      build.stage = 'build';
+      build.status = 'queued';
+      this.push(build, 'planning', 'Clear enough to start — here’s the plan', { plan: build.plan });
+      queueMicrotask(() => this.run(build).catch((error) => this.fail(build, error)));
+      return;
+    }
+    build.status = 'awaiting_input';
+    this.push(build, 'questions', questions.length === 1 ? 'One question before I start' : `${questions.length} questions before I start`, { questions, plan: build.plan });
+  }
+
+  async run(build) {
+    build.status = 'running';
+    build.agentText = '';
+    this.push(build, 'planning', build.kind === 'create' ? 'Shaping the experience' : 'Understanding your change');
+    const preset = requirePreset(build.model);
+    let threadId = build.threadId;
+    if (threadId) await this.codex.resumeThread(threadId);
+    else {
+      threadId = await this.codex.startThread(getAppDir(build.appId), preset);
+      build.threadId = threadId;
+      await writeManifest(build.appId, { threadId });
+    }
+    this.push(build, 'editing', 'Crafting the app');
+    const result = await this.codex.startTurn(threadId, buildPrompt(build), preset);
+    build.turnId = result?.turn?.id || null;
+    await this.persist(build);
+  }
+
+  async onCodexNotification(message) {
+    const params = message.params || {};
+    const threadId = params.threadId || params.thread?.id || params.turn?.threadId;
+    const build = [...this.builds.values()].find((item) => item.threadId === threadId && ['running', 'discovering'].includes(item.status));
+    if (!build) return;
+    if (message.method.includes('requestApproval')) {
+      build.status = 'awaiting_approval';
+      const approval = { id: randomId(), requestId: message.id, buildId: build.id, summary: approvalSummary(params), createdAt: new Date().toISOString() };
+      this.approvals.set(approval.id, approval);
+      this.push(build, 'approval', approval.summary, { approval });
+      return;
+    }
+    if (message.method === 'item/completed' && params.item?.type === 'agentMessage' && params.item.text) build.agentText = params.item.text;
+    // Discovery is a thinking turn; its file/command chatter is not user-facing progress.
+    if (build.status === 'discovering') {
+      if (message.method === 'turn/completed') {
+        const status = params.turn?.status;
+        if (status && status !== 'completed') return this.fail(build, new Error(`Codex turn ${status}.`));
+        try { await this.completeDiscovery(build, params.turn); }
+        catch (error) { await this.fail(build, error); }
+      }
+      return;
+    }
+    if (message.method === 'item/started') this.push(build, phaseForItem(params.item), itemLabel(params.item, false));
+    if (message.method === 'item/completed') this.push(build, phaseForItem(params.item, true), itemLabel(params.item, true));
+    if (message.method === 'turn/completed') {
+      const status = params.turn?.status;
+      if (status && status !== 'completed') return this.fail(build, new Error(`Codex turn ${status}.`));
+      try {
+        this.push(build, 'checking', 'Checking every important path');
+        await validateWorkspace(build.appId);
+        this.push(build, 'previewing', 'Polishing the live preview');
+        const app = await createRevision(build.appId);
+        build.status = 'completed'; build.updatedAt = new Date().toISOString();
+        this.push(build, 'complete', 'Ready to play with', { app });
+      } catch (error) { await this.fail(build, error); }
+    }
+  }
+
+  push(build, phase, message, extra = {}) {
+    const event = { id: randomId(), buildId: build.id, appId: build.appId, phase, message, at: new Date().toISOString(), ...extra };
+    build.events.push(event); build.updatedAt = event.at;
+    this.emit(`build:${build.id}`, event);
+    this.persist(build).catch(() => {});
+  }
+
+  async persist(build) {
+    await fs.mkdir(this.buildDir(), { recursive: true });
+    await atomicWrite(path.join(this.buildDir(), `${build.id}.json`), `${JSON.stringify(build, null, 2)}\n`);
+  }
+
+  buildDir() { return path.join(config.workshopDir, 'builds'); }
+
+  async hydrate() {
+    await fs.mkdir(this.buildDir(), { recursive: true });
+    const entries = await fs.readdir(this.buildDir()).catch(() => []);
+    for (const name of entries.filter((entry) => entry.endsWith('.json'))) {
+      try {
+        const file = path.join(this.buildDir(), name);
+        const build = JSON.parse(await fs.readFile(file, 'utf8'));
+        if (!BUILD_STATES.includes(build.status)) continue;
+        // Test runs and interrupted local sessions can leave a build record after
+        // its app workspace is gone. Never hydrate those as active streams.
+        try { await readManifest(build.appId); }
+        catch {
+          await fs.unlink(file).catch(() => {});
+          console.log(JSON.stringify({ trace: 'build:hydrate:orphan-skipped', buildId: build.id, appId: build.appId }));
+          continue;
+        }
+        if (build.ownerPid === process.pid && ['discovering', 'queued', 'running', 'awaiting_approval'].includes(build.status)) continue;
+        if (['discovering', 'queued', 'running', 'awaiting_approval'].includes(build.status)) {
+          build.status = 'failed';
+          build.events.push({ id: randomId(), buildId: build.id, appId: build.appId, phase: 'failed', message: 'Build paused when Workshop restarted. Try again when you’re ready.', at: new Date().toISOString() });
+          await writeManifest(build.appId, { status: 'failed', error: 'Build paused when Workshop restarted.' }).catch(() => {});
+          await this.persist(build);
+        }
+        this.builds.set(build.id, build);
+      } catch { /* Ignore incomplete build records. */ }
+    }
+  }
+
+  async fail(build, error) {
+    build.status = 'failed'; build.updatedAt = new Date().toISOString();
+    try { await writeManifest(build.appId, { status: 'failed', error: error.message }); } catch { /* workspace may be gone */ }
+    this.push(build, 'failed', error.message);
+  }
+
+  async cancel(buildId) {
+    await this.ready();
+    const build = this.builds.get(buildId);
+    if (!build || !BUILD_STATES.includes(build.status)) throw new Error('Build not found.');
+    if (build.threadId && build.turnId) await this.codex.interrupt(build.threadId, build.turnId);
+    build.status = 'cancelled'; this.push(build, 'cancelled', 'Stopped for now');
+    await writeManifest(build.appId, { status: 'draft' });
+    return publicBuild(build);
+  }
+
+  approve(approvalId, accepted) {
+    const approval = this.approvals.get(approvalId);
+    if (!approval) throw new Error('Approval not found.');
+    const build = this.builds.get(approval.buildId);
+    this.codex.respond(approval.requestId, { decision: accepted ? 'accept' : 'decline' });
+    this.approvals.delete(approvalId);
+    if (build) { build.status = accepted ? 'running' : 'failed'; this.push(build, accepted ? 'editing' : 'failed', accepted ? 'All set—continuing' : 'Permission declined'); }
+  }
+}
+
+export function publicBuild(build) { return { id: build.id, appId: build.appId, status: build.status, kind: build.kind, stage: build.stage, model: build.model, createdAt: build.createdAt, updatedAt: build.updatedAt, events: build.events, questions: build.events.find((event) => event.questions)?.questions || null, plan: build.plan }; }
+function requirePreset(key) { const preset = MODEL_PRESETS[key]; if (!preset) throw new Error('Unknown Workshop model preset.'); return preset; }
+function phaseForItem(item = {}, completed = false) { const type = item.type || ''; if (/command|test/i.test(type)) return 'checking'; if (/file|edit/i.test(type)) return 'editing'; return completed ? 'checking' : 'editing'; }
+function itemLabel(item = {}, completed = false) { const type = item.type || ''; const file = item.path || item.filePath || item.name; if (/command|test/i.test(type)) return completed ? 'Local check passed' : 'Running a local check'; if (/file|edit/i.test(type)) return file ? `${completed ? 'Finished' : 'Editing'} ${path.basename(file)}` : (completed ? 'Interface detail finished' : 'Shaping an interface detail'); return completed ? 'One detail polished' : 'Polishing the experience'; }
+function approvalSummary(params) { return params.reason || params.item?.command || 'Codex needs permission to continue.'; }
+
+function agentTextFrom(turn) {
+  const items = Array.isArray(turn?.items) ? turn.items : [];
+  const messages = items.filter((item) => item?.type === 'agentMessage' && typeof item.text === 'string' && item.text.trim());
+  return messages.at(-1)?.text || '';
+}
+
+// The agent replies in prose-free JSON, but models still wrap it in fences or
+// add a sentence, so accept any embedded object that carries a questions array.
+export function parseDiscovery(text = '') {
+  for (const candidate of jsonCandidates(text)) {
+    let parsed;
+    try { parsed = JSON.parse(candidate); } catch { continue; }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+    if (!('questions' in parsed) && !('summary' in parsed) && !('plan' in parsed)) continue;
+    return {
+      name: typeof parsed.name === 'string' ? parsed.name.trim() : null,
+      summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : null,
+      plan: Array.isArray(parsed.plan) ? parsed.plan.filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim().slice(0, 120)) : [],
+      questions: normalizeQuestions(parsed.questions),
+    };
+  }
+  return null;
+}
+
+function jsonCandidates(text) {
+  const candidates = [];
+  for (const match of String(text).matchAll(/```(?:json)?\s*([\s\S]*?)```/g)) candidates.push(match[1].trim());
+  const first = String(text).indexOf('{');
+  const last = String(text).lastIndexOf('}');
+  if (first >= 0 && last > first) candidates.push(String(text).slice(first, last + 1));
+  return candidates.filter(Boolean);
+}
+
+function normalizeQuestions(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const questions = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const prompt = typeof raw.prompt === 'string' ? raw.prompt.trim() : typeof raw.question === 'string' ? raw.question.trim() : '';
+    const options = (Array.isArray(raw.options) ? raw.options : []).filter((option) => typeof option === 'string' && option.trim()).map((option) => option.trim().slice(0, 60));
+    if (!prompt || options.length < 2) continue;
+    const id = slugQuestionId(raw.id, prompt, seen);
+    seen.add(id);
+    questions.push({ id, prompt: prompt.slice(0, 160), options: [...new Set(options)].slice(0, 4) });
+    if (questions.length === 3) break;
+  }
+  return questions;
+}
+
+function slugQuestionId(id, prompt, seen) {
+  const base = String(typeof id === 'string' && id.trim() ? id : prompt).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'question';
+  let candidate = base;
+  let suffix = 2;
+  while (seen.has(candidate)) candidate = `${base}-${suffix++}`;
+  return candidate;
+}
+
+function makePlan(edit) {
+  return edit ? ['Understand the existing app', 'Weave in the requested change', 'Check the main interaction', 'Refresh the preview'] : ['Shape the core experience', 'Craft the interface and behavior', 'Add thoughtful states and details', 'Check the main journey', 'Polish the preview'];
+}
+
+function discoveryPrompt(build) {
+  return `A person asked Workshop for a new mini-app:
+
+"${build.prompt}"
+
+This turn is for shaping only. Read AGENTS.md and .codex/skills/workshop-app-builder/SKILL.md so you know the runtime contract, then decide what you genuinely still need to know before building. Reading files is fine; do not create, edit, or delete any file, and do not run builds or tests during this turn.
+
+Reply with nothing but a single \`\`\`json fenced block in exactly this shape:
+
+\`\`\`json
+{
+  "name": "Short app name, at most four words",
+  "summary": "One sentence describing the app you intend to build",
+  "questions": [
+    { "id": "kebab-case-id", "prompt": "A short plain-language question", "options": ["Concrete choice", "Concrete choice", "Concrete choice"] }
+  ],
+  "plan": ["Three to five outcome-oriented steps, one of which verifies the primary journey"]
+}
+\`\`\`
+
+Rules for questions:
+- Ask at most three, and ask only what materially changes the product.
+- Use an empty array when the request already determines the product well enough to build.
+- Every question must be specific to THIS request. Never ask generic questions about tone, audience, speed, or personality.
+- Give each question two to four concrete options, each under 42 characters, that a non-technical person can choose between instantly.
+- Never ask about frameworks, storage, file layout, or anything else technical.`;
+}
+
+function buildPrompt(build) {
+  const brief = build.answers && Object.keys(build.answers).length
+    ? `\nThe person answered your shaping questions:\n${Object.entries(build.answers).map(([key, value]) => `- ${key}: ${value}`).join('\n')}`
+    : '';
+  const summary = build.brief ? `\nAgreed summary: ${build.brief}` : '';
+  const plan = build.plan ? `\nAgreed plan:\n${build.plan.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '';
+  return `Build this Workshop mini-app now: ${build.prompt}${summary}${brief}${plan}
+
+Follow the workshop-app-builder skill and AGENTS.md exactly. Shaping is finished; do not ask any more questions. Work autonomously, write a complete polished runtime, update manifest.json and check the JavaScript syntax. Do not just explain what you would do.`;
+}

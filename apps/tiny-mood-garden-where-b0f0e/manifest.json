@@ -1,0 +1,22 @@
+{
+  "id": "tiny-mood-garden-where-b0f0e",
+  "name": "Little Bloom",
+  "description": "Plant one small flower for how you feel today, and keep a gentle history.",
+  "icon": "✿",
+  "accent": "#c96545",
+  "status": "ready",
+  "prompt": "Build a tiny mood garden where I plant one flower for how I feel today",
+  "pinned": false,
+  "archived": false,
+  "createdAt": "2026-08-29T23:04:06.479Z",
+  "updatedAt": "2026-08-30T01:30:48.826Z",
+  "window": {
+    "width": 900,
+    "height": 650
+  },
+  "actions": [],
+  "threadId": "01a04fc4-1af6-73d2-bf4d-28da57725368",
+  "revision": 4,
+  "model": "luna-high",
+  "error": null
+}

@@ -1,0 +1,24 @@
+{
+  "id": "sec",
+  "name": "Filing Desk",
+  "description": "Recent SEC filings by ticker",
+  "icon": "⌁",
+  "accent": "#18796f",
+  "status": "archived",
+  "prompt": "Explore recent SEC filings",
+  "pinned": true,
+  "archived": true,
+  "createdAt": "2026-08-29T22:33:39.147Z",
+  "updatedAt": "2026-08-30T00:55:37.441Z",
+  "window": {
+    "width": 920,
+    "height": 680
+  },
+  "actions": [
+    "search_filings"
+  ],
+  "threadId": null,
+  "revision": 1,
+  "model": "luna-high",
+  "error": null
+}

@@ -1,0 +1,22 @@
+{
+  "id": "a-shared-grocery-list-89bf1",
+  "name": "Household Cart",
+  "description": "A calm shared grocery list for adding items quickly, organizing the shop, and checking things off together.",
+  "icon": "✦",
+  "accent": "#315b4d",
+  "status": "archived",
+  "prompt": "a shared grocery list for my household",
+  "pinned": false,
+  "archived": true,
+  "createdAt": "2026-08-30T00:52:10.849Z",
+  "updatedAt": "2026-08-30T01:05:46.686Z",
+  "window": {
+    "width": 920,
+    "height": 680
+  },
+  "actions": [],
+  "threadId": "01a05027-0a2a-7103-b199-27886d7edbdc",
+  "revision": 1,
+  "model": "luna-high",
+  "error": null
+}

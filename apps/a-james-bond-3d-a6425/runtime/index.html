@@ -1,0 +1,1633 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BOND // NIGHTFALL</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #080d0f;
+      --deep: #0c1719;
+      --panel: #101e20;
+      --panel-2: #13282a;
+      --line: rgba(174, 205, 190, .16);
+      --line-strong: rgba(202, 229, 210, .32);
+      --paper: #e9efe7;
+      --muted: #8c9b95;
+      --dim: #526460;
+      --mint: #b9f8d2;
+      --cyan: #76e4d2;
+      --gold: #f4bc61;
+      --red: #f4685c;
+      --blue: #85a9ff;
+      --shadow: 0 30px 80px rgba(0, 0, 0, .42);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #071012;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      color: var(--paper);
+      letter-spacing: .01em;
+    }
+
+    button { font: inherit; color: inherit; }
+
+    button:focus-visible,
+    canvas:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 4px;
+    }
+
+    [hidden] { display: none !important; }
+
+    .app {
+      position: relative;
+      isolation: isolate;
+      width: min(100vw, 1100px);
+      height: min(100vh, 720px);
+      min-height: 560px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 78% 16%, rgba(43, 92, 88, .22), transparent 27%),
+        radial-gradient(circle at 11% 100%, rgba(40, 72, 65, .18), transparent 32%),
+        var(--ink);
+      box-shadow: var(--shadow);
+    }
+
+    .app::before,
+    .app::after {
+      position: absolute;
+      z-index: 5;
+      pointer-events: none;
+      content: "";
+    }
+
+    .app::before {
+      inset: 0;
+      opacity: .18;
+      background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.028) 0, rgba(255,255,255,.028) 1px, transparent 1px, transparent 4px);
+      mix-blend-mode: screen;
+    }
+
+    .app::after {
+      inset: 0;
+      background: linear-gradient(115deg, transparent 12%, rgba(255,255,255,.025) 33%, transparent 55%);
+      transform: translateX(-100%);
+      animation: scan 12s ease-in-out infinite;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .34s ease;
+    }
+
+    .screen.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .eyebrow,
+    .micro,
+    .status-label,
+    .hud-label,
+    .brief-footer,
+    .shortcut,
+    .corner-label,
+    .mission-chip,
+    .readout-label,
+    .readout-value,
+    .action-button,
+    .result-kicker,
+    .result-stamp,
+    .stat-label,
+    .stat-value,
+    .toast,
+    .pause-kicker,
+    .pause-hint,
+    .loading-note {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+    }
+
+    .loading-screen {
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 45%, rgba(48, 108, 96, .19), transparent 42%);
+    }
+
+    .loading-lockup {
+      width: min(340px, 74vw);
+      text-align: center;
+      animation: rise .7s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .crest {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 22px;
+      border: 1px solid rgba(185, 248, 210, .58);
+      color: var(--mint);
+      font-size: 27px;
+      line-height: 1;
+      transform: rotate(45deg);
+    }
+
+    .crest::before,
+    .crest::after {
+      position: absolute;
+      content: "";
+      background: var(--gold);
+    }
+
+    .crest::before { width: 1px; height: 82px; }
+    .crest::after { width: 82px; height: 1px; }
+
+    .crest span { transform: rotate(-45deg); }
+
+    .loading-lockup h1 {
+      margin: 0;
+      color: var(--paper);
+      font-size: clamp(23px, 3vw, 31px);
+      font-weight: 500;
+      letter-spacing: .16em;
+    }
+
+    .loading-note {
+      margin: 14px 0 18px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .loading-track {
+      position: relative;
+      height: 2px;
+      overflow: hidden;
+      background: rgba(185,248,210,.14);
+    }
+
+    .loading-track span {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 42%;
+      background: linear-gradient(90deg, transparent, var(--mint));
+      animation: load 1.1s ease-in-out infinite;
+    }
+
+    .topbar,
+    .game-topbar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      height: 72px;
+      padding: 0 34px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--paper);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .22em;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 23px;
+      height: 23px;
+      border: 1px solid var(--mint);
+      transform: rotate(45deg);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      position: absolute;
+      content: "";
+      background: var(--gold);
+    }
+
+    .brand-mark::before { top: 10px; left: -5px; width: 31px; height: 1px; }
+    .brand-mark::after { top: -5px; left: 10px; width: 1px; height: 31px; }
+
+    .topbar .brand-mark span,
+    .game-topbar .brand-mark span { display: none; }
+
+    .topbar-meta {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-left: auto;
+    }
+
+    .signal {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font: 10px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .signal i,
+    .live-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 0 4px rgba(118,228,210,.1), 0 0 15px rgba(118,228,210,.7);
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    .briefing-screen {
+      background:
+        linear-gradient(90deg, rgba(8,13,15,.32), transparent 55%),
+        radial-gradient(circle at 80% 44%, rgba(41,100,88,.1), transparent 32%);
+    }
+
+    .briefing-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
+      gap: 58px;
+      align-items: center;
+      height: calc(100% - 142px);
+      padding: 38px 66px 25px;
+    }
+
+    .briefing-copy {
+      max-width: 510px;
+      animation: rise .7s .08s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 19px;
+      color: var(--gold);
+      font-size: 10px;
+    }
+
+    .briefing-copy h2 {
+      max-width: 530px;
+      margin: 0;
+      color: var(--paper);
+      font-size: clamp(43px, 5.4vw, 74px);
+      font-weight: 500;
+      letter-spacing: -.055em;
+      line-height: .93;
+    }
+
+    .briefing-copy h2 em { color: var(--mint); font-style: normal; }
+
+    .briefing-copy .lede {
+      max-width: 410px;
+      margin: 25px 0 27px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .mission-readout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      max-width: 465px;
+      margin-bottom: 29px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .readout-cell { padding: 15px 16px 14px 0; }
+
+    .readout-cell + .readout-cell {
+      padding-left: 16px;
+      border-left: 1px solid var(--line);
+    }
+
+    .readout-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--dim);
+      font-size: 9px;
+    }
+
+    .readout-value {
+      display: block;
+      color: var(--paper);
+      font-size: 14px;
+      letter-spacing: .08em;
+    }
+
+    .readout-value.gold { color: var(--gold); }
+
+    .action-row {
+      display: flex;
+      align-items: center;
+      gap: 17px;
+    }
+
+    .action-button {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 205px;
+      min-height: 50px;
+      padding: 0 17px 0 20px;
+      border: 1px solid var(--mint);
+      background: var(--mint);
+      color: #0b211b;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      transition: background .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease;
+    }
+
+    .action-button span {
+      color: #2f7160;
+      font-size: 18px;
+      line-height: 0;
+      transition: transform .2s ease;
+    }
+
+    .action-button:hover {
+      background: transparent;
+      color: var(--mint);
+      box-shadow: 0 0 0 5px rgba(185,248,210,.08);
+      transform: translateY(-2px);
+    }
+
+    .action-button:hover span { color: var(--mint); transform: translate(2px, -2px); }
+
+    .shortcut {
+      margin: 0;
+      color: var(--dim);
+      font-size: 9px;
+      line-height: 1.7;
+    }
+
+    .briefing-visual {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 360px;
+      animation: rise .8s .18s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .briefing-visual::before {
+      position: absolute;
+      width: 310px;
+      height: 310px;
+      border: 1px solid rgba(118,228,210,.2);
+      border-radius: 50%;
+      content: "";
+      box-shadow: 0 0 0 27px rgba(118,228,210,.025), 0 0 0 54px rgba(118,228,210,.02);
+    }
+
+    .briefing-visual::after {
+      position: absolute;
+      width: 370px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(118,228,210,.28), transparent);
+      content: "";
+      transform: rotate(-35deg);
+      animation: radar-sweep 4.6s linear infinite;
+      transform-origin: 50% 50%;
+    }
+
+    .radar-grid {
+      position: relative;
+      z-index: 1;
+      width: 250px;
+      height: 250px;
+      overflow: hidden;
+      border: 1px solid rgba(118,228,210,.28);
+      border-radius: 50%;
+      background:
+        linear-gradient(90deg, transparent 49.7%, rgba(118,228,210,.18) 50%, transparent 50.3%),
+        linear-gradient(transparent 49.7%, rgba(118,228,210,.18) 50%, transparent 50.3%),
+        radial-gradient(circle, transparent 0 31%, rgba(118,228,210,.1) 31.4% 31.8%, transparent 32.2% 62%, rgba(118,228,210,.1) 62.4% 62.8%, transparent 63.2%),
+        rgba(11, 35, 35, .72);
+      box-shadow: inset 0 0 70px rgba(118,228,210,.08), 0 0 60px rgba(118,228,210,.08);
+    }
+
+    .radar-grid::before,
+    .radar-grid::after {
+      position: absolute;
+      content: "";
+      background: var(--cyan);
+      box-shadow: 0 0 14px var(--cyan);
+    }
+
+    .radar-grid::before { top: 52px; left: 62px; width: 5px; height: 5px; border-radius: 50%; }
+    .radar-grid::after { right: 55px; bottom: 70px; width: 4px; height: 4px; border-radius: 50%; opacity: .7; }
+
+    .radar-target {
+      position: absolute;
+      top: 74px;
+      left: 108px;
+      width: 44px;
+      height: 55px;
+      border: 1px solid var(--red);
+      clip-path: polygon(0 14%, 14% 0, 86% 0, 100% 14%, 100% 86%, 86% 100%, 14% 100%, 0 86%);
+      color: var(--red);
+      animation: target-pulse 2.1s ease-in-out infinite;
+    }
+
+    .radar-target::before,
+    .radar-target::after {
+      position: absolute;
+      content: "";
+      background: var(--red);
+    }
+
+    .radar-target::before { top: 26px; left: 9px; width: 24px; height: 1px; }
+    .radar-target::after { top: 15px; left: 20px; width: 1px; height: 25px; }
+
+    .visual-caption {
+      position: absolute;
+      z-index: 2;
+      right: 5px;
+      bottom: 23px;
+      width: 178px;
+      padding: 14px 15px 13px;
+      border: 1px solid var(--line-strong);
+      background: rgba(9, 20, 21, .88);
+      box-shadow: 0 14px 36px rgba(0,0,0,.22);
+    }
+
+    .visual-caption strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--paper);
+      font: 11px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .visual-caption p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+    .visual-stamp {
+      position: absolute;
+      top: 31px;
+      left: 18px;
+      color: var(--dim);
+      font: 9px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .15em;
+      line-height: 1.7;
+      text-transform: uppercase;
+    }
+
+    .visual-stamp span { color: var(--gold); }
+
+    .empty-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 20px;
+      margin-left: 18px;
+      color: var(--dim);
+      font: 9px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .empty-note::before { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); content: ""; }
+
+    .brief-footer {
+      position: absolute;
+      right: 66px;
+      bottom: 31px;
+      left: 66px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--dim);
+      font-size: 9px;
+    }
+
+    .brief-footer span:last-child { color: var(--muted); }
+
+    .game-screen { display: flex; flex-direction: column; background: #071012; }
+
+    .game-topbar { flex: 0 0 62px; height: 62px; padding: 0 24px; }
+    .game-topbar .brand { font-size: 10px; }
+    .game-topbar .brand-mark { width: 18px; height: 18px; }
+    .game-topbar .brand-mark::before { top: 8px; left: -4px; width: 26px; }
+    .game-topbar .brand-mark::after { top: -4px; left: 8px; height: 26px; }
+
+    .mission-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: 32px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .mission-chip::before { width: 5px; height: 5px; border-radius: 50%; background: var(--red); box-shadow: 0 0 9px rgba(244,104,92,.75); content: ""; }
+
+    .game-readout { display: flex; align-items: center; gap: 25px; margin-left: auto; }
+    .game-readout .readout-cell { display: flex; align-items: baseline; gap: 7px; padding: 0; }
+    .game-readout .readout-cell + .readout-cell { padding-left: 25px; border-left: 1px solid var(--line); }
+    .game-readout .readout-label { margin: 0; font-size: 8px; }
+    .game-readout .readout-value { font-size: 14px; }
+
+    .game-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 154px;
+      gap: 15px;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 15px 24px 10px;
+    }
+
+    .canvas-frame { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid rgba(185,248,210,.22); background: #091416; box-shadow: inset 0 0 0 1px rgba(0,0,0,.44), 0 12px 34px rgba(0,0,0,.28); }
+
+    .canvas-frame::before,
+    .canvas-frame::after { position: absolute; z-index: 2; width: 15px; height: 15px; border-color: var(--mint); content: ""; pointer-events: none; }
+    .canvas-frame::before { top: 9px; left: 9px; border-top: 1px solid; border-left: 1px solid; }
+    .canvas-frame::after { right: 9px; bottom: 9px; border-right: 1px solid; border-bottom: 1px solid; }
+
+    #gameCanvas { display: block; width: 100%; height: 100%; cursor: none; touch-action: none; }
+
+    .canvas-meta { position: absolute; z-index: 3; top: 12px; right: 15px; left: 15px; display: flex; justify-content: space-between; color: rgba(218,240,226,.62); pointer-events: none; }
+    .corner-label { font-size: 8px; line-height: 1.55; }
+    .corner-label.right { text-align: right; }
+    .corner-label b { color: var(--gold); font-weight: 500; }
+
+    .reticle { position: absolute; z-index: 4; width: 54px; height: 54px; border: 1px solid rgba(185,248,210,.9); border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); transition: width .12s ease, height .12s ease, border-color .12s ease, opacity .2s ease; }
+    .reticle::before, .reticle::after { position: absolute; background: var(--mint); content: ""; }
+    .reticle::before { top: 26px; left: -7px; width: 66px; height: 1px; }
+    .reticle::after { top: -7px; left: 26px; width: 1px; height: 66px; }
+    .reticle span, .reticle i { position: absolute; display: block; border-color: var(--gold); border-style: solid; }
+    .reticle span { inset: 18px; border-width: 1px; border-radius: 50%; }
+    .reticle i { top: 23px; left: 23px; width: 7px; height: 7px; border-width: 1px 0 0 1px; transform: rotate(45deg); }
+    .reticle.fire { width: 42px; height: 42px; border-color: var(--gold); }
+    .reticle.fire::before { top: 20px; left: -13px; width: 66px; background: var(--gold); }
+    .reticle.fire::after { top: -13px; left: 20px; height: 66px; background: var(--gold); }
+    .reticle.hit { border-color: var(--red); width: 68px; height: 68px; }
+    .reticle.hit::before, .reticle.hit::after { background: var(--red); }
+
+    .damage-flash { position: absolute; z-index: 3; inset: 0; background: rgba(244,104,92,.16); opacity: 0; pointer-events: none; }
+    .damage-flash.show { animation: flash .32s ease-out; }
+    .hit-label { position: absolute; z-index: 5; top: 45%; left: 50%; min-width: 110px; color: var(--mint); font: 11px "SFMono-Regular", Consolas, monospace; letter-spacing: .16em; text-align: center; text-shadow: 0 2px 13px rgba(0,0,0,.9); opacity: 0; pointer-events: none; transform: translate(-50%, 10px); }
+    .hit-label.show { animation: hit-pop .74s cubic-bezier(.2,.8,.2,1) both; }
+    .hit-label.bad { color: var(--red); }
+    .reload-state { position: absolute; z-index: 5; bottom: 87px; left: 50%; color: var(--gold); font: 10px "SFMono-Regular", Consolas, monospace; letter-spacing: .18em; opacity: 0; pointer-events: none; transform: translateX(-50%); }
+    .reload-state.show { opacity: 1; animation: reload-pulse .72s ease-in-out infinite; }
+    .wave-badge { position: absolute; z-index: 4; top: 50%; left: 50%; color: var(--gold); font: 9px "SFMono-Regular", Consolas, monospace; letter-spacing: .18em; opacity: 0; pointer-events: none; transform: translate(-50%, -50%); }
+    .wave-badge.show { animation: wave-in 1.2s ease both; }
+
+    .side-hud { display: flex; flex-direction: column; min-width: 0; padding: 15px 14px; border: 1px solid var(--line); background: rgba(14, 29, 30, .82); }
+    .hud-section + .hud-section { margin-top: 25px; padding-top: 22px; border-top: 1px solid var(--line); }
+    .hud-label { display: block; margin-bottom: 13px; color: var(--dim); font-size: 8px; }
+    .objective-main { display: flex; align-items: baseline; gap: 5px; color: var(--mint); font: 26px "SFMono-Regular", Consolas, monospace; letter-spacing: .04em; }
+    .objective-main small { color: var(--muted); font-size: 11px; }
+    .meter { height: 4px; margin-top: 12px; background: rgba(185,248,210,.13); }
+    .meter span { display: block; width: 0; height: 100%; background: var(--mint); box-shadow: 0 0 9px rgba(185,248,210,.34); transition: width .25s ease; }
+    .objective-copy { margin: 10px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .ammo-row { display: flex; gap: 5px; margin-bottom: 8px; }
+    .ammo-round { width: 8px; height: 22px; border: 1px solid rgba(244,188,97,.58); background: var(--gold); box-shadow: 0 0 8px rgba(244,188,97,.12); transition: background .2s ease, opacity .2s ease; }
+    .ammo-round.empty { background: transparent; opacity: .35; box-shadow: none; }
+    .ammo-caption { display: flex; justify-content: space-between; color: var(--muted); font: 9px "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .ammo-caption strong { color: var(--gold); font-weight: 500; }
+    .accuracy-value { color: var(--paper); font: 23px "SFMono-Regular", Consolas, monospace; }
+    .accuracy-sub { margin-top: 7px; color: var(--muted); font-size: 10px; }
+    .side-note { margin-top: auto; padding-top: 22px; color: var(--dim); font: 8px/1.7 "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    .side-note span { color: var(--gold); }
+
+    .game-footer { display: flex; align-items: center; justify-content: space-between; flex: 0 0 42px; padding: 0 24px; border-top: 1px solid var(--line); color: var(--dim); font: 9px "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    .game-footer strong { color: var(--muted); font-weight: 500; }
+    .pause-button, .text-button { padding: 5px 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; font: 9px "SFMono-Regular", Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; transition: color .2s ease; }
+    .pause-button:hover, .text-button:hover { color: var(--mint); }
+    .pause-button span { margin-left: 8px; color: var(--dim); }
+
+    .pause-overlay, .result-screen, .error-screen { display: grid; place-items: center; background: rgba(5, 12, 13, .78); backdrop-filter: blur(7px); }
+    .pause-overlay { z-index: 10; }
+    .pause-card, .result-card, .error-card { position: relative; width: min(460px, calc(100% - 42px)); padding: 32px 34px 31px; border: 1px solid var(--line-strong); background: linear-gradient(140deg, rgba(20,41,42,.98), rgba(10,23,24,.98)); box-shadow: 0 30px 80px rgba(0,0,0,.45); animation: rise .32s cubic-bezier(.2,.8,.2,1) both; }
+    .pause-card { width: min(350px, calc(100% - 42px)); text-align: center; }
+    .pause-card::before, .result-card::before, .error-card::before { position: absolute; top: -1px; left: 30px; width: 70px; height: 2px; background: var(--gold); content: ""; }
+    .pause-kicker, .result-kicker { margin: 0 0 15px; color: var(--gold); font-size: 9px; }
+    .pause-card h2, .result-card h2, .error-card h2 { margin: 0; color: var(--paper); font-size: 31px; font-weight: 500; letter-spacing: -.04em; }
+    .pause-card p, .result-card > p, .error-card p { margin: 13px 0 23px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .pause-card .action-button { width: 100%; }
+
+    .result-screen { z-index: 9; }
+    .result-card { width: min(570px, calc(100% - 42px)); }
+    .result-heading { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+    .result-stamp { padding-top: 3px; color: var(--dim); font-size: 8px; text-align: right; white-space: nowrap; }
+    .result-card h2 { font-size: clamp(29px, 4vw, 43px); }
+    .result-card > p { max-width: 430px; margin-bottom: 25px; }
+    .result-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 25px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .result-stat { padding: 15px 12px 14px 0; }
+    .result-stat + .result-stat { padding-left: 12px; border-left: 1px solid var(--line); }
+    .stat-label { display: block; margin-bottom: 8px; color: var(--dim); font-size: 8px; }
+    .stat-value { display: block; color: var(--paper); font-size: 16px; letter-spacing: .06em; }
+    .stat-value.gold { color: var(--gold); }
+    .new-best { display: none; align-items: center; gap: 8px; margin: -8px 0 19px; color: var(--gold); font: 9px "SFMono-Regular", Consolas, monospace; letter-spacing: .14em; text-transform: uppercase; }
+    .new-best.show { display: flex; }
+    .new-best::before { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); content: ""; box-shadow: 0 0 12px rgba(244,188,97,.7); }
+    .result-actions { display: flex; align-items: center; gap: 20px; }
+    .result-actions .action-button { min-width: 183px; }
+
+    .error-screen { z-index: 12; }
+    .error-card { width: min(420px, calc(100% - 42px)); }
+    .error-card h2 { font-size: 29px; }
+    .error-card p { margin-bottom: 22px; }
+
+    .toast { position: absolute; z-index: 20; right: 24px; bottom: 19px; max-width: 310px; padding: 11px 13px; border: 1px solid var(--line-strong); background: rgba(8, 17, 18, .94); color: var(--mint); font-size: 8px; line-height: 1.5; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes scan { 0%, 66% { transform: translateX(-100%); } 82%, 100% { transform: translateX(100%); } }
+    @keyframes load { 0% { transform: translateX(-130%); } 100% { transform: translateX(320%); } }
+    @keyframes blink { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+    @keyframes radar-sweep { from { transform: rotate(-35deg); } to { transform: rotate(325deg); } }
+    @keyframes target-pulse { 0%, 100% { opacity: .52; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+    @keyframes flash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes hit-pop { 0% { opacity: 0; transform: translate(-50%, 12px) scale(.86); } 22% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -22px) scale(1.02); } }
+    @keyframes reload-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+    @keyframes wave-in { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.88); } 22%, 72% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); } }
+
+    @media (max-width: 760px) {
+      .app { min-height: 520px; }
+      .topbar { padding: 0 24px; }
+      .briefing-grid { gap: 22px; padding: 29px 35px 20px; }
+      .briefing-copy h2 { font-size: clamp(38px, 7vw, 58px); }
+      .briefing-visual { min-height: 280px; }
+      .briefing-visual::before { width: 230px; height: 230px; }
+      .radar-grid { width: 190px; height: 190px; }
+      .radar-target { top: 53px; left: 80px; transform: scale(.8); }
+      .visual-caption { right: 0; bottom: 4px; }
+      .visual-stamp { top: 5px; left: 0; }
+      .brief-footer { right: 35px; bottom: 22px; left: 35px; }
+      .game-main { grid-template-columns: minmax(0, 1fr) 132px; padding-right: 16px; padding-left: 16px; }
+      .game-topbar { padding: 0 16px; }
+      .mission-chip { margin-left: 18px; }
+      .game-footer { padding: 0 16px; }
+      .side-hud { padding-right: 10px; padding-left: 10px; }
+    }
+
+    @media (max-width: 600px) {
+      .topbar-meta .signal { display: none; }
+      .briefing-grid { display: block; height: calc(100% - 122px); padding-top: 44px; }
+      .briefing-copy .lede { margin: 18px 0; font-size: 12px; }
+      .mission-readout { margin-bottom: 20px; }
+      .briefing-visual { min-height: 205px; margin-top: 13px; }
+      .briefing-visual::before { width: 170px; height: 170px; }
+      .radar-grid { width: 140px; height: 140px; }
+      .radar-target { top: 39px; left: 59px; transform: scale(.58); }
+      .visual-caption { right: 5px; bottom: 2px; width: 145px; padding: 10px; }
+      .visual-caption p { font-size: 9px; }
+      .visual-stamp { display: none; }
+      .brief-footer { right: 24px; bottom: 17px; left: 24px; font-size: 7px; }
+      .brief-footer span:first-child { display: none; }
+      .action-row { gap: 10px; }
+      .action-button { min-width: 188px; }
+      .shortcut { font-size: 8px; }
+      .game-topbar { flex-basis: 54px; height: 54px; }
+      .game-topbar .brand { font-size: 8px; letter-spacing: .12em; }
+      .mission-chip { display: none; }
+      .game-readout { gap: 10px; }
+      .game-readout .readout-cell + .readout-cell { padding-left: 10px; }
+      .game-readout .readout-label { display: none; }
+      .game-main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; padding: 9px; }
+      .side-hud { display: grid; grid-template-columns: 1.1fr .8fr 1fr; gap: 10px; padding: 8px 10px; }
+      .hud-section + .hud-section { margin-top: 0; padding-top: 0; padding-left: 10px; border-top: 0; border-left: 1px solid var(--line); }
+      .hud-label { margin-bottom: 6px; font-size: 7px; }
+      .objective-main { font-size: 17px; }
+      .meter { margin-top: 6px; }
+      .objective-copy { display: none; }
+      .ammo-round { height: 15px; width: 6px; }
+      .ammo-caption { font-size: 7px; }
+      .accuracy-value { font-size: 17px; }
+      .accuracy-sub { margin-top: 4px; font-size: 8px; }
+      .side-note { display: none; }
+      .game-footer { flex-basis: 34px; font-size: 7px; }
+      .game-footer > span { display: none; }
+      .pause-button { margin-left: auto; font-size: 8px; }
+      .result-stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .result-stat:nth-child(3), .result-stat:nth-child(4) { border-top: 1px solid var(--line); }
+      .result-actions { align-items: stretch; flex-direction: column; gap: 11px; }
+      .result-actions .action-button { width: 100%; }
+      .result-actions .text-button { order: 2; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <section class="screen loading-screen active" id="loadingScreen" aria-labelledby="loadingTitle">
+      <div class="loading-lockup">
+        <div class="crest" aria-hidden="true"><span>✦</span></div>
+        <h1 id="loadingTitle">BOND // NIGHTFALL</h1>
+        <p class="loading-note" id="loadingNote" aria-live="polite">Decrypting field brief</p>
+        <div class="loading-track" aria-hidden="true"><span></span></div>
+      </div>
+    </section>
+
+    <section class="screen briefing-screen" id="briefingScreen" aria-labelledby="briefingTitle" hidden>
+      <header class="topbar">
+        <div class="brand" aria-label="Bond Nightfall">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>BOND // NIGHTFALL</span>
+        </div>
+        <div class="topbar-meta">
+          <span class="signal"><i aria-hidden="true"></i> Secure channel</span>
+          <span class="micro" style="color:var(--dim);font-size:9px;">MI6 / 07</span>
+        </div>
+      </header>
+
+      <div class="briefing-grid">
+        <div class="briefing-copy">
+          <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> Field note 07 / Nightfall</p>
+          <h2 id="briefingTitle">Take the shot.<br><em>Leave no trace.</em></h2>
+          <p class="lede">A syndicate courier is moving through the city grid. Thirty-five seconds, one clean line of sight. Neutralize the assets before they reach the extraction point.</p>
+
+          <div class="mission-readout" aria-label="Mission parameters">
+            <div class="readout-cell"><span class="readout-label">Window</span><span class="readout-value">00:35</span></div>
+            <div class="readout-cell"><span class="readout-label">Rounds</span><span class="readout-value">06 / mag</span></div>
+            <div class="readout-cell"><span class="readout-label">Best run</span><span class="readout-value gold" id="briefBest">—</span></div>
+          </div>
+
+          <div class="action-row">
+            <button class="action-button" id="startButton" type="button">Start mission <span aria-hidden="true">↗</span></button>
+            <span class="empty-note" id="emptyNote">No prior run</span>
+          </div>
+          <p class="shortcut">Click / space fire&nbsp;&nbsp;·&nbsp;&nbsp;WASD aim&nbsp;&nbsp;·&nbsp;&nbsp;R reload&nbsp;&nbsp;·&nbsp;&nbsp;Esc pause</p>
+        </div>
+
+        <div class="briefing-visual" aria-hidden="true">
+          <div class="visual-stamp"><span>Target profile</span><br>Operative class: armed<br>Risk: elevated<br>Range: city / 4 km</div>
+          <div class="radar-grid"><div class="radar-target"></div></div>
+          <div class="visual-caption"><strong>Reticle system // live</strong><p>Keep the red in frame. The city is listening.</p></div>
+        </div>
+      </div>
+
+      <footer class="brief-footer"><span>Property of Her Majesty's government</span><span>Press enter to deploy <b style="color:var(--gold)">↵</b></span></footer>
+    </section>
+
+    <section class="screen game-screen" id="gameScreen" aria-labelledby="gameTitle" hidden>
+      <header class="game-topbar">
+        <div class="brand" id="gameTitle">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>BOND // NIGHTFALL</span>
+        </div>
+        <div class="mission-chip">Live operation / neutralize assets</div>
+        <div class="game-readout" aria-label="Mission score and time">
+          <div class="readout-cell"><span class="readout-label">Score</span><span class="readout-value gold" id="scoreValue">000000</span></div>
+          <div class="readout-cell"><span class="readout-label">Time</span><span class="readout-value" id="timeValue">00:35</span></div>
+        </div>
+      </header>
+
+      <div class="game-main">
+        <div class="canvas-frame" id="canvasFrame">
+          <canvas id="gameCanvas" tabindex="0" role="img" aria-label="Night city shooting range. Move the reticle and click to fire at red targets."></canvas>
+          <div class="canvas-meta" aria-hidden="true"><span class="corner-label">Grid 04 / 17<br><b>Optic online</b></span><span class="corner-label right">Signal stable<br><b id="streakValue">Streak 00</b></span></div>
+          <div class="reticle" id="reticle" aria-hidden="true"><span></span><i></i></div>
+          <div class="damage-flash" id="damageFlash" aria-hidden="true"></div>
+          <div class="hit-label" id="hitLabel" aria-hidden="true"></div>
+          <div class="reload-state" id="reloadState" aria-hidden="true">Reloading // hold steady</div>
+          <div class="wave-badge" id="waveBadge" aria-hidden="true">New contact // on approach</div>
+        </div>
+
+        <aside class="side-hud" aria-label="Mission telemetry">
+          <section class="hud-section">
+            <span class="hud-label">Assets down</span>
+            <div class="objective-main"><span id="hitCount">00</span><small>/ 12</small></div>
+            <div class="meter" aria-hidden="true"><span id="objectiveMeter"></span></div>
+            <p class="objective-copy">Neutralize the syndicate line before the window closes.</p>
+          </section>
+          <section class="hud-section">
+            <span class="hud-label">Magazine</span>
+            <div class="ammo-row" id="ammoRow" aria-label="Ammunition"></div>
+            <div class="ammo-caption"><span>Walther / 9mm</span><strong id="ammoCount">06</strong></div>
+          </section>
+          <section class="hud-section">
+            <span class="hud-label">Accuracy</span>
+            <div class="accuracy-value" id="accuracyValue">—</div>
+            <div class="accuracy-sub"><span id="shotCount">00</span> shots / <span id="missCount">00</span> miss</div>
+          </section>
+          <p class="side-note"><span>Note:</span> targets advance<br>with every second.</p>
+        </aside>
+      </div>
+
+      <footer class="game-footer"><span><strong>Fire</strong> click / space&nbsp;&nbsp;&nbsp; <strong>Reload</strong> R&nbsp;&nbsp;&nbsp; <strong>Aim</strong> WASD / pointer</span><button class="pause-button" id="pauseButton" type="button">Pause <span>Esc</span></button></footer>
+    </section>
+
+    <section class="screen pause-overlay" id="pauseOverlay" aria-labelledby="pauseTitle" hidden>
+      <div class="pause-card" role="dialog" aria-modal="true">
+        <p class="pause-kicker">Signal held</p>
+        <h2 id="pauseTitle">Stay in cover.</h2>
+        <p>The clock is frozen. Your next shot is waiting.</p>
+        <button class="action-button" id="resumeButton" type="button">Resume mission <span aria-hidden="true">↗</span></button>
+      </div>
+    </section>
+
+    <section class="screen result-screen" id="resultScreen" aria-labelledby="resultTitle" hidden>
+      <div class="result-card" role="dialog" aria-modal="true">
+        <div class="result-heading">
+          <div>
+            <p class="result-kicker">Mission debrief / 07</p>
+            <h2 id="resultTitle">Clean extraction.</h2>
+          </div>
+          <div class="result-stamp" id="resultStamp">Filed<br>00:00</div>
+        </div>
+        <p id="resultCopy">The line is quiet. Your work is not.</p>
+        <div class="result-stats" aria-label="Mission results">
+          <div class="result-stat"><span class="stat-label">Score</span><span class="stat-value gold" id="resultScore">000000</span></div>
+          <div class="result-stat"><span class="stat-label">Assets</span><span class="stat-value" id="resultHits">00</span></div>
+          <div class="result-stat"><span class="stat-label">Accuracy</span><span class="stat-value" id="resultAccuracy">—</span></div>
+          <div class="result-stat"><span class="stat-label">Best streak</span><span class="stat-value" id="resultStreak">00</span></div>
+        </div>
+        <div class="new-best" id="newBest">New record // best run updated</div>
+        <div class="result-actions">
+          <button class="action-button" id="againButton" type="button">Run it again <span aria-hidden="true">↗</span></button>
+          <button class="text-button" id="briefButton" type="button">Back to brief</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen error-screen" id="errorScreen" aria-labelledby="errorTitle" hidden>
+      <div class="error-card" role="alertdialog" aria-modal="true">
+        <p class="result-kicker">Secure channel interrupted</p>
+        <h2 id="errorTitle">Signal lost.</h2>
+        <p id="errorCopy">The optic could not initialize. Try the connection again, then return to the field.</p>
+        <button class="action-button" id="retryButton" type="button">Reconnect <span aria-hidden="true">↗</span></button>
+      </div>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <p class="sr-only" id="liveStatus" aria-live="polite">Mission briefing loading.</p>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const $ = (id) => document.getElementById(id);
+      const root = $('app');
+      const screens = {
+        loading: $('loadingScreen'),
+        briefing: $('briefingScreen'),
+        game: $('gameScreen'),
+        pause: $('pauseOverlay'),
+        result: $('resultScreen'),
+        error: $('errorScreen')
+      };
+
+      const workshop = window.Workshop || {};
+      const SAVE_KEY = 'bond-nightfall-save-v1';
+      const MAX_AMMO = 6;
+      const MISSION_SECONDS = 35;
+      const OBJECTIVE = 12;
+      const TAU = Math.PI * 2;
+
+      const state = {
+        screen: 'loading',
+        bestScore: 0,
+        bestAccuracy: 0,
+        totalRuns: 0,
+        elapsed: 0,
+        score: 0,
+        shots: 0,
+        hits: 0,
+        neutralized: 0,
+        misses: 0,
+        streak: 0,
+        bestStreak: 0,
+        escaped: 0,
+        ammo: MAX_AMMO,
+        reloading: false,
+        reloadRemaining: 0,
+        spawnRemaining: .5,
+        nextTargetId: 1,
+        targets: [],
+        particles: [],
+        tracers: [],
+        aim: { x: .5, y: .5, active: false },
+        keys: new Set(),
+        lastFrame: 0,
+        raf: 0,
+        toastTimer: 0,
+        canvas: { width: 0, height: 0, dpr: 1 },
+        lastResult: null,
+        hasCanvas: true,
+        errorMessage: ''
+      };
+
+      let ctx = null;
+
+      function setTitle(title) {
+        document.title = title;
+        try {
+          if (typeof window.Workshop?.setTitle === 'function') window.Workshop.setTitle(title);
+        } catch (_) {}
+      }
+
+      function notify(message) {
+        try {
+          if (typeof window.Workshop?.notify === 'function') window.Workshop.notify(message);
+        } catch (_) {}
+        const toast = $('toast');
+        toast.textContent = message;
+        toast.classList.remove('show');
+        window.clearTimeout(state.toastTimer);
+        requestAnimationFrame(() => toast.classList.add('show'));
+        state.toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2300);
+      }
+
+      async function callAction(name, payload) {
+        if (typeof window.Workshop?.callAction !== 'function') return null;
+        return window.Workshop.callAction(name, payload);
+      }
+
+      async function storageGet(key) {
+        if (typeof window.Workshop?.storage?.get !== 'function') return null;
+        return window.Workshop.storage.get(key);
+      }
+
+      async function storageSet(key, value) {
+        if (typeof window.Workshop?.storage?.set !== 'function') return false;
+        await window.Workshop.storage.set(key, value);
+        return true;
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => window.setTimeout(resolve, ms));
+      }
+
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+      function formatNumber(value, length = 6) { return String(Math.max(0, Math.round(value))).padStart(length, '0'); }
+
+      function formatTime(seconds) {
+        const remaining = Math.max(0, Math.ceil(MISSION_SECONDS - seconds));
+        return `00:${String(remaining).padStart(2, '0')}`;
+      }
+
+      function accuracyFor(shots = state.shots, hits = state.hits) {
+        return shots ? Math.round((hits / shots) * 100) : 0;
+      }
+
+      function updateStatus(message) { $('liveStatus').textContent = message; }
+
+      function showScreen(name) {
+        Object.entries(screens).forEach(([key, screen]) => {
+          const active = key === name || (name === 'pause' && key === 'game');
+          screen.classList.toggle('active', active);
+          screen.hidden = !active;
+          screen.setAttribute('aria-hidden', String(!active));
+        });
+        state.screen = name;
+      }
+
+      function setBriefingValues() {
+        const hasBest = state.bestScore > 0;
+        $('briefBest').textContent = hasBest ? formatNumber(state.bestScore) : '—';
+        $('emptyNote').hidden = hasBest;
+      }
+
+      async function loadSave() {
+        try {
+          const saved = await storageGet(SAVE_KEY);
+          if (saved && typeof saved === 'object') {
+            state.bestScore = Number.isFinite(Number(saved.bestScore)) ? Math.max(0, Number(saved.bestScore)) : 0;
+            state.bestAccuracy = Number.isFinite(Number(saved.bestAccuracy)) ? Math.max(0, Number(saved.bestAccuracy)) : 0;
+            state.totalRuns = Number.isFinite(Number(saved.totalRuns)) ? Math.max(0, Number(saved.totalRuns)) : 0;
+          }
+        } catch (_) {
+          notify('Offline cache unavailable // mission still live');
+        }
+        setBriefingValues();
+      }
+
+      function resizeCanvas() {
+        const canvas = $('gameCanvas');
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        state.canvas.width = Math.max(1, rect.width);
+        state.canvas.height = Math.max(1, rect.height);
+        state.canvas.dpr = dpr;
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+        if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (!state.aim.active) {
+          state.aim.x = rect.width * .52;
+          state.aim.y = rect.height * .42;
+          positionReticle();
+        }
+      }
+
+      function positionReticle() {
+        const frame = $('canvasFrame');
+        const x = clamp(state.aim.x, 0, Math.max(0, frame.clientWidth));
+        const y = clamp(state.aim.y, 0, Math.max(0, frame.clientHeight));
+        $('reticle').style.left = `${x}px`;
+        $('reticle').style.top = `${y}px`;
+      }
+
+      function setCanvasAim(clientX, clientY) {
+        const rect = $('gameCanvas').getBoundingClientRect();
+        state.aim.x = clamp(clientX - rect.left, 0, rect.width);
+        state.aim.y = clamp(clientY - rect.top, 0, rect.height);
+        state.aim.active = true;
+        positionReticle();
+      }
+
+      function resetGame() {
+        state.elapsed = 0;
+        state.score = 0;
+        state.shots = 0;
+        state.hits = 0;
+        state.neutralized = 0;
+        state.misses = 0;
+        state.streak = 0;
+        state.bestStreak = 0;
+        state.escaped = 0;
+        state.ammo = MAX_AMMO;
+        state.reloading = false;
+        state.reloadRemaining = 0;
+        state.spawnRemaining = .35;
+        state.nextTargetId = 1;
+        state.targets = [];
+        state.particles = [];
+        state.tracers = [];
+        state.lastResult = null;
+        state.aim.active = false;
+        state.lastFrame = 0;
+        renderHud();
+        $('reloadState').classList.remove('show');
+        $('reticle').classList.remove('fire', 'hit');
+      }
+
+      function startMission() {
+        resetGame();
+        spawnTarget(.2);
+        spawnTarget(.36);
+        spawnTarget(.53);
+        showScreen('game');
+        setTitle('BOND // NIGHTFALL — LIVE');
+        updateStatus('Mission live. Neutralize twelve assets before extraction.');
+        resizeCanvas();
+        $('gameCanvas').focus({ preventScroll: true });
+        notify('Operation live // targets advancing');
+        state.raf = requestAnimationFrame(frame);
+      }
+
+      function setPaused(paused) {
+        if (state.screen !== 'game' && state.screen !== 'pause') return;
+        if (paused) {
+          showScreen('pause');
+          $('resumeButton').focus({ preventScroll: true });
+          updateStatus('Mission paused. Clock held.');
+        } else {
+          showScreen('game');
+          $('gameCanvas').focus({ preventScroll: true });
+          state.lastFrame = performance.now();
+          updateStatus('Mission resumed.');
+        }
+      }
+
+      function startReload() {
+        if (state.reloading || state.ammo === MAX_AMMO || state.screen !== 'game') return;
+        state.reloading = true;
+        state.reloadRemaining = .82;
+        $('reloadState').classList.add('show');
+        updateStatus('Reloading sidearm.');
+      }
+
+      function spawnTarget(initialDepth = 0) {
+        const lanes = [-.78, -.56, -.33, -.08, .2, .45, .7];
+        const lane = lanes[Math.floor(Math.random() * lanes.length)] + (Math.random() - .5) * .08;
+        const elite = state.elapsed > 10 && Math.random() < .17;
+        const target = {
+          id: state.nextTargetId++, lane, homeLane: lane,
+          depth: initialDepth || .015, phase: Math.random() * TAU,
+          drift: .35 + Math.random() * .58, speed: .029 + Math.random() * .009,
+          elite, hp: elite ? 2 : 1, age: 0, hitPulse: 0, alive: true
+        };
+        state.targets.push(target);
+        if (state.targets.length === 1 || (state.targets.length % 3 === 0 && initialDepth === 0)) showWaveBadge();
+      }
+
+      function showWaveBadge() {
+        const badge = $('waveBadge');
+        badge.classList.remove('show');
+        void badge.offsetWidth;
+        badge.classList.add('show');
+      }
+
+      function projectTarget(target, width, height) {
+        const horizon = height * .335;
+        const ground = height * .83;
+        const vanishingX = width * .51;
+        const perspective = .42 + target.depth * 1.17;
+        const x = vanishingX + target.lane * width * .205 * perspective;
+        const footY = horizon + Math.pow(clamp(target.depth, 0, 1), .92) * (ground - horizon);
+        const size = 12 + target.depth * 43;
+        return { x, footY, size, headY: footY - size * 1.63, headR: size * .235, hitRadiusX: Math.max(11, size * .62), hitRadiusY: Math.max(17, size * 1.7) };
+      }
+
+      function targetAtPoint(x, y) {
+        let picked = null;
+        let pickedDepth = -1;
+        state.targets.forEach((target) => {
+          if (!target.alive) return;
+          const p = projectTarget(target, state.canvas.width, state.canvas.height);
+          const dx = (x - p.x) / p.hitRadiusX;
+          const dy = (y - (p.footY - p.size * .9)) / p.hitRadiusY;
+          if (dx * dx + dy * dy <= 1 && target.depth > pickedDepth) {
+            picked = { target, projection: p };
+            pickedDepth = target.depth;
+          }
+        });
+        return picked;
+      }
+
+      function fire() {
+        if (state.screen !== 'game') return;
+        if (state.reloading) { notify('Hold steady // reloading'); return; }
+        if (state.ammo <= 0) { notify('Magazine dry // press R to reload'); flashReticle('bad'); return; }
+
+        state.ammo -= 1;
+        state.shots += 1;
+        const targetHit = targetAtPoint(state.aim.x, state.aim.y);
+        createTracer(state.aim.x, state.aim.y);
+        flashReticle('fire');
+
+        if (targetHit) {
+          const { target, projection } = targetHit;
+          const headshot = Math.abs(state.aim.y - projection.headY) < projection.headR * 1.45;
+          state.hits += 1;
+          state.streak += 1;
+          state.bestStreak = Math.max(state.bestStreak, state.streak);
+          target.hp -= 1;
+          target.hitPulse = .32;
+          const points = (headshot ? 165 : 100) + Math.round(target.depth * 85) + Math.min(100, state.streak * 12);
+          state.score += points;
+          createBurst(projection.x, projection.headY, target.elite ? '#f4bc61' : '#f4685c', headshot ? 18 : 12);
+          if (target.hp <= 0) {
+            target.alive = false;
+            state.neutralized += 1;
+            showHitLabel(`${headshot ? 'HEADSHOT' : 'CLEAN HIT'}  +${points}`);
+            updateStatus(`${headshot ? 'Headshot' : 'Target neutralized'}. ${state.neutralized} assets down.`);
+          } else {
+            showHitLabel(`ARMOR CRACKED  +${points}`);
+            updateStatus('Armored target damaged. Take the follow-up shot.');
+          }
+          $('reticle').classList.add('hit');
+          window.setTimeout(() => $('reticle').classList.remove('hit'), 150);
+        } else {
+          state.misses += 1;
+          state.streak = 0;
+          createBurst(state.aim.x, state.aim.y, '#f4bc61', 5);
+          showHitLabel('MISS  //  RESET', true);
+          updateStatus('Shot missed. Keep the reticle calm.');
+        }
+        renderHud();
+      }
+
+      function flashReticle(type) {
+        const reticle = $('reticle');
+        reticle.classList.remove('fire');
+        if (type === 'fire') {
+          void reticle.offsetWidth;
+          reticle.classList.add('fire');
+          window.setTimeout(() => reticle.classList.remove('fire'), 115);
+        }
+      }
+
+      function showHitLabel(text, bad = false) {
+        const label = $('hitLabel');
+        label.textContent = text;
+        label.classList.toggle('bad', bad);
+        label.classList.remove('show');
+        void label.offsetWidth;
+        label.classList.add('show');
+      }
+
+      function createTracer(x, y) { state.tracers.push({ x, y, life: .24, maxLife: .24 }); }
+
+      function createBurst(x, y, color, count) {
+        for (let i = 0; i < count; i += 1) {
+          const angle = Math.random() * TAU;
+          const speed = 20 + Math.random() * 95;
+          state.particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: .35 + Math.random() * .38, maxLife: .73, size: 1 + Math.random() * 2.7, color });
+        }
+      }
+
+      function update(dt) {
+        state.elapsed += dt;
+        if (state.elapsed >= MISSION_SECONDS) { endMission(); return; }
+
+        if (state.reloading) {
+          state.reloadRemaining -= dt;
+          if (state.reloadRemaining <= 0) {
+            state.reloading = false;
+            state.ammo = MAX_AMMO;
+            $('reloadState').classList.remove('show');
+            notify('Sidearm ready');
+            updateStatus('Reload complete.');
+          }
+        }
+
+        state.spawnRemaining -= dt;
+        const maxTargets = state.elapsed > 22 ? 6 : 5;
+        if (state.spawnRemaining <= 0 && state.targets.filter((target) => target.alive).length < maxTargets) {
+          spawnTarget();
+          state.spawnRemaining = Math.max(.62, 1.22 - state.elapsed * .012) + Math.random() * .32;
+        }
+
+        state.targets.forEach((target) => {
+          if (!target.alive) return;
+          target.age += dt;
+          target.depth += target.speed * dt;
+          target.hitPulse = Math.max(0, target.hitPulse - dt);
+          target.lane = target.homeLane + Math.sin(target.age * target.drift + target.phase) * .045 * (1 - target.depth * .25);
+          if (target.depth >= 1.03) {
+            target.alive = false;
+            state.escaped += 1;
+            state.streak = 0;
+            if (state.escaped === 1 || state.escaped % 3 === 0) {
+              $('damageFlash').classList.remove('show');
+              void $('damageFlash').offsetWidth;
+              $('damageFlash').classList.add('show');
+              notify('Asset escaped // keep the line moving');
+            }
+          }
+        });
+
+        state.targets = state.targets.filter((target) => target.alive || target.hitPulse > 0);
+        state.particles.forEach((particle) => { particle.life -= dt; particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += 75 * dt; });
+        state.particles = state.particles.filter((particle) => particle.life > 0);
+        state.tracers.forEach((tracer) => { tracer.life -= dt; });
+        state.tracers = state.tracers.filter((tracer) => tracer.life > 0);
+        updateKeyboardAim(dt);
+        renderHud();
+      }
+
+      function updateKeyboardAim(dt) {
+        const horizontal = (state.keys.has('arrowright') || state.keys.has('d') ? 1 : 0) - (state.keys.has('arrowleft') || state.keys.has('a') ? 1 : 0);
+        const vertical = (state.keys.has('arrowdown') || state.keys.has('s') ? 1 : 0) - (state.keys.has('arrowup') || state.keys.has('w') ? 1 : 0);
+        if (!horizontal && !vertical) return;
+        state.aim.active = true;
+        state.aim.x = clamp(state.aim.x + horizontal * 280 * dt, 0, state.canvas.width);
+        state.aim.y = clamp(state.aim.y + vertical * 220 * dt, 0, state.canvas.height);
+        positionReticle();
+      }
+
+      function renderHud() {
+        $('scoreValue').textContent = formatNumber(state.score);
+        $('timeValue').textContent = formatTime(state.elapsed);
+        $('hitCount').textContent = String(state.neutralized).padStart(2, '0');
+        $('objectiveMeter').style.width = `${clamp((state.neutralized / OBJECTIVE) * 100, 0, 100)}%`;
+        $('streakValue').textContent = `Streak ${String(state.streak).padStart(2, '0')}`;
+        $('accuracyValue').textContent = state.shots ? `${accuracyFor()}%` : '—';
+        $('shotCount').textContent = String(state.shots).padStart(2, '0');
+        $('missCount').textContent = String(state.misses).padStart(2, '0');
+        $('ammoCount').textContent = String(state.ammo).padStart(2, '0');
+        $('ammoRow').innerHTML = '';
+        for (let i = 0; i < MAX_AMMO; i += 1) {
+          const round = document.createElement('span');
+          round.className = `ammo-round${i >= state.ammo ? ' empty' : ''}`;
+          round.setAttribute('aria-hidden', 'true');
+          $('ammoRow').appendChild(round);
+        }
+      }
+
+      function frame(now) {
+        const dt = Math.min(.05, state.lastFrame ? (now - state.lastFrame) / 1000 : .016);
+        state.lastFrame = now;
+        if (state.screen === 'game') update(dt);
+        drawScene(now / 1000);
+        if (state.screen === 'game' || state.screen === 'pause') state.raf = requestAnimationFrame(frame);
+      }
+
+      function roundedRect(context, x, y, width, height, radius) {
+        const r = Math.min(radius, width / 2, height / 2);
+        context.beginPath();
+        context.moveTo(x + r, y);
+        context.arcTo(x + width, y, x + width, y + height, r);
+        context.arcTo(x + width, y + height, x, y + height, r);
+        context.arcTo(x, y + height, x, y, r);
+        context.arcTo(x, y, x + width, y, r);
+        context.closePath();
+      }
+
+      function drawScene(time) {
+        if (!ctx || !state.canvas.width || !state.canvas.height) return;
+        const w = state.canvas.width;
+        const h = state.canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        drawSky(w, h, time);
+        drawCity(w, h, time);
+        drawStreet(w, h, time);
+        [...state.targets].sort((a, b) => a.depth - b.depth).forEach((target) => drawTarget(target, w, h, time));
+        drawTracers(w, h);
+        drawParticles();
+        drawWeapon(w, h, time);
+        drawVignette(w, h);
+      }
+
+      function drawSky(w, h, time) {
+        const horizon = h * .335;
+        const gradient = ctx.createLinearGradient(0, 0, 0, horizon + 80);
+        gradient.addColorStop(0, '#091b22');
+        gradient.addColorStop(.65, '#102d30');
+        gradient.addColorStop(1, '#193d3c');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, horizon + 80);
+
+        const moonX = w * .77;
+        const moonY = h * .18;
+        const moonGlow = ctx.createRadialGradient(moonX, moonY, 2, moonX, moonY, 80);
+        moonGlow.addColorStop(0, 'rgba(231,239,210,.2)');
+        moonGlow.addColorStop(1, 'rgba(231,239,210,0)');
+        ctx.fillStyle = moonGlow;
+        ctx.fillRect(moonX - 85, moonY - 85, 170, 170);
+        ctx.fillStyle = 'rgba(218,235,207,.72)';
+        ctx.beginPath(); ctx.arc(moonX, moonY, 17, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(14,41,42,.55)';
+        ctx.beginPath(); ctx.arc(moonX + 7, moonY - 4, 17, 0, TAU); ctx.fill();
+
+        for (let i = 0; i < 42; i += 1) {
+          const x = (i * 97 + 33) % w;
+          const y = 24 + ((i * 43) % Math.max(40, Math.floor(horizon - 24)));
+          const alpha = .18 + ((i * 17) % 6) / 20;
+          ctx.fillStyle = `rgba(191,232,215,${alpha})`;
+          ctx.fillRect(x, y, i % 4 === 0 ? 2 : 1, i % 4 === 0 ? 2 : 1);
+        }
+
+        ctx.strokeStyle = 'rgba(118,228,210,.11)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 22; i += 1) {
+          const x = (i * 71 + time * (8 + i % 3)) % (w + 30) - 15;
+          const y = (i * 29 + time * 7) % Math.max(1, horizon - 10);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 11 + (i % 4) * 3); ctx.stroke();
+        }
+      }
+
+      function drawCity(w, h, time) {
+        const horizon = h * .335;
+        const farBase = horizon + 14;
+        const farBuildings = [[0, .16, .19], [.16, .08, .12], [.28, .22, .15], [.43, .11, .16], [.58, .19, .16], [.74, .1, .12], [.86, .25, .2]];
+        farBuildings.forEach(([position, heightFactor, widthFactor], index) => {
+          const x = position * w;
+          const bw = widthFactor * w;
+          const bh = (heightFactor + .13) * h;
+          ctx.fillStyle = index % 2 ? '#0b2227' : '#0d282b';
+          ctx.fillRect(x, farBase - bh, bw, bh);
+          ctx.fillStyle = 'rgba(118,228,210,.15)'; ctx.fillRect(x + bw * .2, farBase - bh, 1, bh);
+          for (let row = 0; row < 5; row += 1) {
+            for (let col = 0; col < 3; col += 1) {
+              const lit = (index * 5 + row * 2 + col) % 5 === 0;
+              if (!lit) continue;
+              ctx.fillStyle = row % 2 ? 'rgba(244,188,97,.3)' : 'rgba(118,228,210,.25)';
+              ctx.fillRect(x + 10 + col * Math.max(8, bw * .22), farBase - bh + 17 + row * 16, 3, 5);
+            }
+          }
+        });
+
+        ctx.fillStyle = '#091b1d'; ctx.fillRect(0, horizon + 7, w, 12);
+        ctx.fillStyle = 'rgba(244,188,97,.26)'; ctx.fillRect(0, horizon + 7, w, 1);
+        ctx.fillStyle = 'rgba(118,228,210,.12)'; ctx.fillRect(0, horizon + 16, w, 2);
+
+        const towerX = w * .07;
+        const towerY = horizon - h * .17;
+        ctx.fillStyle = '#081a1d'; ctx.fillRect(towerX, towerY, w * .09, h * .19);
+        ctx.fillStyle = 'rgba(118,228,210,.2)';
+        for (let row = 0; row < 5; row += 1) ctx.fillRect(towerX + 12, towerY + 13 + row * 18, w * .06, 2);
+        ctx.strokeStyle = 'rgba(185,248,210,.36)'; ctx.beginPath(); ctx.moveTo(towerX + w * .045, towerY); ctx.lineTo(towerX + w * .045, towerY - 34); ctx.stroke();
+
+        const signX = w * .84;
+        const signY = horizon - h * .12;
+        ctx.fillStyle = 'rgba(7,18,20,.92)'; roundedRect(ctx, signX, signY, w * .1, 30, 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(244,188,97,.55)'; ctx.stroke();
+        ctx.fillStyle = 'rgba(244,188,97,.9)'; ctx.font = `${Math.max(8, h * .018)}px monospace`; ctx.fillText('NOIR', signX + 13, signY + 20);
+      }
+
+      function drawStreet(w, h, time) {
+        const horizon = h * .335;
+        const vx = w * .51;
+        const floorGradient = ctx.createLinearGradient(0, horizon, 0, h);
+        floorGradient.addColorStop(0, '#143839'); floorGradient.addColorStop(.28, '#102a2d'); floorGradient.addColorStop(1, '#061315');
+        ctx.fillStyle = floorGradient; ctx.fillRect(0, horizon, w, h - horizon);
+        ctx.fillStyle = 'rgba(244,188,97,.1)'; ctx.beginPath(); ctx.moveTo(vx - 33, horizon); ctx.lineTo(vx + 33, horizon); ctx.lineTo(w * .77, h); ctx.lineTo(w * .26, h); ctx.closePath(); ctx.fill();
+
+        ctx.strokeStyle = 'rgba(118,228,210,.14)'; ctx.lineWidth = 1;
+        for (let i = 1; i < 11; i += 1) {
+          const depth = i / 11;
+          const y = horizon + Math.pow(depth, 1.75) * (h - horizon);
+          ctx.globalAlpha = .8 - depth * .35; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        const lanes = [-1, -.5, 0, .5, 1];
+        lanes.forEach((lane, index) => {
+          ctx.strokeStyle = index === 2 ? 'rgba(244,188,97,.31)' : 'rgba(118,228,210,.18)';
+          ctx.beginPath(); ctx.moveTo(vx + lane * 8, horizon); ctx.lineTo(vx + lane * w * .48, h); ctx.stroke();
+        });
+
+        for (let i = 0; i < 13; i += 1) {
+          const depth = ((i / 13 + time * .025) % 1);
+          const y = horizon + Math.pow(depth, 1.8) * (h - horizon);
+          const width = 3 + depth * 16;
+          ctx.fillStyle = `rgba(118,228,210,${.04 + depth * .13})`;
+          ctx.fillRect(vx - width * .5, y, width, Math.max(1, depth * 2));
+        }
+      }
+
+      function drawTarget(target, w, h, time) {
+        const p = projectTarget(target, w, h);
+        const x = p.x; const feet = p.footY; const s = p.size;
+        const hitGlow = target.hitPulse > 0 ? target.hitPulse / .32 : 0;
+        ctx.save(); ctx.translate(x, feet); ctx.globalAlpha = target.depth < .07 ? .58 : 1;
+        ctx.fillStyle = `rgba(0,0,0,${.18 + target.depth * .3})`; ctx.beginPath(); ctx.ellipse(0, 2, s * (.55 + target.depth * .25), s * .13, 0, 0, TAU); ctx.fill();
+
+        const halo = ctx.createRadialGradient(0, -s * .87, 1, 0, -s * .87, s * 1.2);
+        halo.addColorStop(0, target.elite ? `rgba(244,188,97,${.17 + hitGlow * .25})` : `rgba(244,104,92,${.13 + hitGlow * .3})`);
+        halo.addColorStop(1, 'rgba(244,104,92,0)');
+        ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, -s * .9, s * 1.1, 0, TAU); ctx.fill();
+
+        ctx.strokeStyle = target.elite ? '#f4bc61' : '#f4685c'; ctx.globalAlpha = .65 + Math.sin(time * 4 + target.phase) * .2; ctx.lineWidth = Math.max(1, s * .035);
+        ctx.beginPath();
+        ctx.moveTo(-s * .7, -s * 1.85); ctx.lineTo(-s * .85, -s * 1.7);
+        ctx.moveTo(s * .7, -s * 1.85); ctx.lineTo(s * .85, -s * 1.7);
+        ctx.moveTo(-s * .7, -s * .1); ctx.lineTo(-s * .85, -s * .25);
+        ctx.moveTo(s * .7, -s * .1); ctx.lineTo(s * .85, -s * .25); ctx.stroke(); ctx.globalAlpha = 1;
+
+        ctx.fillStyle = target.elite ? '#2e2923' : '#131d1e'; ctx.beginPath(); ctx.arc(0, -s * 1.5, s * .26, 0, TAU); ctx.fill();
+        ctx.fillStyle = target.elite ? '#b68148' : '#293e3b'; ctx.fillRect(-s * .23, -s * 1.67, s * .46, s * .1);
+        ctx.fillStyle = target.elite ? '#171a1a' : '#0d1618';
+        ctx.beginPath(); ctx.moveTo(-s * .43, -s * 1.2); ctx.lineTo(-s * .2, -s * 1.28); ctx.lineTo(s * .2, -s * 1.28); ctx.lineTo(s * .43, -s * 1.2); ctx.lineTo(s * .5, -s * .42); ctx.lineTo(s * .19, -s * .22); ctx.lineTo(-s * .19, -s * .22); ctx.lineTo(-s * .5, -s * .42); ctx.closePath(); ctx.fill();
+
+        ctx.strokeStyle = target.elite ? '#b68148' : '#273c39'; ctx.lineWidth = Math.max(1, s * .035); ctx.beginPath(); ctx.moveTo(-s * .36, -s * 1.08); ctx.lineTo(-s * .72, -s * .48); ctx.moveTo(s * .36, -s * 1.08); ctx.lineTo(s * .72, -s * .48); ctx.stroke();
+        ctx.fillStyle = target.elite ? '#f4bc61' : '#f4685c'; ctx.beginPath(); ctx.moveTo(0, -s * 1.23); ctx.lineTo(-s * .07, -s * .78); ctx.lineTo(s * .07, -s * .78); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#0b1112'; ctx.lineWidth = Math.max(1, s * .07); ctx.beginPath(); ctx.moveTo(-s * .16, -s * .23); ctx.lineTo(-s * .2, 0); ctx.moveTo(s * .16, -s * .23); ctx.lineTo(s * .2, 0); ctx.stroke();
+        ctx.fillStyle = target.elite ? '#f4bc61' : '#f4685c'; ctx.globalAlpha = .86; ctx.fillRect(-s * .16, -s * 1.01, s * .08, s * .07); ctx.fillRect(s * .08, -s * 1.01, s * .08, s * .07); ctx.globalAlpha = 1;
+
+        if (target.elite) {
+          ctx.strokeStyle = '#f4bc61'; ctx.lineWidth = Math.max(1, s * .045); ctx.beginPath(); ctx.arc(0, -s * .93, s * .43, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+          ctx.fillStyle = 'rgba(244,188,97,.82)'; ctx.font = `${Math.max(7, s * .19)}px monospace`; ctx.textAlign = 'center'; ctx.fillText(`${target.hp}/2`, 0, -s * 2.03);
+        }
+        ctx.restore();
+      }
+
+      function drawTracers(w, h) {
+        state.tracers.forEach((tracer) => {
+          const progress = 1 - tracer.life / tracer.maxLife;
+          const startX = w * .53 + (tracer.x - w * .53) * progress * .2;
+          const startY = h * 1.04 + (tracer.y - h * 1.04) * progress * .2;
+          const alpha = tracer.life / tracer.maxLife;
+          ctx.strokeStyle = `rgba(244,188,97,${alpha})`; ctx.shadowColor = 'rgba(244,188,97,.72)'; ctx.shadowBlur = 10; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(tracer.x, tracer.y); ctx.stroke(); ctx.shadowBlur = 0;
+        });
+      }
+
+      function drawParticles() {
+        state.particles.forEach((particle) => { ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1); ctx.fillStyle = particle.color; ctx.fillRect(particle.x, particle.y, particle.size, particle.size); });
+        ctx.globalAlpha = 1;
+      }
+
+      function drawWeapon(w, h, time) {
+        const recoil = state.tracers.length ? Math.min(.11, state.tracers[0].life * 1.2) : 0;
+        const baseX = w * .53; const baseY = h + 16 - recoil * 110;
+        ctx.save(); ctx.translate(baseX, baseY); ctx.rotate(-.08);
+        const shadow = ctx.createLinearGradient(-55, -120, 55, 20); shadow.addColorStop(0, 'rgba(2,7,8,.04)'); shadow.addColorStop(1, 'rgba(2,7,8,.86)'); ctx.fillStyle = shadow;
+        ctx.beginPath(); ctx.moveTo(-36, 13); ctx.lineTo(-27, -68); ctx.lineTo(-18, -97); ctx.lineTo(34, -97); ctx.lineTo(45, -77); ctx.lineTo(32, -69); ctx.lineTo(26, 14); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#151e1f'; ctx.beginPath(); ctx.moveTo(-31, -79); ctx.lineTo(-21, -102); ctx.lineTo(31, -102); ctx.lineTo(42, -82); ctx.lineTo(28, -75); ctx.lineTo(-22, -75); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(185,248,210,.23)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-17, -94); ctx.lineTo(25, -94); ctx.stroke();
+        ctx.fillStyle = '#0c1315'; ctx.beginPath(); ctx.moveTo(-22, -69); ctx.lineTo(28, -69); ctx.lineTo(25, 14); ctx.lineTo(-29, 14); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(244,188,97,.7)'; ctx.fillRect(-17, -65, 9, 2); ctx.fillStyle = 'rgba(118,228,210,.6)'; ctx.fillRect(3, -65, 14, 2); ctx.fillStyle = 'rgba(244,104,92,.8)'; ctx.fillRect(-2, -57, 5, 4); ctx.restore();
+        ctx.fillStyle = `rgba(244,188,97,${.11 + Math.sin(time * 9) * .03})`; ctx.beginPath(); ctx.ellipse(w * .53, h * .985, 160, 11, 0, 0, TAU); ctx.fill();
+      }
+
+      function drawVignette(w, h) {
+        const vignette = ctx.createRadialGradient(w * .5, h * .47, h * .18, w * .5, h * .47, Math.max(w, h) * .72);
+        vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(.72, 'rgba(0,0,0,.12)'); vignette.addColorStop(1, 'rgba(0,0,0,.58)'); ctx.fillStyle = vignette; ctx.fillRect(0, 0, w, h);
+      }
+
+      async function endMission() {
+        if (state.screen !== 'game') return;
+        state.screen = 'ending';
+        const accuracy = accuracyFor();
+        const isNewBest = state.score > state.bestScore;
+        const result = { score: state.score, hits: state.neutralized, accuracy, bestStreak: state.bestStreak, escaped: state.escaped, complete: state.neutralized >= OBJECTIVE };
+        state.lastResult = result;
+        state.totalRuns += 1;
+        if (isNewBest) state.bestScore = state.score;
+        state.bestAccuracy = Math.max(state.bestAccuracy, accuracy);
+        try {
+          await storageSet(SAVE_KEY, { bestScore: state.bestScore, bestAccuracy: state.bestAccuracy, totalRuns: state.totalRuns, lastRun: result });
+        } catch (_) { notify('Run complete // local cache unavailable'); }
+        try { await callAction('mission-report', result); } catch (_) {}
+        renderResult(result, isNewBest);
+        showScreen('result');
+        setTitle('BOND // NIGHTFALL — DEBRIEF');
+        updateStatus('Mission debrief ready.');
+        $('againButton').focus({ preventScroll: true });
+        cancelAnimationFrame(state.raf);
+      }
+
+      function renderResult(result, isNewBest) {
+        const complete = result.complete;
+        $('resultTitle').textContent = complete ? 'Clean extraction.' : (result.hits > 0 ? 'Line compromised.' : 'Signal lost.');
+        $('resultCopy').textContent = complete ? 'Twelve assets down. The courier never saw the shot.' : result.hits > 0 ? `${result.hits} asset${result.hits === 1 ? '' : 's'} neutralized. The window closed before the line was clean.` : 'No confirmed hits. Reset your breath and take the next window.';
+        $('resultStamp').innerHTML = `Filed<br>${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        $('resultScore').textContent = formatNumber(result.score);
+        $('resultHits').textContent = String(result.hits).padStart(2, '0');
+        $('resultAccuracy').textContent = result.accuracy ? `${result.accuracy}%` : '—';
+        $('resultStreak').textContent = String(result.bestStreak).padStart(2, '0');
+        $('newBest').classList.toggle('show', isNewBest && result.score > 0);
+        setBriefingValues();
+      }
+
+      function retryBoot() {
+        showScreen('loading');
+        $('loadingNote').textContent = 'Re-establishing secure channel';
+        boot();
+      }
+
+      function bindEvents() {
+        $('startButton').addEventListener('click', startMission);
+        $('againButton').addEventListener('click', startMission);
+        $('briefButton').addEventListener('click', () => {
+          setBriefingValues(); showScreen('briefing'); setTitle('BOND // NIGHTFALL'); updateStatus('Mission briefing ready.'); $('startButton').focus({ preventScroll: true });
+        });
+        $('pauseButton').addEventListener('click', () => setPaused(true));
+        $('resumeButton').addEventListener('click', () => setPaused(false));
+        $('retryButton').addEventListener('click', retryBoot);
+
+        $('gameCanvas').addEventListener('pointermove', (event) => setCanvasAim(event.clientX, event.clientY));
+        $('gameCanvas').addEventListener('pointerdown', (event) => {
+          if (event.button !== undefined && event.button !== 0) return;
+          setCanvasAim(event.clientX, event.clientY); fire();
+        });
+        $('gameCanvas').addEventListener('pointerleave', () => { if (state.screen === 'game') $('reticle').style.opacity = '.55'; });
+        $('gameCanvas').addEventListener('pointerenter', () => { $('reticle').style.opacity = '1'; });
+
+        window.addEventListener('keydown', (event) => {
+          const key = event.key.toLowerCase();
+          if (['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d','r',' ','escape','enter'].includes(key)) event.preventDefault();
+          if (state.screen === 'briefing' && key === 'enter') { startMission(); return; }
+          if (state.screen === 'game' || state.screen === 'pause') {
+            if (key === 'escape') { setPaused(state.screen === 'game'); return; }
+            if (state.screen === 'game' && key === ' ') { fire(); return; }
+            if (state.screen === 'game' && key === 'r') { startReload(); return; }
+            state.keys.add(key);
+          }
+        });
+        window.addEventListener('keyup', (event) => state.keys.delete(event.key.toLowerCase()));
+        window.addEventListener('blur', () => state.keys.clear());
+        window.addEventListener('resize', resizeCanvas);
+      }
+
+      async function boot() {
+        try {
+          ctx = $('gameCanvas').getContext('2d', { alpha: false });
+          if (!ctx) throw new Error('Canvas unavailable');
+          state.hasCanvas = true;
+          $('loadingNote').textContent = 'Decrypting field brief';
+          await Promise.all([loadSave(), sleep(520)]);
+          showScreen('briefing'); setTitle('BOND // NIGHTFALL'); updateStatus('Mission briefing ready.');
+        } catch (error) {
+          state.hasCanvas = false;
+          state.errorMessage = error instanceof Error ? error.message : 'Unknown optic error';
+          $('errorCopy').textContent = 'The optic could not initialize. Reconnect, then return to the field.';
+          showScreen('error'); updateStatus('Mission optic unavailable.');
+        }
+      }
+
+      bindEvents();
+      setTitle('BOND // NIGHTFALL');
+      resizeCanvas();
+      boot();
+    })();
+  </script>
+</body>
+</html>
