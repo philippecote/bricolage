@@ -60,7 +60,11 @@ describe('ClaudeAgent', () => {
     const events = collect(agent);
     await agent.startTurn(thread, 'build it', {});
     const [completed] = await events;
-    expect(completed.params.turn).toMatchObject({ status: 'failed', error: 'ran out of turns' });
+    // The message carries the subtype too, so a bare "error_during_execution"
+    // is never all a person sees.
+    expect(completed.params.turn.status).toBe('failed');
+    expect(completed.params.turn.error).toContain('ran out of turns');
+    expect(completed.params.turn.error).toContain('error_during_execution');
   });
 
   it('creates a session on the first turn and resumes it after', async () => {
@@ -335,5 +339,54 @@ describe('desktop agent', () => {
     const result = await agent.send({ message: 'go' });
     expect(result.performed.length).toBeLessThanOrEqual(6);
     expect(result.reply).toMatch(/more steps than I expected/);
+  });
+});
+
+describe('recovering a thread that will not resume', () => {
+  it('starts a fresh thread once, rather than leaving the app stuck', async () => {
+    const { BuildService } = await import('../src/buildService.js');
+    const { writeManifest, readManifest } = await import('../src/workshopStorage.js');
+    const { config } = await import('../src/config.js');
+    const fsp = await import('node:fs/promises');
+    const nodePath = await import('node:path');
+
+    const id = 'poisoned-thread-fixture';
+    const now = new Date().toISOString();
+    await writeManifest(id, { id, name: 'Fixture', createdAt: now, updatedAt: now, prompt: 'x', model: 'luna-high', threadId: 'old-thread', threadAgent: 'codex' });
+
+    let started = 0;
+    const agent = Object.assign(new EventEmitter(), {
+      async startThread() { started += 1; return `fresh-${started}`; },
+      async resumeThread(t) { return t; },
+      async startTurn() { return { turn: { id: 't' } }; },
+      async interrupt() {}, respond() {},
+    });
+    const builds = new BuildService({ codex: agent });
+    await builds.ready();
+    builds.persist = async () => {};
+
+    const build = await builds.edit(id, 'change something');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const live = builds.get(build.id);
+    expect(live.resumed).toBe(true);
+    expect(started).toBe(0);
+
+    // The resumed turn comes back failed.
+    agent.emit('notification', { method: 'turn/completed', params: { threadId: 'old-thread', turn: { id: 't', status: 'failed', error: 'error_during_execution' } } });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(live.retriedFresh).toBe(true);
+    expect(started).toBe(1);
+    expect(live.threadId).toBe('fresh-1');
+    expect(live.status).toBe('running');
+    expect((await readManifest(id)).threadId).toBe('fresh-1');
+
+    // A second failure is a real failure, not another retry.
+    agent.emit('notification', { method: 'turn/completed', params: { threadId: 'fresh-1', turn: { id: 't', status: 'failed', error: 'error_during_execution' } } });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(started).toBe(1);
+    expect(live.status).toBe('failed');
+
+    await fsp.rm(nodePath.join(config.appsDir, id), { recursive: true, force: true });
   });
 });

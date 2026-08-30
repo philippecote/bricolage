@@ -123,7 +123,17 @@ export class ClaudeAgent extends EventEmitter {
     if (message.type === 'result') {
       if (typeof message.result === 'string' && message.result.trim()) state.text = message.result;
       const ok = message.subtype === 'success' && message.is_error !== true;
-      finish(ok ? 'completed' : 'failed', ok ? null : String(message.result || message.subtype || 'Claude Code turn failed.'));
+      if (ok) return finish('completed', null);
+      // "error_during_execution" on its own tells nobody anything. Include what
+      // the CLI said on stderr and the last thing the agent managed to say.
+      const said = typeof message.result === 'string' ? message.result.trim() : '';
+      const detail = [
+        said || null,
+        message.subtype && message.subtype !== 'success' ? message.subtype : null,
+        state.stderr.trim() ? `stderr: ${state.stderr.trim().split('\n').slice(-2).join(' ')}` : null,
+        state.text && state.text.trim() !== said ? `last said: ${state.text.slice(0, 200)}` : null,
+      ].filter(Boolean).join(' — ');
+      finish('failed', detail || 'Claude Code turn failed.');
     }
   }
 

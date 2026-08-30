@@ -244,7 +244,22 @@ export class BuildService extends EventEmitter {
     if (message.method === 'turn/completed') {
       const status = params.turn?.status;
       this.stopWatchingPreview(build.id);
-      if (status && status !== 'completed') return this.fail(build, turnError(build, params.turn));
+      if (status && status !== 'completed') {
+        // A long-lived thread can become unusable — a cancelled build leaves a
+        // huge transcript behind, and resuming it can fail outright. The
+        // workspace files carry the app's state, so start over on a fresh
+        // thread once rather than making the person live with a dead thread.
+        if (build.resumed && !build.retriedFresh) {
+          build.retriedFresh = true;
+          build.threadId = null;
+          build.threadAgent = null;
+          this.push(build, 'editing', 'That conversation would not resume — starting a fresh one');
+          writeManifest(build.appId, { threadId: null, threadAgent: null }).catch(() => {});
+          queueMicrotask(() => this.run(build).catch((error) => this.fail(build, error)));
+          return;
+        }
+        return this.fail(build, turnError(build, params.turn));
+      }
       try {
         this.push(build, 'checking', 'Checking every important path');
         await validateWorkspace(build.appId);
