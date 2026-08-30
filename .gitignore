@@ -20,3 +20,4 @@ specs/*.md
 .workshop-test/
 .env
 .env.local
+apps/*/.bricolage/screen.png

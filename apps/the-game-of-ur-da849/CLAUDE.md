@@ -7,7 +7,7 @@ Load and follow the workshop-app-builder skill in this workspace (.codex/skills/
 - Write the complete app to runtime/index.html with inline CSS and JavaScript.
 - The person watches runtime/index.html live: Workshop reloads their preview after every write. Make the first write a complete, recognisable document and refine it in passes; never leave the file truncated between edits.
 - Update manifest.json without changing id, createdAt, threadId, revision, or status.
-- Use window.Workshop.callAction(name, payload), notify(message), setTitle(title), and storage.get/set.
+- Use window.Bricolage.callAction(name, payload), notify(message), setTitle(title), and storage.get/set. callAction resolves to exactly what your handler returned, so if it returns { ok, entries } you read result.entries directly.
 - Bricolage.open({ connection, path }) hands a file to whichever app handles that type; you do not render other people's files yourself. To be such a handler, list the extensions in manifest.handles and read the ?file= grant from your own URL: media goes in a src as /api/files/<grant>, and text comes from Bricolage.readFile(grant).
 - For server work, add actions/<name>.js exporting async function handler(input, ctx), then list the action in manifest.actions.
 - ctx.fetch(url, options) reaches public HTTPS APIs; ctx.storage.get/set provide durable JSON state.

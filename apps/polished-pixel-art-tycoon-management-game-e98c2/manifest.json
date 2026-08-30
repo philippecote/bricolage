@@ -9,13 +9,15 @@
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T11:52:33.559Z",
-  "updatedAt": "2026-08-30T13:05:47.372Z",
+  "updatedAt": "2026-08-30T20:00:01.324Z",
   "window": {
     "width": 920,
     "height": 680
   },
   "actions": [],
   "connections": [],
+  "category": "other",
+  "handles": [],
   "threadId": "b6b571c2-cdc0-41a3-9581-c7e48ef8fe9c",
   "threadAgent": "claude",
   "revision": 4,

@@ -300,6 +300,55 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
   app.post('/api/builds/:buildId/answers', async (req, res, next) => { try { const { answers } = parse(answerSchema, req.body); res.json({ build: await builds.answer(req.params.buildId, answers) }); } catch (e) { next(e); } });
   app.post('/api/approvals/:approvalId', (req, res, next) => { try { builds.approve(req.params.approvalId, req.body?.accepted === true); res.json({ status: 'ok' }); } catch (e) { next(e); } });
 
+  /**
+   * A minimal host for one app, used by the build agent to look at what it made.
+   *
+   * The desktop is the only thing that answers the runtime bridge, so an app
+   * loaded on its own hangs on its first storage or action call. This page is
+   * the smallest possible desktop: an iframe and a relay. Headless Chromium
+   * loads it, and the agent gets the rendered result instead of guessing.
+   */
+  app.get('/probe/:appId', async (req, res, next) => {
+    try {
+      const appData = await readManifest(req.params.appId);
+      const file = typeof req.query.file === 'string' ? `&file=${encodeURIComponent(req.query.file)}` : '';
+      res.setHeader('cache-control', 'no-store');
+      res.type('html').send(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(appData.name)}</title>
+<style>html,body{margin:0;height:100%;background:#fff}iframe{border:0;width:100%;height:100%;display:block}</style></head>
+<body><iframe id="app" src="/runtime/${encodeURIComponent(appData.id)}?probe=1${file}" sandbox="allow-scripts allow-forms allow-popups"></iframe>
+<script>
+const frame = document.getElementById('app');
+window.__probe = { errors: [], calls: [] };
+addEventListener('message', async (event) => {
+  const message = event.data;
+  if (!message || message.source !== 'workshop-app') return;
+  if (message.type === 'focus') return;
+  try {
+    let result;
+    if (message.type === 'action') {
+      const response = await fetch('/api/apps/${encodeURIComponent(appData.id)}/actions/' + message.payload.name, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ payload: message.payload.payload }) });
+      const body = await response.json();
+      window.__probe.calls.push({ action: message.payload.name, ok: body.status === 'ok', error: body.error || null });
+      if (body.status !== 'ok') throw new Error(body.error || 'action failed');
+      const out = body.output;
+      result = (out && typeof out === 'object' && !Array.isArray(out)) ? { ...out, output: out, logs: body.logs, meta: body.meta } : body;
+    } else if (message.type === 'storage.get' || message.type === 'storage.set') {
+      const response = await fetch('/api/apps/${encodeURIComponent(appData.id)}/storage/' + message.type.split('.')[1], { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(message.payload) });
+      result = await response.json();
+    } else if (message.type === 'readFile') {
+      const response = await fetch('/api/files/' + encodeURIComponent(message.payload.grant));
+      result = { text: await response.text() };
+    } else { result = true; }
+    event.source.postMessage({ source: 'workshop-host', id: message.id, result }, { targetOrigin: '*' });
+  } catch (error) {
+    window.__probe.errors.push(String(error && error.message || error));
+    event.source.postMessage({ source: 'workshop-host', id: message.id, error: String(error && error.message || error) }, { targetOrigin: '*' });
+  }
+});
+</script></body></html>`);
+    } catch (e) { e.statusCode = 404; next(e); }
+  });
+
   app.get('/runtime/:appId', async (req, res, next) => {
     try {
       const html = await fs.readFile(getRuntimePath(req.params.appId), 'utf8');

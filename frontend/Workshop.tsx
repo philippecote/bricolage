@@ -25,6 +25,17 @@ function defaultIconPosition(index: number, viewport: { width: number; height: n
   return { x: Math.max(EDGE, viewport.width - EDGE - CELL_W * (column + 1)), y: EDGE + row * CELL_H };
 }
 
+// An action's own return value is what an app asked for. Handing back the HTTP
+// envelope meant `result.root` was undefined while `result.ok === false` was
+// also false, so a failure looked like success and the app stalled. `output` is
+// kept as a self-reference so apps that unwrap it keep working.
+function actionResult(envelope: unknown) {
+  const body = envelope as { output?: unknown; logs?: unknown; meta?: unknown };
+  const output = body?.output;
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return envelope;
+  return { ...(output as Record<string, unknown>), output, logs: body.logs, meta: body.meta };
+}
+
 function stored<T>(key: string, fallback: T): T { try { return JSON.parse(localStorage.getItem(key) || '') as T; } catch { return fallback; } }
 function builderMessage(message: string) {
   return window.location.port === '4100' ? `${message} This tab is on :4100, while this project’s npm start server uses :4000.` : message;
@@ -125,7 +136,7 @@ export function Workshop() {
       if (!message || message.source !== 'workshop-app' || !apps.some((app) => app.id === message.appId)) return;
       try {
         let result: unknown;
-        if (message.type === 'action') result = await api.action(message.appId, message.payload.name, message.payload.payload);
+        if (message.type === 'action') result = actionResult(await api.action(message.appId, message.payload.name, message.payload.payload));
         else if (message.type === 'storage.get') result = await api.storage(message.appId, 'get', { key: message.payload.key });
         else if (message.type === 'storage.set') result = await api.storage(message.appId, 'set', message.payload);
         else if (message.type === 'focus') { focusWindow(message.appId); return; }

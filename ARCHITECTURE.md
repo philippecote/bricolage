@@ -135,6 +135,15 @@ An app that declares `handles` is served a widened CSP: its own origin is added 
 
 When nothing handles a type, that is not an error: the desktop agent is asked whether a viewer for it is worth building.
 
+## What the agent can see
+
+An agent that cannot run what it writes will invent a way to — a cancelled build was found hand-writing a 10.6KB fake DOM to simulate one. Each workspace carries two tools:
+
+- `.bricolage/try.mjs` runs the app's own actions against the live server, and lists every connection tool with its argument names.
+- `.bricolage/see.mjs` loads the app in headless Chromium via `/probe/:appId` — a minimal host that is just an iframe and a bridge relay, because the desktop is otherwise the only thing that answers `window.Bricolage`. It reports the rendered text, the controls, the actions the app actually called, script errors including unhandled rejections, any full-bleed layer covering the app, and optionally a screenshot the agent can read.
+
+This found the Local Finder bug in one run: `browse_root ok` while the app rendered "0 items", with `list_directory` never called.
+
 ## Actions
 
 Action code runs server-side in `node:vm` with an injected, frozen context:

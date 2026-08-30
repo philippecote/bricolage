@@ -197,8 +197,11 @@ export async function ensureAgentContract(appId) {
 // The agent could not exercise what it built, so on a complex app it spent its
 // whole turn writing a fake DOM to simulate one. This gives it the real thing.
 async function installActionRunner(appId) {
-  const source = await fs.readFile(path.join(config.rootDir, 'skills', 'try.mjs'), 'utf8');
-  await atomicWrite(path.join(appDir(appId), '.bricolage', 'try.mjs'), source.replace('__BASE__', `http://127.0.0.1:${config.port}`));
+  const base = `http://127.0.0.1:${config.port}`;
+  for (const name of ['try.mjs', 'see.mjs']) {
+    const source = await fs.readFile(path.join(config.rootDir, 'skills', name), 'utf8');
+    await atomicWrite(path.join(appDir(appId), '.bricolage', name), source.replace('__BASE__', base));
+  }
 }
 
 async function installBuilderSkill(appId) {
@@ -218,7 +221,7 @@ Load and follow the workshop-app-builder skill in this workspace (.codex/skills/
 - Write the complete app to runtime/index.html with inline CSS and JavaScript.
 - The person watches runtime/index.html live: Workshop reloads their preview after every write. Make the first write a complete, recognisable document and refine it in passes; never leave the file truncated between edits.
 - Update manifest.json without changing id, createdAt, threadId, revision, or status.
-- Use window.Workshop.callAction(name, payload), notify(message), setTitle(title), and storage.get/set.
+- Use window.Bricolage.callAction(name, payload), notify(message), setTitle(title), and storage.get/set. callAction resolves to exactly what your handler returned, so if it returns { ok, entries } you read result.entries directly.
 - Bricolage.open({ connection, path }) hands a file to whichever app handles that type; you do not render other people's files yourself. To be such a handler, list the extensions in manifest.handles and read the ?file= grant from your own URL: media goes in a src as /api/files/<grant>, and text comes from Bricolage.readFile(grant).
 - For server work, add actions/<name>.js exporting async function handler(input, ctx), then list the action in manifest.actions.
 - ctx.fetch(url, options) reaches public HTTPS APIs; ctx.storage.get/set provide durable JSON state.
@@ -232,6 +235,7 @@ Load and follow the workshop-app-builder skill in this workspace (.codex/skills/
 - Never install dependencies, run a dev server, embed secrets, or access files outside this workspace.
 - An element you hide with the hidden attribute must not also set display in a class rule: an author display beats the [hidden] user-agent style, so the element stays on screen and can silently cover the app. Pair every one with a .thing[hidden] { display: none } rule, or toggle a class instead.
 - Check your work by running the app's own actions: node .bricolage/try.mjs lists the actions and every connection tool with its argument names, and node .bricolage/try.mjs <action> '{"key":"value"}' runs one for real, against the real connections. Use it after writing an action and before you say you are done. Never simulate the browser or stub a DOM to test — run the action instead.
+- Look at what you built: node .bricolage/see.mjs loads the app in a real browser with the bridge answered as the desktop answers it, and reports what renders, which actions it called, any script error, and any full-screen layer sitting on top. Add --shot to write .bricolage/screen.png and open it with your Read tool. Reading your source tells you what should happen; this tells you what does. Run it before you say you are done.
 - Design for a 900x650 window, include loading/error/empty states, and use semantic accessible HTML.
 `;
 
