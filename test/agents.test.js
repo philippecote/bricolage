@@ -279,3 +279,61 @@ describe('connection catalog', () => {
     expect(() => buildFromCatalog('nope', {})).toThrow(/no catalog entry/i);
   });
 });
+
+describe('desktop agent', () => {
+
+  // A scripted model: each entry is one response the loop will receive.
+  // input is passed live and mutated, so snapshot what each call actually saw.
+  const scripted = (script) => ({ calls: [], async raw(request) { this.calls.push({ ...request, input: [...request.input] }); return script.shift(); } });
+  const say = (text) => ({ output: [{ type: 'message', content: [{ type: 'output_text', text }] }] });
+  const callTool = (name, args, callId = 'c1') => ({ output: [{ type: 'function_call', name, call_id: callId, arguments: JSON.stringify(args) }] });
+
+  it('reads freely and answers from what it found', async () => {
+    const llm = scripted([callTool('list_apps', {}), say('You have one app.')]);
+    const agent = new (await import('../src/desktopAgent.js')).DesktopAgent({ llm, runAction: async () => ({}) });
+    const result = await agent.send({ message: 'what do I have?' });
+
+    expect(result.performed.map((step) => step.tool)).toEqual(['list_apps']);
+    expect(result.reply).toBe('You have one app.');
+    expect(result.pending).toBeNull();
+    // The tool result must be fed back, or the second turn is answering blind.
+    expect(llm.calls[1].input.some((item) => item.type === 'function_call_output')).toBe(true);
+  });
+
+  it('stops and proposes anything that writes, spends, or runs app code', async () => {
+    for (const [tool, args] of [
+      ['build_app', { prompt: 'a timer', why: 'You asked for one.' }],
+      ['edit_app', { appId: 'a', prompt: 'louder', why: 'It is quiet.' }],
+      ['run_app_action', { appId: 'a', action: 'clear', payloadJson: '{}', why: 'Clears them.' }],
+      ['open_app', { appId: 'a', why: 'Here it is.' }],
+    ]) {
+      const agent = new (await import('../src/desktopAgent.js')).DesktopAgent({ llm: scripted([callTool(tool, args)]), runAction: async () => ({}) });
+      const result = await agent.send({ message: 'go' });
+      expect(result.pending, `${tool} must be proposed`).toMatchObject({ tool });
+      expect(result.performed).toEqual([]);
+      // A bare button with no words is not a proposal, so `why` is the fallback.
+      expect(result.reply).toBe(args.why);
+    }
+  });
+
+  it('carries the conversation across turns and resumes an approved act', async () => {
+    const llm = scripted([callTool('build_app', { prompt: 'a timer', why: 'You asked.' }), say('Started it.')]);
+    const agent = new (await import('../src/desktopAgent.js')).DesktopAgent({ llm, runAction: async () => ({}) });
+    const first = await agent.send({ message: 'build me a timer' });
+    expect(first.pending.tool).toBe('build_app');
+
+    const second = await agent.send({ conversationId: first.conversationId, approved: { callId: first.pending.callId, result: { started: true } } });
+    expect(second.conversationId).toBe(first.conversationId);
+    expect(second.reply).toBe('Started it.');
+    // The whole exchange is still in context, not just the latest message.
+    expect(llm.calls[1].input.length).toBeGreaterThan(llm.calls[0].input.length);
+  });
+
+  it('gives up rather than looping forever', async () => {
+    const llm = scripted(Array.from({ length: 12 }, (_, i) => callTool('list_apps', {}, `c${i}`)));
+    const agent = new (await import('../src/desktopAgent.js')).DesktopAgent({ llm, runAction: async () => ({}) });
+    const result = await agent.send({ message: 'go' });
+    expect(result.performed.length).toBeLessThanOrEqual(6);
+    expect(result.reply).toMatch(/more steps than I expected/);
+  });
+});

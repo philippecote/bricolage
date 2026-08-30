@@ -127,6 +127,19 @@ export class AppLlmService {
     this.client = new OpenAI({ apiKey });
   }
 
+  // The conversational loop needs the whole response — tool calls included —
+  // rather than ask()'s single envelope.
+  async raw({ instructions, input, tools = [], search = true } = {}) {
+    const request = {
+      model: this.model,
+      reasoning: { effort: this.effort },
+      instructions: [BASE_INSTRUCTIONS, instructions].filter(Boolean).join('\n\n'),
+      input,
+      tools: [...(search ? [{ type: 'web_search', search_context_size: 'low' }] : []), ...tools],
+    };
+    return this.client.responses.create(request, { timeout: config.llmTimeoutMs });
+  }
+
   async ask({ prompt, instructions, schema, search = true } = {}) {
     if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('ctx.llm.ask needs a prompt string.');
     const request = {

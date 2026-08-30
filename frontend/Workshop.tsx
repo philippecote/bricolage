@@ -1,6 +1,6 @@
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import type { AgentState, BuildEvent, BuildQuestion, CatalogEntry, Connection, DesktopRoute, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { AgentState, BuildEvent, BuildQuestion, CatalogEntry, Connection, DesktopReply, PendingAct, ModelPreset, SystemStatus, Turn, WorkshopApp } from './types';
 
 const STARTERS = [
   ['Daily pulse', 'Build a daily habit tracker with streaks and a calm weekly view'],
@@ -58,7 +58,8 @@ export function Workshop() {
   // reloads mid-build and you watch the app appear.
   const [previewNonce, setPreviewNonce] = useState<Record<string, number>>({});
   const [routing, setRouting] = useState(false);
-  const [proposal, setProposal] = useState<DesktopRoute | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const conversationId = useRef<string | undefined>(undefined);
   const maxZ = useRef(Math.max(2, ...windows.map((win) => win.z)));
   const streams = useRef(new Map<string, EventSource>());
   const detailsLoaded = useRef(new Set<string>());
@@ -153,23 +154,57 @@ export function Workshop() {
     finally { setCreating(false); }
   }
 
-  async function runRoute(route: DesktopRoute) {
-    setProposal(null);
-    if (route.intent === 'edit' && route.appId) {
-      const app = apps.find((item) => item.id === route.appId);
-      if (app) {
-        setComposer('');
-        openApp(app, true);
-        try {
-          const result = await api.edit(app.id, route.prompt, app.model || model);
-          setApps((items) => items.map((item) => item.id === app.id ? { ...item, status: 'building', error: null } : item));
-          seedBuild(app.id, result.buildId, result.build.events || []);
-          watchBuild(app.id, result.buildId);
-        } catch (error) { showToast(error instanceof Error ? error.message : 'Could not start that change'); }
-        return;
-      }
+  // Everything the desktop agent does that lands on screen: a build starts and
+  // streams, an edit reopens its window, an app comes to the front.
+  function applyEffect(effect: DesktopReply['effect']) {
+    if (!effect) return;
+    if (effect.type === 'build' && effect.app && effect.buildId) {
+      setApps((items) => [effect.app as WorkshopApp, ...items]);
+      seedBuild(effect.appId!, effect.buildId, effect.build?.events || []);
+      openApp(effect.app as WorkshopApp, true);
+      watchBuild(effect.appId!, effect.buildId);
+      return;
     }
-    create(route.prompt || composer);
+    const app = apps.find((item) => item.id === effect.appId);
+    if (!app) return;
+    if (effect.type === 'edit' && effect.buildId) {
+      setApps((items) => items.map((item) => item.id === app.id ? { ...item, status: 'building', error: null } : item));
+      seedBuild(app.id, effect.buildId, effect.build?.events || []);
+      openApp(app, true);
+      watchBuild(app.id, effect.buildId);
+      return;
+    }
+    if (effect.type === 'open') openApp(app);
+    if (effect.type === 'action') loadDetails(app.id);
+  }
+
+  function receive(result: DesktopReply) {
+    conversationId.current = result.conversationId;
+    const looked = [...new Set(result.performed.map((step) => step.args.appId).filter(Boolean))] as string[];
+    setTurns((current) => [...current, { id: result.conversationId + current.length, from: 'workshop', text: result.reply, looked, pending: result.pending }]);
+    applyEffect(result.effect);
+  }
+
+  async function sayToDesktop(message: string) {
+    setTurns((current) => [...current, { id: `you-${Date.now()}`, from: 'you', text: message }]);
+    setComposer('');
+    setRouting(true);
+    try { receive(await api.say(message, conversationId.current)); }
+    catch (error) { setTurns((current) => [...current, { id: `err-${Date.now()}`, from: 'workshop', text: error instanceof Error ? error.message : 'Something went wrong.' }]); }
+    finally { setRouting(false); }
+  }
+
+  async function approveAct(pending: PendingAct) {
+    setTurns((current) => current.map((turn) => turn.pending?.callId === pending.callId ? { ...turn, pending: null } : turn));
+    setRouting(true);
+    try { receive(await api.approve(pending, conversationId.current!)); }
+    catch (error) { setTurns((current) => [...current, { id: `err-${Date.now()}`, from: 'workshop', text: error instanceof Error ? error.message : 'Could not do that.' }]); }
+    finally { setRouting(false); }
+  }
+
+  function declineAct(pending: PendingAct) {
+    setTurns((current) => current.map((turn) => turn.pending?.callId === pending.callId ? { ...turn, pending: null } : turn));
+    sayToDesktop('No, not that.');
   }
 
   function submitComposer(event: FormEvent<HTMLFormElement>) {
@@ -177,11 +212,7 @@ export function Workshop() {
     event.preventDefault();
     if (!clean || creating || routing) return;
     setCreateError('');
-    setRouting(true);
-    api.route(clean)
-      .then(({ route }) => { if (route.intent === 'answer' || route.confirm) setProposal(route); else runRoute(route); })
-      .catch(() => create(clean))
-      .finally(() => setRouting(false));
+    sayToDesktop(clean);
   }
 
   function watchBuild(appId: string, buildId: string) {
@@ -344,13 +375,13 @@ export function Workshop() {
       <div className="welcome">
         <span className="eyebrow">YOUR WORKBENCH</span><h1>What should we make?</h1>
         <form className="hero-composer" onSubmit={submitComposer}>
-          <textarea name="prompt" value={composer} readOnly={creating} onChange={(event) => setComposer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder={creating ? 'Starting your app…' : 'Ask for an app…'} aria-label="Describe an app" />
+          <textarea name="prompt" value={composer} readOnly={creating} onChange={(event) => setComposer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder={creating ? 'Starting your app…' : turns.length ? 'Say more…' : 'Ask for an app, or just think out loud…'} aria-label="Describe an app" />
           <input type="hidden" name="model" value={model} />
           <div className="composer-foot"><ModelPicker value={model} onChange={setModel} compact /><button className={`build-arrow ${creating || routing ? 'creating' : ''}`} aria-label={creating ? 'Creating app' : routing ? 'Thinking' : 'Build app'} disabled={!composer.trim() || creating || routing}>{creating || routing ? '✦' : '↑'}</button></div>
         </form>
-        {proposal && <Proposal route={proposal} app={apps.find((item) => item.id === proposal.appId) || null} onAccept={() => runRoute(proposal)} onCreateInstead={() => { setProposal(null); create(composer); }} onDismiss={() => setProposal(null)} />}
+        {(turns.length > 0 || routing) && <Conversation turns={turns} thinking={routing} apps={apps} onApprove={approveAct} onDecline={declineAct} onClear={() => { setTurns([]); conversationId.current = undefined; }} />}
         {createError && <div className="create-error" role="alert"><div><strong>Couldn’t start that app</strong><span>{createError} Start Workshop with <code>npm start</code>, then try again.</span></div><button onClick={() => { setCreateError(''); create(); }}>Try again</button></div>}
-        <div className="starter-list">{STARTERS.map(([name, prompt]) => <button key={name} onClick={() => create(prompt)}><span>{name}</span><small>{prompt}</small><b>↗</b></button>)}</div>
+        <div className="starter-list">{STARTERS.map(([name, prompt]) => <button key={name} onClick={() => sayToDesktop(prompt)}><span>{name}</span><small>{prompt}</small><b>↗</b></button>)}</div>
       </div>
     </section>
 
@@ -388,7 +419,7 @@ export function Workshop() {
       <button className="dock-item" onClick={() => setSettings(true)} aria-label="Settings"><span className="settings-icon">⚙</span><em>Settings</em></button>
     </nav>
     {activityOpen && <ActivityRail items={activity} onClose={() => setActivityOpen(false)} onOpen={(app) => { openApp(app, true); setActivityOpen(false); }} onApprove={resolveApproval} />}
-    {spotlight && <Spotlight apps={visibleApps} onClose={() => setSpotlight(false)} onCreate={create} onOpen={(app) => { openApp(app); setSpotlight(false); }} />}
+    {spotlight && <Spotlight apps={visibleApps} onClose={() => setSpotlight(false)} onCreate={(prompt) => { setSpotlight(false); sayToDesktop(prompt); }} onOpen={(app) => { openApp(app); setSpotlight(false); }} />}
     {library && <Library apps={apps} onClose={() => setLibrary(false)} onOpen={openApp} onRestore={async (app) => { await api.patch(app.id, { archived: false }); refresh(); }} />}
     {settings && <Settings status={status} theme={theme} setTheme={setTheme} sounds={sounds} setSounds={setSounds} onClose={() => setSettings(false)} />}
     {toast && <div className="toast" role="status">{toast}</div>}
@@ -396,27 +427,52 @@ export function Workshop() {
   </main>;
 }
 
-// The desktop agent speaks only when it has something to add: an app that already
-// covers this, or an answer instead of a build.
-function Proposal({ route, app, onAccept, onCreateInstead, onDismiss }: { route: DesktopRoute; app: WorkshopApp | null; onAccept: () => void; onCreateInstead: () => void; onDismiss: () => void }) {
-  if (route.intent === 'answer') {
-    return <div className="proposal answer" role="status">
-      <p>{route.reply}</p>
-      <div><button className="primary" onClick={onDismiss}>Got it</button></div>
-    </div>;
-  }
-  return <div className="proposal" role="status">
-    {app && <AppIcon app={app} compact />}
-    <div className="proposal-body">
-      <p>{route.reason || route.reply}</p>
-      {route.reason && route.reply && <small>{route.reply}</small>}
+// Models reach for markdown whatever the instructions say. Rendered as React
+// nodes rather than innerHTML, so a reply can never inject markup.
+function RichText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return <>{lines.map((line, index) => {
+    const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
+    const body = bullet ? bullet[1] : line;
+    const parts = body.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((chunk, i) => {
+      if (chunk.startsWith('**') && chunk.endsWith('**')) return <b key={i}>{chunk.slice(2, -2)}</b>;
+      if (chunk.startsWith('`') && chunk.endsWith('`')) return <code key={i}>{chunk.slice(1, -1)}</code>;
+      return <span key={i}>{chunk}</span>;
+    });
+    if (!body.trim()) return <br key={index} />;
+    return bullet ? <span key={index} className="bullet">{parts}</span> : <span key={index} className="line">{parts}</span>;
+  })}</>;
+}
+
+const ACT_LABELS: Record<string, string> = {
+  build_app: 'Build it',
+  edit_app: 'Make that change',
+  run_app_action: 'Go ahead',
+  open_app: 'Open it',
+};
+
+// The conversation lives under the composer rather than in a panel of its own,
+// so the desktop stays the thing on screen and the exchange stays close to where
+// it was typed.
+function Conversation({ turns, thinking, apps, onApprove, onDecline, onClear }: { turns: Turn[]; thinking: boolean; apps: WorkshopApp[]; onApprove: (pending: PendingAct) => void; onDecline: (pending: PendingAct) => void; onClear: () => void }) {
+  const foot = useRef<HTMLDivElement>(null);
+  useEffect(() => { foot.current?.scrollIntoView({ block: 'nearest' }); }, [turns.length, thinking]);
+
+  return <section className="conversation" aria-label="Conversation" aria-live="polite">
+    <header><span className="eyebrow">TOGETHER</span><button onClick={onClear}>Clear</button></header>
+    <div className="turns">
+      {turns.map((turn) => <article key={turn.id} className={turn.from}>
+        {turn.looked && turn.looked.length > 0 && <p className="looked">Looked at {turn.looked.map((id) => apps.find((app) => app.id === id)?.name || id).join(', ')}</p>}
+        {turn.text && <p className="said"><RichText text={turn.text} /></p>}
+        {turn.pending && <div className="act">
+          <button className="primary" onClick={() => onApprove(turn.pending!)}>{ACT_LABELS[turn.pending.tool] || 'Go ahead'}</button>
+          <button onClick={() => onDecline(turn.pending!)}>No</button>
+        </div>}
+      </article>)}
+      {thinking && <article className="workshop"><p className="thinking"><i /><i /><i /></p></article>}
+      <div ref={foot} />
     </div>
-    <div className="proposal-actions">
-      <button className="primary" onClick={onAccept}>{app ? `Extend ${app.name}` : 'Go ahead'}</button>
-      <button onClick={onCreateInstead}>Build new</button>
-      <button className="quiet" onClick={onDismiss} aria-label="Dismiss">✕</button>
-    </div>
-  </div>;
+  </section>;
 }
 
 function AppIcon({ app, compact = false }: { app: WorkshopApp; compact?: boolean }) { return <span className={`app-icon ${compact ? 'compact' : ''}`} style={{ '--accent': app.accent } as React.CSSProperties}><i>{app.icon}</i></span>; }

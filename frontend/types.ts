@@ -13,14 +13,15 @@ export interface Connection { id: string; label: string; enabled: boolean; comma
 export interface AgentState { available: boolean; authenticated: boolean; accountType?: string | null; error: string | null }
 export interface SystemStatus { name: string; version: string; codex: AgentState; agents?: { codex: AgentState; claude: AgentState }; connections?: Connection[]; activeBuilds: BuildSummary[] }
 
-export interface DesktopRoute {
-  intent: 'create' | 'edit' | 'answer';
-  appId: string | null;
-  prompt: string;
+export interface PendingAct { callId: string; tool: string; args: Record<string, string> }
+export interface DesktopReply {
+  conversationId: string;
   reply: string;
-  reason: string;
-  confirm: boolean;
+  performed: Array<{ tool: string; args: Record<string, string> }>;
+  pending: PendingAct | null;
+  effect?: { type: string; appId?: string; buildId?: string; app?: WorkshopApp; build?: BuildSummary };
 }
+export interface Turn { id: string; from: 'you' | 'workshop'; text: string; looked?: string[]; pending?: PendingAct | null }
 
 export interface CatalogInput { key: string; label: string; placeholder?: string }
 export interface CatalogSecret { key: string; label: string; hint?: string }

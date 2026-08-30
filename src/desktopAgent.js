@@ -1,90 +1,128 @@
+import { randomUUID } from 'node:crypto';
 import { config } from './config.js';
-import { listApps } from './workshopStorage.js';
+import { ACT_TOOLS, DESKTOP_TOOLS, createDesktopTools } from './desktopTools.js';
 
-const ROUTE_SCHEMA = {
-  type: 'object',
-  properties: {
-    intent: { type: 'string', enum: ['create', 'edit', 'answer'] },
-    reply: { type: 'string' },
-    appId: { type: 'string' },
-    prompt: { type: 'string' },
-    reason: { type: 'string' },
-    namedByUser: { type: 'boolean' },
-  },
-};
+const SYSTEM = `You are the person's partner on their Workshop desktop — a place where they and you make small personal apps together, and then use them.
 
-const INSTRUCTIONS = `You route what a person types on their Workshop desktop. Workshop builds small personal apps; the person's library is listed below.
+You are not a one-shot builder. Most turns are conversation: understanding what they are actually trying to do, looking at what they already have, reading what is in it, and thinking with them. Build something only when software is genuinely the answer.
 
-Choose exactly one intent:
-- "create" — they want something the library does not already cover. Put a clear, self-contained build request in "prompt".
-- "edit" — an existing app should change, or an existing app already covers this well enough that extending it beats starting over. Put its id in "appId" and the change in "prompt".
-- "answer" — they asked a question about their desktop or library rather than asking for software. Answer it in "reply" and set nothing else.
+How to work:
+- Look before you speak. Call list_apps to see the library, describe_app and read_app_data to see what is really in an app. Never guess at what they have or what is in it.
+- Ground what you say in what you found. "Your grocery list has 14 items, 9 of them bought" is worth more than a paragraph of encouragement.
+- Prefer changing an app that already does the job over building a new one. A different primary workflow is a different app; a missing feature is not.
+- You may run an app's own actions to work with their data or drive it for them.
+- When they are exploring rather than asking, help them think. It is fine for a turn to end with a question, an observation, or nothing to do.
+- Answer first. If they asked something, say the answer in words; never offer to do something in place of answering. An act is what you add after the answer, not instead of it.
 
-Rules:
-- Choose "edit" only when an existing app already does this job. A different primary workflow is a different app even in the same subject area: a timer is not a task list, a tracker is not a calculator. When in doubt, "create" — a new app is cheap and a mangled one is not.
-- "namedByUser" is true only when the person's own words identify the app you picked, by name or by unmistakable description. It is false whenever you inferred the connection yourself.
-- Set "reason" only when you are proposing something they did not literally ask for. One short sentence, addressed to them, saying why.
-- Always write "reply": one sentence in plain language, no build jargon, never a restatement of their own words.
-- Never invent an appId. Use only ids from the library.`;
+How to speak:
+- Plain, warm, and short. Three or four sentences is usually plenty; a wall of text is a failure even when every line is true.
+- Prose over lists. Use a list only when the items are genuinely parallel and there are more than two, and never to pad an answer.
+- No build jargon, and never restate their words back to them.
+- Say what you did, not what you are about to do.
+- One thing at a time. If several things are worth doing, say so and let them pick.`;
 
 /**
- * Routing is a cheap, fast model call rather than an agent turn: it decides what
- * should happen, and the expensive agent only starts once that is settled. When
- * the routing agrees with what the person asked for, nothing is shown — it speaks
- * up only when it has something to add.
+ * A conversation with hands, not a router.
+ *
+ * The loop runs on the small fast model with tools, so talking stays quick;
+ * building delegates to the real coding agent and returns immediately, showing
+ * up in the activity rail like any other build. Reads happen freely — grounding
+ * is what makes a partner — while anything that spends money, changes an app, or
+ * runs app code comes back as a proposal the person confirms.
  */
 export class DesktopAgent {
-  constructor({ llm }) {
+  constructor({ llm, runAction, autoApprove = false }) {
     this.llm = llm;
+    this.tools = createDesktopTools({ runAction });
+    this.autoApprove = autoApprove;
+    this.conversations = new Map();
   }
 
-  async route(prompt) {
+  conversation(id) {
+    const key = id && this.conversations.has(id) ? id : randomUUID();
+    if (!this.conversations.has(key)) this.conversations.set(key, { id: key, input: [], updatedAt: Date.now() });
+    const conversation = this.conversations.get(key);
+    conversation.updatedAt = Date.now();
+    // A desktop session is not a forum; old threads are not worth holding.
+    if (this.conversations.size > 40) {
+      const oldest = [...this.conversations.values()].sort((a, b) => a.updatedAt - b.updatedAt)[0];
+      if (oldest && oldest.id !== key) this.conversations.delete(oldest.id);
+    }
+    return conversation;
+  }
+
+  async send({ conversationId, message, approved = null }) {
     if (!this.llm) throw new Error('Workshop has no model configured. Add OPENAI_API_KEY to .env and restart.');
-    const apps = await listApps();
-    const library = apps.length
-      ? apps.map((app) => `- ${app.id}: ${app.name} — ${app.description || 'no description'}`).join('\n')
-      : '(the library is empty)';
+    const conversation = this.conversation(conversationId);
 
-    const { output } = await this.llm.ask({
-      instructions: INSTRUCTIONS,
-      prompt: `Their library:\n${library}\n\nThey typed:\n"${prompt}"`,
-      schema: ROUTE_SCHEMA,
-      search: false,
-    });
+    if (approved) {
+      // Resuming a proposal: the person said yes, so answer the call that was
+      // waiting on them and let the model carry on from there.
+      conversation.input.push({ type: 'function_call_output', call_id: approved.callId, output: JSON.stringify(approved.result) });
+    }
+    if (message) conversation.input.push({ role: 'user', content: message });
 
-    return normalize(output, prompt, new Set(apps.map((app) => app.id)));
+    return this.run(conversation);
+  }
+
+  async run(conversation) {
+    const performed = [];
+    for (let step = 0; step < config.desktopMaxSteps; step += 1) {
+      const response = await this.llm.raw({
+        instructions: SYSTEM,
+        input: conversation.input,
+        tools: DESKTOP_TOOLS,
+        search: true,
+      });
+
+      const calls = (response.output || []).filter((item) => item.type === 'function_call');
+      conversation.input.push(...(response.output || []));
+
+      if (!calls.length) {
+        return { conversationId: conversation.id, reply: text(response), performed, pending: null };
+      }
+
+      for (const call of calls) {
+        let args = {};
+        try { args = call.arguments ? JSON.parse(call.arguments) : {}; } catch { /* handled below */ }
+
+        // Anything that writes, spends, or runs app code stops here and asks.
+        if (ACT_TOOLS.includes(call.name) && !this.autoApprove) {
+          // The model often puts its reasoning in the call's `why` instead of in
+          // prose, which would leave the proposal on screen unexplained.
+          return {
+            conversationId: conversation.id,
+            reply: text(response) || String(args.why || '').trim(),
+            performed,
+            pending: { callId: call.call_id, tool: call.name, args },
+          };
+        }
+
+        const result = await this.invoke(call.name, args);
+        performed.push({ tool: call.name, args });
+        conversation.input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
+      }
+    }
+    return { conversationId: conversation.id, reply: 'That turned into more steps than I expected — ask me again more narrowly?', performed, pending: null };
+  }
+
+  async invoke(name, args) {
+    const handler = this.tools[name];
+    if (!handler) return { error: `No tool named ${name}.` };
+    try { return await handler(args); }
+    catch (error) { return { error: error.message }; }
   }
 }
 
-function normalize(output = {}, original, knownIds) {
-  const intent = ['create', 'edit', 'answer'].includes(output.intent) ? output.intent : 'create';
-  const appId = typeof output.appId === 'string' && knownIds.has(output.appId) ? output.appId : null;
-  const reply = trim(output.reply, 240);
-  const reason = trim(output.reason, 240);
-
-  // A model that says "edit" but names no real app has not actually routed.
-  if (intent === 'edit' && !appId) return { intent: 'create', prompt: trim(output.prompt, 2000) || original, reply, reason: '', confirm: false };
-  if (intent === 'answer') return { intent: 'answer', reply: reply || 'I could not work that one out.', appId: null, prompt: '', reason: '', confirm: true };
-
-  return {
-    intent,
-    appId,
-    prompt: trim(output.prompt, 2000) || original,
-    reply,
-    reason,
-    // Only interrupt when the routing proposes something the person did not ask
-    // for. "Build me X" should build X, and an edit to an app they named by name
-    // should just run.
-    confirm: Boolean(reason) || (intent === 'edit' && output.namedByUser !== true),
-  };
+function text(response) {
+  const parts = [];
+  for (const item of response?.output || []) {
+    for (const part of item.content || []) if (part.type === 'output_text' && part.text) parts.push(part.text);
+  }
+  return parts.join('\n').trim();
 }
 
-function trim(value, max) {
-  const clean = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
-  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
-}
-
-export function optionalDesktopAgent(llm) {
+export function optionalDesktopAgent(llm, runAction) {
   if (!llm || !config.openaiApiKey) return null;
-  return new DesktopAgent({ llm });
+  return new DesktopAgent({ llm, runAction });
 }

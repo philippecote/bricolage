@@ -1204,3 +1204,47 @@ button { cursor: pointer; }
 .catalog-actions button { padding: var(--s2) var(--s4); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-raised); font-size: var(--text-xs); }
 .catalog-actions .primary { background: var(--ground); color: var(--canvas); border-color: transparent; font-weight: var(--weight-semi); }
 .catalog-actions .primary:disabled { opacity: .4; }
+
+/* ---- Conversation ---- */
+
+.conversation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin-top: var(--s3);
+  padding: var(--s3) var(--s4) var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--r-lg);
+  box-shadow: var(--elev-1);
+  animation: rise var(--dur) var(--ease-out) both;
+}
+.conversation > header { display: flex; align-items: center; justify-content: space-between; }
+.conversation > header button { border: 0; background: transparent; color: var(--ink-faint); font-size: var(--text-2xs); }
+.conversation > header button:hover { color: var(--ink); }
+.turns { display: flex; flex-direction: column; gap: var(--s3); max-height: 46vh; overflow-y: auto; padding-bottom: var(--s1); }
+.turns article { display: flex; flex-direction: column; gap: var(--s1); }
+.turns .you { align-items: flex-end; }
+.turns .you .said {
+  max-width: 84%;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-md) var(--r-md) var(--r-xs) var(--r-md);
+  background: var(--surface-sunken);
+}
+.turns p { margin: 0; font-size: var(--text-sm); line-height: 1.55; white-space: pre-wrap; }
+/* What it read before it answered — the grounding, said quietly. */
+.turns .looked { font-size: var(--text-2xs); color: var(--ink-faint); }
+.turns .act { display: flex; gap: var(--s2); margin-top: var(--s1); }
+.turns .act button { padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-raised); font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.turns .act .primary { background: var(--ground); color: var(--canvas); border-color: transparent; }
+.thinking { display: flex; gap: 5px; padding: var(--s2) 0; }
+.thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); animation: think 1.2s var(--ease) infinite; }
+.thinking i:nth-child(2) { animation-delay: .16s; }
+.thinking i:nth-child(3) { animation-delay: .32s; }
+@keyframes think { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+
+.turns .said { white-space: normal; }
+.turns .line, .turns .bullet { display: block; }
+.turns .bullet { padding-left: var(--s4); text-indent: calc(var(--s3) * -1); }
+.turns .bullet::before { content: "· "; color: var(--ink-faint); }
+.turns .said code { padding: 1px 4px; border-radius: 4px; background: var(--surface-sunken); font-family: var(--font-mono); font-size: .92em; }

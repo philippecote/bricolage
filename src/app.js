@@ -26,6 +26,30 @@ const answerSchema = z.object({ answers: z.record(z.string(), z.string().trim().
 const actionSchema = z.object({ payload: z.unknown().optional() });
 const patchAppSchema = z.object({ name: z.string().trim().min(1).max(64).optional(), pinned: z.boolean().optional(), archived: z.boolean().optional(), model: modelSchema.optional() });
 
+// The acts the conversation is allowed to propose, carried out only after the
+// person confirms. Everything here either spends money or changes the desktop.
+async function performAct(act, builds, desktop) {
+  const { tool, args } = act;
+  if (tool === 'build_app') {
+    const result = await builds.create(String(args.prompt || '').trim());
+    return { result: { started: true, appId: result.app.id, name: result.app.name }, effect: { type: 'build', appId: result.app.id, buildId: result.build.id, app: result.app, build: result.build } };
+  }
+  if (tool === 'edit_app') {
+    const app = await readManifest(String(args.appId));
+    const build = await builds.edit(app.id, String(args.prompt || '').trim(), app.model);
+    return { result: { started: true, appId: app.id }, effect: { type: 'edit', appId: app.id, buildId: build.id, build } };
+  }
+  if (tool === 'open_app') {
+    const app = await readManifest(String(args.appId));
+    return { result: { opened: app.id }, effect: { type: 'open', appId: app.id } };
+  }
+  if (tool === 'run_app_action') {
+    const result = await desktop.invoke('run_app_action', args);
+    return { result, effect: { type: 'action', appId: String(args.appId), action: String(args.action) } };
+  }
+  throw new Error(`${tool} is not something I can carry out.`);
+}
+
 function probeAgent(label, agent) {
   if (!agent?.diagnostic) return Promise.resolve({ available: false, authenticated: false, error: `${label} is not configured.` });
   const timeout = new Promise((resolve) => setTimeout(() => resolve({ available: false, authenticated: false, error: `${label} diagnostic timed out.` }), 4000));
@@ -39,7 +63,7 @@ function sendFormPayload(res, status, payload) { res.status(status).type('html')
 function optionalLlm() { if (!config.openaiApiKey) return null; try { return new OpenAiLlmService(); } catch { return null; } }
 function optionalAppLlm() { if (!config.openaiApiKey) return null; try { return new AppLlmService(); } catch { return null; } }
 
-export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), desktop = optionalDesktopAgent(appLlm), buildService = null } = {}) {
+export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), desktop = optionalDesktopAgent(appLlm, (appId, action, payload) => runAppAction(appId, action, payload)), buildService = null } = {}) {
   const builds = buildService || new BuildService({ codex, claude, mcp });
   const app = express();
   app.disable('x-powered-by');
@@ -78,19 +102,33 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
   });
   // The composer routes before it builds: a cheap model call decides what should
   // happen, and only then does an agent turn start.
-  app.post('/api/desktop/route', async (req, res, next) => {
+  const messageBody = z.object({
+    conversationId: z.string().max(64).optional(),
+    message: z.string().trim().min(1).max(10_000).optional(),
+    approve: z.object({ callId: z.string().max(128), tool: z.string().max(64), args: z.record(z.string(), z.unknown()).default({}) }).optional(),
+  });
+
+  app.post('/api/desktop/message', async (req, res, next) => {
     try {
-      const { prompt } = parse(z.object({ prompt: z.string().trim().min(2).max(10_000) }), req.body);
-      if (!desktop) return res.json({ route: { intent: 'create', prompt, reply: '', reason: '', appId: null, confirm: false } });
+      if (!desktop) throw Object.assign(new Error('Workshop has no model configured. Add OPENAI_API_KEY to .env and restart.'), { statusCode: 503 });
+      const input = parse(messageBody, req.body || {});
       const started = Date.now();
-      const route = await desktop.route(prompt);
-      console.log(JSON.stringify({ trace: 'desktop:route', intent: route.intent, appId: route.appId, confirm: route.confirm, durationMs: Date.now() - started }));
-      res.json({ route });
-    } catch (e) {
-      // Routing is an optimisation, never a gate: fall back to a plain create.
-      console.log(JSON.stringify({ trace: 'desktop:route:failed', error: normalizeError(e).message }));
-      res.json({ route: { intent: 'create', prompt: req.body?.prompt || '', reply: '', reason: '', appId: null, confirm: false } });
-    }
+
+      let approved = null;
+      if (input.approve) {
+        // The person said yes; carry out the act, then hand the outcome back to
+        // the conversation so it can react to what actually happened.
+        const outcome = await performAct(input.approve, builds, desktop);
+        approved = { callId: input.approve.callId, result: outcome.result };
+        const reply = await desktop.send({ conversationId: input.conversationId, approved });
+        console.log(JSON.stringify({ trace: 'desktop:act', tool: input.approve.tool, durationMs: Date.now() - started }));
+        return res.json({ ...reply, effect: outcome.effect });
+      }
+
+      const reply = await desktop.send({ conversationId: input.conversationId, message: input.message });
+      console.log(JSON.stringify({ trace: 'desktop:message', steps: reply.performed.length, pending: reply.pending?.tool || null, durationMs: Date.now() - started }));
+      res.json(reply);
+    } catch (e) { e.statusCode ||= 502; next(e); }
   });
   // The catalog never ships secrets or accepts them back; it describes what a
   // server is, who publishes it, and what it will need.
@@ -191,8 +229,16 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
   app.get('/runtime/:appId/*asset', async (req, res, next) => { try { const asset = Array.isArray(req.params.asset) ? req.params.asset.join('/') : req.params.asset; res.sendFile(getRuntimePath(req.params.appId, asset)); } catch (e) { next(e); } });
   app.post('/api/apps/:appId/actions/:action', async (req, res, next) => {
     try {
-      assertSafeId(req.params.appId, 'appId'); assertSafeId(req.params.action, 'action');
       const { payload } = parse(actionSchema, req.body || {});
+      const result = await runAppAction(req.params.appId, req.params.action, payload ?? {}, req.requestId);
+      res.json({ status: 'ok', ...result });
+    } catch (e) { e.statusCode ||= 502; next(e); }
+  });
+
+  async function runAppAction(appId, action, payload, requestId = randomId()) {
+    {
+      const req = { params: { appId, action }, requestId };
+      assertSafeId(req.params.appId, 'appId'); assertSafeId(req.params.action, 'action');
       const code = await fs.readFile(getAppActionPath(req.params.appId, req.params.action), 'utf8');
       const storage = createAppStorage(req.params.appId);
       const started = Date.now();
@@ -200,9 +246,9 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       const manifest = await readManifest(req.params.appId).catch(() => ({ connections: [] }));
       const mcpFor = createActionMcp(mcp, { appId: req.params.appId, granted: manifest.connections || [] });
       const result = await executeAction({ code, input: payload ?? {}, ctx: { appId: req.params.appId, action: req.params.action, requestId: req.requestId, nowIso: new Date().toISOString(), fetch: safeFetch, storage, llm, mcp: mcpFor }, fetchFn: safeFetch, timeoutMs: config.actionTimeoutMs });
-      res.json({ status: 'ok', output: result.output, logs: result.logs, codeHash: sha256(code), meta: { durationMs: Date.now() - started } });
-    } catch (e) { e.statusCode ||= 502; next(e); }
-  });
+      return { output: result.output, logs: result.logs, codeHash: sha256(code), meta: { durationMs: Date.now() - started } };
+    }
+  }
   app.post('/api/apps/:appId/storage/get', async (req, res, next) => {
     try { const result = await createAppStorage(req.params.appId).get(req.body?.key ?? null); res.json(result); } catch (e) { next(e); }
   });

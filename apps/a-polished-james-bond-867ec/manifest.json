@@ -9,13 +9,15 @@
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T01:29:52.817Z",
-  "updatedAt": "2026-08-30T01:55:28.497Z",
+  "updatedAt": "2026-08-30T11:07:24.252Z",
   "window": {
     "width": 920,
     "height": 680
   },
   "actions": [],
+  "connections": [],
   "threadId": "01a05049-8de8-77d2-b09b-cf7795b62bdb",
+  "threadAgent": null,
   "revision": 1,
   "model": "luna-high",
   "error": null

@@ -26,6 +26,8 @@ export const config = {
   llmEffort: process.env.WORKSHOP_LLM_EFFORT || 'low',
   llmTimeoutMs: 45_000,
   llmMaxCallsPerAction: 8,
+  // A conversational turn may look at several apps before it answers.
+  desktopMaxSteps: 6,
   mcpTimeoutMs: 20_000,
   // First contact may download the server package; a tool call must not wait that long.
   mcpStartTimeoutMs: 90_000,
