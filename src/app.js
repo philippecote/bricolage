@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { config } from './config.js';
 import { AppLlmService, OpenAiLlmService } from './llmService.js';
 import { CodexAppServer } from './codexAppServer.js';
+import { ClaudeAgent } from './claudeAgent.js';
 import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildService.js';
 import { executeAction } from './sandbox.js';
 import { safeFetch } from './network.js';
@@ -22,6 +23,11 @@ const answerSchema = z.object({ answers: z.record(z.string(), z.string().trim().
 const actionSchema = z.object({ payload: z.unknown().optional() });
 const patchAppSchema = z.object({ name: z.string().trim().min(1).max(64).optional(), pinned: z.boolean().optional(), archived: z.boolean().optional(), model: modelSchema.optional() });
 
+function probeAgent(label, agent) {
+  if (!agent?.diagnostic) return Promise.resolve({ available: false, authenticated: false, error: `${label} is not configured.` });
+  const timeout = new Promise((resolve) => setTimeout(() => resolve({ available: false, authenticated: false, error: `${label} diagnostic timed out.` }), 4000));
+  return Promise.race([agent.diagnostic().catch((error) => ({ available: false, authenticated: false, error: error.message })), timeout]);
+}
 function normalizeError(error) { return error instanceof Error ? error : new Error(String(error)); }
 function parse(schema, body) { const result = schema.safeParse(body); if (!result.success) { const error = new Error(result.error.issues[0]?.message || 'Invalid request.'); error.statusCode = 400; throw error; } return result.data; }
 function errorPayload(req, error, reason = 'request_failed') { return { status: 'error', error: normalizeError(error).message, reason, requestId: req.requestId }; }
@@ -30,8 +36,8 @@ function sendFormPayload(res, status, payload) { res.status(status).type('html')
 function optionalLlm() { if (!config.openaiApiKey) return null; try { return new OpenAiLlmService(); } catch { return null; } }
 function optionalAppLlm() { if (!config.openaiApiKey) return null; try { return new AppLlmService(); } catch { return null; } }
 
-export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), buildService = null } = {}) {
-  const builds = buildService || new BuildService({ codex });
+export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), buildService = null } = {}) {
+  const builds = buildService || new BuildService({ codex, claude });
   const app = express();
   app.disable('x-powered-by');
   // Trace before body parsing so a stalled/blocked request is visible.
@@ -60,8 +66,12 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
   app.get('/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/system/status', async (_req, res) => {
     await builds.ready?.();
-    const diagnostic = await Promise.race([codex.diagnostic(), new Promise((resolve) => setTimeout(() => resolve({ available: false, authenticated: false, error: 'Codex diagnostic timed out.' }), 2500))]);
-    res.json({ name: 'Workshop', version: '1.0.0', codex: diagnostic, activeBuilds: builds.listActive() });
+    const [codexState, claudeState] = await Promise.all([
+      probeAgent('Codex', codex),
+      probeAgent('Claude Code', claude),
+    ]);
+    // `codex` stays for the existing clients; `agents` is the shape that scales.
+    res.json({ name: 'Workshop', version: '1.0.0', codex: codexState, agents: { codex: codexState, claude: claudeState }, activeBuilds: builds.listActive() });
   });
   app.get('/api/apps', async (req, res, next) => { try { res.json({ apps: await listApps({ includeArchived: req.query.archived === 'true' }) }); } catch (e) { next(e); } });
   // Neutral browser compatibility alias. Some embedded browsers block requests
@@ -211,8 +221,10 @@ function createAppStorage(appId) {
   };
 }
 
+// Every call is a postMessage round-trip to the host. Without a timeout a lost
+// reply leaves the promise pending forever, and the app sits in its loading state.
 function runtimeBridge(appId) {
-  return `(function(){let n=0;const p=new Map();window.Workshop={callAction:(name,payload)=>call('action',{name,payload}),notify:(message)=>call('notify',{message}),setTitle:(title)=>call('title',{title}),openLink:(url)=>call('link',{url}),storage:{get:(key)=>call('storage.get',{key}),set:(key,value)=>call('storage.set',{key,value})}};function call(type,payload){const id=++n;parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},id,type,payload},'*');return new Promise((resolve,reject)=>p.set(id,{resolve,reject}))}addEventListener('message',e=>{const m=e.data;if(!m||m.source!=='workshop-host'||!p.has(m.id))return;const q=p.get(m.id);p.delete(m.id);m.error?q.reject(new Error(m.error)):q.resolve(m.result)})})();`;
+  return `(function(){let n=0;const p=new Map();window.Workshop={callAction:(name,payload)=>call('action',{name,payload}),notify:(message)=>call('notify',{message}),setTitle:(title)=>call('title',{title}),openLink:(url)=>call('link',{url}),storage:{get:(key)=>call('storage.get',{key}),set:(key,value)=>call('storage.set',{key,value})}};function call(type,payload){const id=++n;parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},id,type,payload},'*');return new Promise((resolve,reject)=>{p.set(id,{resolve,reject});setTimeout(function(){if(p.has(id)){p.delete(id);reject(new Error('Workshop did not respond.'))}},15000)})}addEventListener('message',e=>{const m=e.data;if(!m||m.source!=='workshop-host'||!p.has(m.id))return;const q=p.get(m.id);p.delete(m.id);m.error?q.reject(new Error(m.error)):q.resolve(m.result)})})();`;
 }
 
 async function migrateStarters() {

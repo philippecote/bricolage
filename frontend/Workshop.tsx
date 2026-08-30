@@ -1,6 +1,6 @@
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import type { BuildEvent, BuildQuestion, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { AgentState, BuildEvent, BuildQuestion, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
 const STARTERS = [
   ['Daily pulse', 'Build a daily habit tracker with streaks and a calm weekly view'],
@@ -63,7 +63,10 @@ export function Workshop() {
 
   const inspectorApp = apps.find((app) => app.id === inspectorAppId) || null;
   const currentEvents = inspectorAppId ? builds[inspectorAppId] || [] : [];
-  const codexReady = Boolean(status?.codex.available && status?.codex.authenticated);
+  const ready = (state?: AgentState) => Boolean(state?.available && state?.authenticated);
+  const agentsReady = [ready(status?.agents?.codex ?? status?.codex), ready(status?.agents?.claude)].filter(Boolean).length;
+  const codexReady = agentsReady > 0;
+  const agentLabel = agentsReady === 0 ? 'Setup needed' : agentsReady === 1 ? '1 agent ready' : `${agentsReady} agents ready`;
 
   useEffect(() => {
     let mounted = true;
@@ -74,6 +77,7 @@ export function Workshop() {
       next.activeBuilds.forEach((build) => { seedBuild(build.appId, build.id, build.events || []); watchBuild(build.appId, build.id); });
     }).catch(() => { setStatus(null); setCreateError(builderMessage('Workshop’s local builder is offline.')); });
     const timer = setInterval(() => setClock(new Date()), 30_000);
+    const reconciler = setInterval(() => { reconcile(); }, 20_000);
     const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', onResize);
     const onKey = (event: KeyboardEvent) => {
@@ -81,7 +85,7 @@ export function Workshop() {
       if (event.key === 'Escape') { setSpotlight(false); setLibrary(false); setSettings(false); setActivityOpen(false); }
     };
     window.addEventListener('keydown', onKey);
-    return () => { mounted = false; clearInterval(timer); if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); streams.current.forEach((stream) => stream.close()); };
+    return () => { mounted = false; clearInterval(timer); clearInterval(reconciler); if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); streams.current.forEach((stream) => stream.close()); };
   }, []);
 
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('workshop-theme', theme); }, [theme]);
@@ -185,6 +189,30 @@ export function Workshop() {
         if (event.phase === 'complete') showToast('Your app is ready ✦');
       }
     };
+    // EventSource stops retrying after a non-200 — which is exactly what a
+    // restarted Workshop returns for a build it no longer holds. Without this the
+    // window sits frozen on the last phase it happened to see.
+    stream.onerror = () => {
+      if (stream.readyState !== EventSource.CLOSED) return;
+      stream.close(); streams.current.delete(buildId);
+      refresh(); loadDetails(appId);
+    };
+  }
+
+  // Safety net for anything the stream missed: re-adopt builds the server still
+  // considers active, and reconcile apps left looking busy when nothing is.
+  async function reconcile() {
+    try {
+      const next = await api.status();
+      setStatus(next);
+      next.activeBuilds.forEach((build) => {
+        if (streams.current.has(build.id)) return;
+        seedBuild(build.appId, build.id, build.events || []);
+        watchBuild(build.appId, build.id);
+      });
+      const live = new Set(next.activeBuilds.map((build) => build.appId));
+      setApps((items) => (items.some((app) => app.status === 'building' && !live.has(app.id)) ? (refresh(), items) : items));
+    } catch { /* builder offline; the next tick tries again */ }
   }
 
   async function improve(event: FormEvent) {
@@ -278,7 +306,7 @@ export function Workshop() {
     <div className="wallpaper-orb orb-one" /><div className="wallpaper-orb orb-two" />
     <header className="menu-bar">
       <div className="menu-left"><button className="wordmark" onClick={() => setLibrary(false)} aria-label="Workshop home"><span>W</span> Workshop</button><button onClick={() => setLibrary(true)}>Library</button><button onClick={() => setSpotlight(true)}>Create</button></div>
-      <div className="menu-right">{activity.length > 0 && <button className={`working-chip ${activity.some((item) => item.waiting) ? 'waiting' : ''}`} onClick={() => setActivityOpen((value) => !value)} aria-label="Show desktop activity"><i />{activity.some((item) => item.waiting) ? 'Needs you' : `${activity.length} working`}</button>}<button className={`codex-state ${codexReady ? 'online' : ''}`} onClick={() => setSettings(true)}><i />{codexReady ? 'Codex ready' : 'Setup needed'}</button><button onClick={() => setSpotlight(true)} className="shortcut">⌘ K</button><time>{clock.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} &nbsp; {clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
+      <div className="menu-right">{activity.length > 0 && <button className={`working-chip ${activity.some((item) => item.waiting) ? 'waiting' : ''}`} onClick={() => setActivityOpen((value) => !value)} aria-label="Show desktop activity"><i />{activity.some((item) => item.waiting) ? 'Needs you' : `${activity.length} working`}</button>}<button className={`codex-state ${codexReady ? 'online' : ''}`} onClick={() => setSettings(true)}><i />{agentLabel}</button><button onClick={() => setSpotlight(true)} className="shortcut">⌘ K</button><time>{clock.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} &nbsp; {clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
     </header>
 
     <section className="desktop-content">
@@ -330,6 +358,7 @@ function ModelPicker({ value, onChange, compact = false }: { value: ModelPreset;
     ['luna-high', 'Luna', 'High', 'Quick, thoughtful, and the best value'],
     ['luna-max', 'Luna', 'Max', 'Same model thinking as hard as it can'],
     ['sol-medium', 'Sol', 'Medium', 'Flagship quality, balanced pace'],
+    ['opus-5-high', 'Opus 5', 'High', 'Built by Claude Code instead of Codex'],
   ];
   return <div className={`model-picker ${compact ? 'compact' : ''}`} aria-label="Builder model">{options.map(([key, family, tier, hint]) => <button type="button" key={key} aria-pressed={value === key} className={value === key ? 'active' : ''} onClick={() => onChange(key)} title={hint}>{family} <b>{tier}</b></button>)}</div>;
 }
@@ -399,6 +428,16 @@ function Library({ apps, onClose, onOpen, onRestore }: { apps: WorkshopApp[]; on
 }
 
 function Settings({ status, theme, setTheme, sounds, setSounds, onClose }: { status: SystemStatus | null; theme: string; setTheme: (v: string) => void; sounds: boolean; setSounds: (v: boolean) => void; onClose: () => void }) {
-  const ready = Boolean(status?.codex.available && status?.codex.authenticated);
-  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="settings-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">WORKSHOP</span><h2>Settings</h2></div><button onClick={onClose}>Done</button></header><div className="setting-row"><div><strong>Appearance</strong><small>Choose the desktop surface.</small></div><div className="segmented"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}>Light</button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}>Dark</button></div></div><div className="setting-row"><div><strong>Completion sounds</strong><small>Play a quiet chime when work finishes.</small></div><button className={`switch ${sounds ? 'on' : ''}`} onClick={() => setSounds(!sounds)} aria-label="Toggle sounds"><i /></button></div><div className="codex-panel"><div className={`large-state ${ready ? 'ok' : ''}`}><i />{ready ? 'Codex is ready' : 'Codex setup needed'}</div><p>{ready ? 'Workshop is connected to your local Codex session.' : status?.codex.error || 'Install and sign in to Codex CLI to build new apps.'}</p>{!status?.codex.available && <code>npm install -g @openai/codex</code>}</div></section></div>;
+  const agents: Array<[string, string, AgentState | undefined]> = [
+    ['Codex', 'npm install -g @openai/codex', status?.agents?.codex ?? status?.codex],
+    ['Claude Code', 'npm install -g @anthropic-ai/claude-code', status?.agents?.claude],
+  ];
+  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="settings-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">WORKSHOP</span><h2>Settings</h2></div><button onClick={onClose}>Done</button></header><div className="setting-row"><div><strong>Appearance</strong><small>Choose the desktop surface.</small></div><div className="segmented"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}>Light</button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}>Dark</button></div></div><div className="setting-row"><div><strong>Completion sounds</strong><small>Play a quiet chime when work finishes.</small></div><button className={`switch ${sounds ? 'on' : ''}`} onClick={() => setSounds(!sounds)} aria-label="Toggle sounds"><i /></button></div><div className="agent-panels">{agents.map(([name, install, state]) => {
+    const ready = Boolean(state?.available && state?.authenticated);
+    return <div key={name} className="codex-panel">
+      <div className={`large-state ${ready ? 'ok' : ''}`}><i />{name}{ready && state?.accountType ? <em>{state.accountType}</em> : null}</div>
+      <p>{ready ? `Workshop can build with ${name}.` : state?.error || `Install and sign in to ${name} to build with it.`}</p>
+      {state && !state.available && <code>{install}</code>}
+    </div>;
+  })}</div></section></div>;
 }

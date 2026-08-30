@@ -54,7 +54,7 @@
     .panel-title { font-size: 15px; font-weight: 760; letter-spacing: -.01em; }
     .panel-kicker { color: var(--muted); font-size: 12px; }
     .result-panel .panel-kicker { color: rgba(255,255,255,.62); }
-    .field { margin-bottom: 19px; }
+    .field { margin-bottom: 15px; }
     label, .field-label { display: block; color: var(--ink); font-size: 12px; font-weight: 750; margin-bottom: 8px; }
     .field-label small { color: var(--muted); font-size: 11px; font-weight: 500; margin-left: 4px; }
     .money-input { position: relative; }
@@ -86,6 +86,16 @@
     .custom-row input[type="number"] { font-weight: 700; }
     .custom-total { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 8px; }
     .custom-total strong { color: var(--ink); }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 13px; border: 1px solid var(--line); background: #fff; border-radius: 13px; padding: 11px 13px; transition: border-color .18s, background .18s; }
+    .switch-row:hover { border-color: #d7c8c0; }
+    .switch-row.on { border-color: #d6b9c9; background: #fdf7fa; }
+    .switch-copy { min-width: 0; }
+    .switch-copy strong { display: block; font-size: 12px; font-weight: 750; }
+    .switch-copy .helper { margin-top: 3px; }
+    .switch { flex: none; width: 46px; height: 26px; border: 0; border-radius: 999px; background: #e4dbd6; position: relative; transition: background .2s; }
+    .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(45,27,36,.28); transition: transform .2s; }
+    .switch[aria-checked="true"] { background: var(--plum); }
+    .switch[aria-checked="true"]::after { transform: translateX(20px); }
     .restore-status { min-height: 18px; color: var(--muted); font-size: 11px; margin: -2px 0 8px; }
     .restore-status.error { color: #a65548; }
     .calculate-button { width: 100%; min-height: 47px; border: 0; border-radius: 12px; background: var(--coral); color: #321b28; font-weight: 800; box-shadow: 0 8px 18px rgba(239,131,107,.2); transition: transform .18s, box-shadow .18s, filter .18s; margin-top: 8px; }
@@ -112,7 +122,8 @@
     .share-name { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,.77); min-width: 0; }
     .share-number { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 8px; background: rgba(255,255,255,.12); color: #ffd6c9; font-size: 10px; font-weight: 800; }
     .share-name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .share-amount { font-weight: 760; color: white; white-space: nowrap; }
+    .share-amount { font-weight: 760; color: white; white-space: nowrap; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+    .share-amount small { font-weight: 500; font-size: 10px; color: rgba(255,255,255,.5); }
     .result-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: auto; padding-top: 20px; position: relative; z-index: 1; }
     .result-footer small { color: rgba(255,255,255,.54); font-size: 10px; }
     .copy-button { border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.09); border-radius: 9px; color: #fff; padding: 8px 11px; font-size: 11px; font-weight: 700; transition: background .18s, transform .18s; }
@@ -174,6 +185,15 @@
           <div class="custom-rows" id="custom-rows" hidden></div>
           <div class="custom-total" id="custom-total" hidden><span>Assigned before tip</span><strong id="assigned-total">$0.00</strong></div>
         </div>
+        <div class="field">
+          <div class="switch-row" id="round-row">
+            <span class="switch-copy">
+              <strong id="round-label">Round up to whole dollars</strong>
+              <p class="helper" id="round-helper">Shares keep their exact cents.</p>
+            </span>
+            <button type="button" class="switch" id="round-toggle" role="switch" aria-checked="false" aria-labelledby="round-label"></button>
+          </div>
+        </div>
         <div class="restore-status" id="restore-status" aria-live="polite">Restoring your last split…</div>
         <button class="calculate-button" type="submit">Calculate the split <span aria-hidden="true">→</span></button>
       </form>
@@ -185,7 +205,7 @@
         </div>
         <div class="result-content" id="result-content" hidden>
           <div class="hero-label">Each person pays</div><div class="hero-value" id="hero-value">$0.00</div><div class="hero-sub" id="hero-sub">including 15% tip</div>
-          <div class="breakdown"><div class="breakdown-row"><span>Bill</span><strong id="bill-output">$0.00</strong></div><div class="breakdown-row"><span>Tip <span id="tip-rate-output">15%</span></span><strong id="tip-output">$0.00</strong></div><div class="breakdown-row total"><span>Total bill</span><strong id="total-output">$0.00</strong></div></div>
+          <div class="breakdown"><div class="breakdown-row"><span>Bill</span><strong id="bill-output">$0.00</strong></div><div class="breakdown-row"><span>Tip <span id="tip-rate-output">15%</span></span><strong id="tip-output">$0.00</strong></div><div class="breakdown-row" id="extra-row" hidden><span>Round-up extra</span><strong id="extra-output">$0.00</strong></div><div class="breakdown-row total"><span id="total-label">Total bill</span><strong id="total-output">$0.00</strong></div></div>
           <div class="rounding-note" id="rounding-note" hidden></div><div class="share-list" id="share-list" aria-label="Individual shares"></div>
           <div class="result-footer"><small id="footer-note">Split evenly · 2 people</small><button class="copy-button" id="copy-button" type="button">Copy summary</button></div>
         </div>
@@ -197,8 +217,8 @@
       "use strict";
       const stateKey = "fair-share-latest";
       const storageApi = window.storage || (window.Workshop && window.Workshop.storage) || { get: async () => null, set: async () => undefined };
-      const app = document.getElementById("app"), form = document.getElementById("calculator-form"), billInput = document.getElementById("bill"), tipInput = document.getElementById("tip"), peopleInput = document.getElementById("people"), peopleCaption = document.getElementById("people-caption"), customRows = document.getElementById("custom-rows"), customTotal = document.getElementById("custom-total"), assignedTotal = document.getElementById("assigned-total"), splitHelper = document.getElementById("split-helper"), emptyState = document.getElementById("empty-state"), resultContent = document.getElementById("result-content"), restoreStatus = document.getElementById("restore-status"), savedNote = document.getElementById("saved-note"), billError = document.getElementById("bill-error"), roundingNote = document.getElementById("rounding-note"), shareList = document.getElementById("share-list");
-      let splitMode = "equal", customAmounts = [], customNames = [], lastResult = null;
+      const app = document.getElementById("app"), form = document.getElementById("calculator-form"), billInput = document.getElementById("bill"), tipInput = document.getElementById("tip"), peopleInput = document.getElementById("people"), peopleCaption = document.getElementById("people-caption"), customRows = document.getElementById("custom-rows"), customTotal = document.getElementById("custom-total"), assignedTotal = document.getElementById("assigned-total"), splitHelper = document.getElementById("split-helper"), emptyState = document.getElementById("empty-state"), resultContent = document.getElementById("result-content"), restoreStatus = document.getElementById("restore-status"), savedNote = document.getElementById("saved-note"), billError = document.getElementById("bill-error"), roundingNote = document.getElementById("rounding-note"), shareList = document.getElementById("share-list"), roundRow = document.getElementById("round-row"), roundToggle = document.getElementById("round-toggle"), roundHelper = document.getElementById("round-helper"), extraRow = document.getElementById("extra-row"), extraOutput = document.getElementById("extra-output"), totalLabel = document.getElementById("total-label");
+      let splitMode = "equal", customAmounts = [], customNames = [], roundUp = false, lastResult = null;
       const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
       const money = (value) => currency.format(Number.isFinite(value) ? value : 0);
       const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -223,6 +243,12 @@
         document.querySelectorAll(".mode-button").forEach((button) => { const active = button.dataset.mode === splitMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
         const isCustom = splitMode === "custom"; customRows.hidden = !isCustom; customTotal.hidden = !isCustom; splitHelper.textContent = isCustom ? "Set each person’s pre-tip share; tip is added proportionally." : "The total is divided evenly between everyone."; if (isCustom) renderCustomRows(); calculate(false);
       }
+      function roundShareUp(amount) { return Math.ceil(Math.round((Number.isFinite(amount) ? amount : 0) * 100) / 100); }
+      function setRoundUp(next, recalculate = true) {
+        roundUp = next === true; roundToggle.setAttribute("aria-checked", String(roundUp)); roundRow.classList.toggle("on", roundUp);
+        roundHelper.textContent = roundUp ? "Every share climbs to the next whole dollar." : "Shares keep their exact cents.";
+        if (recalculate) calculate(false);
+      }
       function syncTipButtons() { const current = Number(readNumber(tipInput, 15).toFixed(2)); document.querySelectorAll(".tip-button").forEach((button) => { const active = Number(button.dataset.tip) === current; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); }); }
       function sharesFor(total, count) {
         if (splitMode === "custom") { readCustomRows(); const assigned = customAmounts.reduce((sum, amount) => sum + Math.max(0, amount || 0), 0); if (assigned > 0) { const raw = customAmounts.map((amount) => total * (Math.max(0, amount || 0) / assigned)), rounded = raw.map((amount) => Math.floor(amount * 100) / 100); let centsLeft = Math.round(total * 100) - rounded.reduce((sum, amount) => sum + Math.round(amount * 100), 0); for (let index = 0; centsLeft > 0; index = (index + 1) % rounded.length, centsLeft--) rounded[index] += 0.01; return rounded; } }
@@ -231,19 +257,24 @@
       function calculate(showError = false) {
         const bill = Math.max(0, readNumber(billInput)), tipRate = clamp(readNumber(tipInput, 15), 0, 100), count = peopleCount(); peopleInput.value = String(count); updatePeopleCaption(count); syncTipButtons(); if (splitMode === "custom") updateCustomTotal();
         if (!bill) { emptyState.hidden = false; resultContent.hidden = true; document.getElementById("result-kicker").textContent = "Waiting for a bill"; billError.hidden = !showError; lastResult = null; return null; }
-        billError.hidden = true; const tip = bill * tipRate / 100, total = bill + tip, shares = sharesFor(total, count); lastResult = { bill, tipRate, tip, total, count, shares, mode: splitMode, names: customNames.slice(0, count) }; renderResult(lastResult); return lastResult;
+        billError.hidden = true;
+        const tip = bill * tipRate / 100, total = bill + tip, exactShares = sharesFor(total, count), shares = roundUp ? exactShares.map(roundShareUp) : exactShares;
+        const collected = Math.round(shares.reduce((sum, share) => sum + share, 0) * 100) / 100, extra = Math.max(0, Math.round((collected - total) * 100) / 100);
+        lastResult = { bill, tipRate, tip, total, count, shares, exactShares, collected, extra, roundUp, mode: splitMode, names: customNames.slice(0, count) }; renderResult(lastResult); return lastResult;
       }
       function renderResult(result) {
-        emptyState.hidden = true; resultContent.hidden = false; document.getElementById("result-kicker").textContent = `${result.count} ${result.count === 1 ? "person" : "people"}`; document.getElementById("hero-value").textContent = money(result.shares[0]); document.getElementById("hero-sub").textContent = result.mode === "custom" ? "first share shown · tip included" : `including ${result.tipRate}% tip`; document.getElementById("bill-output").textContent = money(result.bill); document.getElementById("tip-rate-output").textContent = `${result.tipRate}%`; document.getElementById("tip-output").textContent = money(result.tip); document.getElementById("total-output").textContent = money(result.total); document.getElementById("footer-note").textContent = result.mode === "custom" ? `Custom shares · ${result.count} people` : `Split evenly · ${result.count} ${result.count === 1 ? "person" : "people"}`;
-        if (result.mode === "equal" && result.count > 1 && Math.round(result.total * 100) % result.count !== 0) { const cents = Math.round(result.total * 100) % result.count; roundingNote.hidden = false; roundingNote.textContent = `${cents} ${cents === 1 ? "person gets" : "people get"} an extra cent so every penny is covered.`; } else if (result.mode === "custom") { roundingNote.hidden = false; roundingNote.textContent = "Custom shares are weighted before tip, so the tip follows each person’s portion."; } else roundingNote.hidden = true;
-        shareList.innerHTML = result.shares.map((share, index) => { const name = result.mode === "custom" ? (result.names[index] || `Friend ${index + 1}`) : `Person ${index + 1}`; return `<div class="share-item"><div class="share-name"><span class="share-number">${index + 1}</span><span>${escapeHtml(name)}</span></div><strong class="share-amount">${money(share)}</strong></div>`; }).join("");
+        emptyState.hidden = true; resultContent.hidden = false; document.getElementById("result-kicker").textContent = `${result.count} ${result.count === 1 ? "person" : "people"}`; document.getElementById("hero-value").textContent = money(result.shares[0]); document.getElementById("hero-sub").textContent = `${result.mode === "custom" ? "first share shown · tip included" : `including ${result.tipRate}% tip`}${result.roundUp ? " · rounded up" : ""}`; document.getElementById("bill-output").textContent = money(result.bill); document.getElementById("tip-rate-output").textContent = `${result.tipRate}%`; document.getElementById("tip-output").textContent = money(result.tip);
+        extraRow.hidden = !result.roundUp; extraOutput.textContent = money(result.extra); totalLabel.textContent = result.roundUp ? "Total collected" : "Total bill"; document.getElementById("total-output").textContent = money(result.roundUp ? result.collected : result.total);
+        document.getElementById("footer-note").textContent = `${result.mode === "custom" ? `Custom shares · ${result.count} people` : `Split evenly · ${result.count} ${result.count === 1 ? "person" : "people"}`}${result.roundUp ? " · rounded up" : ""}`;
+        if (result.roundUp) { roundingNote.hidden = false; const effective = result.bill > 0 ? (result.tip + result.extra) / result.bill * 100 : 0; roundingNote.textContent = result.extra > 0 ? `Rounding up adds ${money(result.extra)} to the table — an effective tip of ${effective.toFixed(1)}%.` : "Every share already lands on a whole dollar, so nothing was added."; } else if (result.mode === "equal" && result.count > 1 && Math.round(result.total * 100) % result.count !== 0) { const cents = Math.round(result.total * 100) % result.count; roundingNote.hidden = false; roundingNote.textContent = `${cents} ${cents === 1 ? "person gets" : "people get"} an extra cent so every penny is covered.`; } else if (result.mode === "custom") { roundingNote.hidden = false; roundingNote.textContent = "Custom shares are weighted before tip, so the tip follows each person’s portion."; } else roundingNote.hidden = true;
+        shareList.innerHTML = result.shares.map((share, index) => { const name = result.mode === "custom" ? (result.names[index] || `Friend ${index + 1}`) : `Person ${index + 1}`; const exact = result.exactShares[index]; const before = result.roundUp && Math.round(exact * 100) !== Math.round(share * 100) ? `<small>was ${money(exact)}</small>` : ""; return `<div class="share-item"><div class="share-name"><span class="share-number">${index + 1}</span><span>${escapeHtml(name)}</span></div><strong class="share-amount"><span>${money(share)}</span>${before}</strong></div>`; }).join("");
       }
-      function snapshot() { if (splitMode === "custom") readCustomRows(); return { bill: billInput.value, tip: tipInput.value, people: peopleInput.value, mode: splitMode, customAmounts: customAmounts.slice(0, peopleCount()), customNames: customNames.slice(0, peopleCount()) }; }
+      function snapshot() { if (splitMode === "custom") readCustomRows(); return { bill: billInput.value, tip: tipInput.value, people: peopleInput.value, mode: splitMode, roundUp, customAmounts: customAmounts.slice(0, peopleCount()), customNames: customNames.slice(0, peopleCount()) }; }
       async function saveSnapshot() { try { await storageApi.set(stateKey, snapshot()); } catch (error) { restoreStatus.textContent = "This split will stay on screen, but couldn’t be saved."; restoreStatus.classList.add("error"); } }
       async function restoreSnapshot() {
         try {
           const saved = await storageApi.get(stateKey);
-          if (saved && typeof saved === "object") { billInput.value = typeof saved.bill === "string" ? saved.bill : ""; tipInput.value = String(clamp(Number(saved.tip) || 15, 0, 100)); peopleInput.value = String(clamp(Math.round(Number(saved.people) || 2), 1, 50)); splitMode = saved.mode === "custom" ? "custom" : "equal"; customAmounts = Array.isArray(saved.customAmounts) ? saved.customAmounts.map((amount) => Math.max(0, Number(amount) || 0)) : []; customNames = Array.isArray(saved.customNames) ? saved.customNames.map((name) => String(name).slice(0, 35)) : []; updatePeopleCaption(peopleCount()); document.querySelectorAll(".mode-button").forEach((button) => { const active = button.dataset.mode === splitMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); }); customRows.hidden = splitMode !== "custom"; customTotal.hidden = splitMode !== "custom"; splitHelper.textContent = splitMode === "custom" ? "Set each person’s pre-tip share; tip is added proportionally." : "The total is divided evenly between everyone."; if (splitMode === "custom") renderCustomRows(); calculate(false); if (billInput.value) savedNote.hidden = false; }
+          if (saved && typeof saved === "object") { billInput.value = typeof saved.bill === "string" ? saved.bill : ""; tipInput.value = String(clamp(Number(saved.tip) || 15, 0, 100)); peopleInput.value = String(clamp(Math.round(Number(saved.people) || 2), 1, 50)); splitMode = saved.mode === "custom" ? "custom" : "equal"; customAmounts = Array.isArray(saved.customAmounts) ? saved.customAmounts.map((amount) => Math.max(0, Number(amount) || 0)) : []; customNames = Array.isArray(saved.customNames) ? saved.customNames.map((name) => String(name).slice(0, 35)) : []; updatePeopleCaption(peopleCount()); document.querySelectorAll(".mode-button").forEach((button) => { const active = button.dataset.mode === splitMode; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); }); customRows.hidden = splitMode !== "custom"; customTotal.hidden = splitMode !== "custom"; splitHelper.textContent = splitMode === "custom" ? "Set each person’s pre-tip share; tip is added proportionally." : "The total is divided evenly between everyone."; setRoundUp(saved.roundUp === true, false); if (splitMode === "custom") renderCustomRows(); calculate(false); if (billInput.value) savedNote.hidden = false; }
           restoreStatus.textContent = "";
         } catch (error) { restoreStatus.textContent = "Couldn’t restore your last split. You can start fresh below."; restoreStatus.classList.add("error"); } finally { app.setAttribute("aria-busy", "false"); }
       }
@@ -251,10 +282,11 @@
       document.querySelectorAll(".mode-button").forEach((button) => { button.setAttribute("aria-pressed", button.classList.contains("active") ? "true" : "false"); button.addEventListener("click", () => setMode(button.dataset.mode)); });
       document.getElementById("decrease-people").addEventListener("click", () => { if (splitMode === "custom") readCustomRows(); peopleInput.value = String(clamp(peopleCount() - 1, 1, 50)); if (splitMode === "custom") renderCustomRows(); calculate(false); });
       document.getElementById("increase-people").addEventListener("click", () => { if (splitMode === "custom") readCustomRows(); peopleInput.value = String(clamp(peopleCount() + 1, 1, 50)); if (splitMode === "custom") renderCustomRows(); calculate(false); });
+      roundToggle.addEventListener("click", () => setRoundUp(!roundUp));
       billInput.addEventListener("input", () => calculate(false)); tipInput.addEventListener("input", () => calculate(false));
       peopleInput.addEventListener("input", () => { const count = peopleCount(); peopleInput.value = String(count); updatePeopleCaption(count); if (splitMode === "custom") renderCustomRows(); calculate(false); });
       form.addEventListener("submit", async (event) => { event.preventDefault(); const result = calculate(true); if (!result) { billInput.focus(); notifyUser("Add the bill total first."); return; } await saveSnapshot(); savedNote.hidden = false; notifyUser("Split calculated and saved."); });
-      document.getElementById("copy-button").addEventListener("click", async () => { if (!lastResult) return; const lines = ["Fair Share", `Bill: ${money(lastResult.bill)}`, `Tip (${lastResult.tipRate}%): ${money(lastResult.tip)}`, `Total: ${money(lastResult.total)}`, ...lastResult.shares.map((share, index) => `${lastResult.mode === "custom" ? (lastResult.names[index] || `Friend ${index + 1}`) : `Person ${index + 1}`}: ${money(share)}`)]; try { await navigator.clipboard.writeText(lines.join("\n")); notifyUser("Summary copied to clipboard."); } catch (error) { notifyUser("Copy isn’t available here, but your split is ready to share."); } });
+      document.getElementById("copy-button").addEventListener("click", async () => { if (!lastResult) return; const lines = ["Fair Share", `Bill: ${money(lastResult.bill)}`, `Tip (${lastResult.tipRate}%): ${money(lastResult.tip)}`, ...(lastResult.roundUp ? [`Round-up extra: ${money(lastResult.extra)}`, `Total collected: ${money(lastResult.collected)}`] : [`Total: ${money(lastResult.total)}`]), ...lastResult.shares.map((share, index) => `${lastResult.mode === "custom" ? (lastResult.names[index] || `Friend ${index + 1}`) : `Person ${index + 1}`}: ${money(share)}`)]; try { await navigator.clipboard.writeText(lines.join("\n")); notifyUser("Summary copied to clipboard."); } catch (error) { notifyUser("Copy isn’t available here, but your split is ready to share."); } });
       setAppTitle("Fair Share"); restoreSnapshot();
     })();
   </script>

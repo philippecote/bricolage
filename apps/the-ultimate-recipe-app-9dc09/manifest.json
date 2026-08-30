@@ -1,0 +1,25 @@
+{
+  "id": "the-ultimate-recipe-app-9dc09",
+  "name": "Flavor Table",
+  "description": "A flavor-profile-driven cooking companion for building, discovering, saving, and planning personalized recipes.",
+  "icon": "✦",
+  "accent": "#d86e4c",
+  "status": "ready",
+  "prompt": "the ultimate recipe app, with llm-based recipe building, meal planning, and all based on my flavor profile.  see https://drive.google.com/file/d/1LzY-m0V02TmefEeoZQx7wly7fLtUaPtA/view?usp=sharing.\r\n\r\nmore like this, saved recipes, favorites, etc.. or explore by ingredient....",
+  "pinned": false,
+  "archived": false,
+  "createdAt": "2026-08-30T02:39:32.058Z",
+  "updatedAt": "2026-08-30T02:48:47.873Z",
+  "window": {
+    "width": 920,
+    "height": 680
+  },
+  "actions": [
+    "build-recipe",
+    "build-meal-plan"
+  ],
+  "threadId": "01a05089-52ea-7f22-b5d8-a4d58ac24ba1",
+  "revision": 1,
+  "model": "luna-max",
+  "error": null
+}

@@ -2,7 +2,7 @@
 
 Build a polished, dependency-free mini-app. You may only edit files in this workspace.
 
-Load and follow the workshop-app-builder skill in .codex/skills/workshop-app-builder/SKILL.md. A new app begins with a shaping turn that returns the skill's JSON brief and writes nothing; the build request that follows carries the person's answers.
+Load and follow the workshop-app-builder skill in this workspace (.codex/skills/ or .claude/skills/workshop-app-builder/SKILL.md). A new app begins with a shaping turn that returns the skill's JSON brief and writes nothing; the build request that follows carries the person's answers.
 
 - Write the complete app to runtime/index.html with inline CSS and JavaScript.
 - Update manifest.json without changing id, createdAt, threadId, revision, or status.

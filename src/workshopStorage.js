@@ -21,8 +21,10 @@ export const manifestSchema = z.object({
   window: z.object({ width: z.number().min(360).max(1600), height: z.number().min(300).max(1200) }).default({ width: 920, height: 680 }),
   actions: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/)).default([]),
   threadId: z.string().nullable().default(null),
+  // Thread ids are minted by whichever agent created them and are not portable.
+  threadAgent: z.string().max(32).nullable().default(null),
   revision: z.number().int().nonnegative().default(0),
-  model: z.enum(['luna-high', 'luna-max', 'sol-medium']).default('luna-high'),
+  model: z.enum(['luna-high', 'luna-max', 'sol-medium', 'opus-5-high']).default('luna-high'),
   error: z.string().nullable().default(null),
 });
 
@@ -93,7 +95,7 @@ export async function createWorkspace(prompt, model = 'luna-high') {
   const manifest = await writeManifest(id, {
     id, name, description: 'Taking shape in Workshop', icon: ['✦', '◉', '◆', '✺'][Math.floor(Math.random() * 4)],
     accent: accentChoices[Math.floor(Math.random() * accentChoices.length)], status: 'building', prompt,
-    pinned: false, archived: false, createdAt: now, updatedAt: now, actions: [], threadId: null, revision: 0, model, error: null,
+    pinned: false, archived: false, createdAt: now, updatedAt: now, actions: [], threadId: null, threadAgent: null, revision: 0, model, error: null,
   });
   await Promise.all([
     fs.mkdir(path.join(appDir(id), 'runtime'), { recursive: true }),
@@ -174,21 +176,29 @@ export function getRuntimePath(appId, relative = 'index.html') {
 }
 export function getAppActionPath(appId, action) { assertSafeId(action, 'action'); return path.join(appDir(appId), 'actions', `${action}.js`); }
 export function getAppDataPath(appId) { return path.join(appDir(appId), 'data.json'); }
+// Both agents get the contract in the file they each load by convention, and the
+// skill in the directory each one looks in.
 export async function ensureAgentContract(appId) {
-  await Promise.all([atomicWrite(path.join(appDir(appId), 'AGENTS.md'), AGENT_CONTRACT), installBuilderSkill(appId)]);
+  await Promise.all([
+    atomicWrite(path.join(appDir(appId), 'AGENTS.md'), AGENT_CONTRACT),
+    atomicWrite(path.join(appDir(appId), 'CLAUDE.md'), AGENT_CONTRACT),
+    installBuilderSkill(appId),
+  ]);
 }
 
 async function installBuilderSkill(appId) {
-  const source = path.join(config.rootDir, 'skills', 'workshop-app-builder', 'SKILL.md');
-  const target = path.join(appDir(appId), '.codex', 'skills', 'workshop-app-builder', 'SKILL.md');
-  await atomicWrite(target, await fs.readFile(source, 'utf8'));
+  const source = await fs.readFile(path.join(config.rootDir, 'skills', 'workshop-app-builder', 'SKILL.md'), 'utf8');
+  await Promise.all([
+    atomicWrite(path.join(appDir(appId), '.codex', 'skills', 'workshop-app-builder', 'SKILL.md'), source),
+    atomicWrite(path.join(appDir(appId), '.claude', 'skills', 'workshop-app-builder', 'SKILL.md'), source),
+  ]);
 }
 
 const AGENT_CONTRACT = `# Workshop app contract
 
 Build a polished, dependency-free mini-app. You may only edit files in this workspace.
 
-Load and follow the workshop-app-builder skill in .codex/skills/workshop-app-builder/SKILL.md. A new app begins with a shaping turn that returns the skill's JSON brief and writes nothing; the build request that follows carries the person's answers.
+Load and follow the workshop-app-builder skill in this workspace (.codex/skills/ or .claude/skills/workshop-app-builder/SKILL.md). A new app begins with a shaping turn that returns the skill's JSON brief and writes nothing; the build request that follows carries the person's answers.
 
 - Write the complete app to runtime/index.html with inline CSS and JavaScript.
 - Update manifest.json without changing id, createdAt, threadId, revision, or status.

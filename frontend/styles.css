@@ -1020,3 +1020,11 @@ button { cursor: pointer; }
 
 @keyframes rail-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
 @keyframes track-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(360%); } }
+
+/* Agent readiness — one panel per backend Workshop can build with. */
+.agent-panels { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin-top: var(--s6); }
+.agent-panels .codex-panel { margin-top: 0; }
+.large-state em { margin-left: auto; font-style: normal; font-size: var(--text-2xs); font-weight: var(--weight-medium); color: var(--ink-faint); }
+.build-studio .model-picker { flex-wrap: wrap; }
+.build-studio .model-picker button { flex: 1 1 44%; }
+@media (max-width: 850px) { .agent-panels { grid-template-columns: 1fr; } }

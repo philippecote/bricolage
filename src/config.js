@@ -34,4 +34,5 @@ export const config = {
   maxRuntimeAssetBytes: 1024 * 1024,
   maxNetworkResponseBytes: 2 * 1024 * 1024,
   codexBin: process.env.CODEX_BIN || 'codex',
+  claudeBin: process.env.CLAUDE_BIN || 'claude',
 };

@@ -1,22 +1,22 @@
 {
   "id": "a-fractal-studio-with-7a71b",
   "name": "Mandelbrot Studio",
-  "description": "An interactive Mandelbrot explorer for clicking into intricate regions, panning across the set, and tuning color and detail.",
-  "icon": "◆",
-  "accent": "#008f75",
-  "status": "failed",
+  "description": "An interactive Mandelbrot studio for clicking into intricate regions, panning across the set, and tuning color and detail.",
+  "icon": "✦",
+  "accent": "#8fd7c4",
+  "status": "ready",
   "prompt": "a fractal studio, with zooming/navitaging by clicking the mouse. so we can delve into maldelbrots!!",
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-30T01:45:28.114Z",
-  "updatedAt": "2026-08-30T01:46:45.024Z",
+  "updatedAt": "2026-08-30T02:21:15.612Z",
   "window": {
-    "width": 920,
-    "height": 680
+    "width": 900,
+    "height": 650
   },
   "actions": [],
   "threadId": "01a05057-d36c-7de2-b7e8-ee6b04d2c8d7",
-  "revision": 0,
-  "model": "luna-max",
-  "error": "Build paused when Workshop restarted."
+  "revision": 1,
+  "model": "luna-high",
+  "error": null
 }

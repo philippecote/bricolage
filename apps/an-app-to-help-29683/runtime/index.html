@@ -1,0 +1,1384 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stretch Flow</title>
+  <style>
+    :root {
+      --bg: #f5f7f3;
+      --paper: #fffefb;
+      --ink: #173a32;
+      --ink-soft: #36564e;
+      --muted: #74867e;
+      --line: #e0eae4;
+      --mint: #dff5eb;
+      --mint-deep: #198f70;
+      --mint-dark: #116552;
+      --coral: #f57862;
+      --coral-dark: #cf5f4c;
+      --gold: #f5c863;
+      --shadow: 0 18px 50px rgba(28, 65, 54, .08);
+      --shadow-small: 0 8px 24px rgba(28, 65, 54, .08);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --radius-sm: 11px;
+      color-scheme: light;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--bg); }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 75% 4%, rgba(223, 245, 235, .9), transparent 27rem),
+        linear-gradient(135deg, #f8faf6 0%, var(--bg) 55%, #f1f6f2 100%);
+      color: var(--ink);
+      font: 14px/1.45 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body.modal-open { overflow: hidden; }
+    button, input, select { font: inherit; }
+    button { border: 0; cursor: pointer; color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(245, 120, 98, .36); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .app-shell { display: flex; min-height: 100vh; width: 100%; }
+
+    .sidebar {
+      position: relative;
+      display: flex;
+      flex: 0 0 222px;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 28px 16px 18px;
+      background: rgba(255, 254, 251, .78);
+      border-right: 1px solid rgba(224, 234, 228, .88);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 9px 30px;
+      text-decoration: none;
+      color: var(--ink);
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 37px;
+      height: 37px;
+      border-radius: 13px;
+      background: var(--coral);
+      color: #fffdf8;
+      font-size: 21px;
+      box-shadow: 0 8px 18px rgba(245, 120, 98, .23);
+      transform: rotate(-8deg);
+    }
+
+    .brand-copy { display: flex; flex-direction: column; line-height: 1.05; }
+    .brand-copy strong { font-size: 15px; letter-spacing: -.03em; }
+    .brand-copy span { margin-top: 4px; color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    .nav-label { padding: 0 10px 9px; color: #9aa9a3; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+    .nav { display: grid; gap: 5px; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 44px;
+      padding: 0 11px;
+      border-radius: 13px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      text-align: left;
+      transition: background .2s ease, color .2s ease, transform .2s ease;
+    }
+
+    .nav-item:hover { background: #f1f6f2; color: var(--ink); }
+    .nav-item:active { transform: translateY(1px); }
+    .nav-item.is-active { background: var(--mint); color: var(--mint-dark); }
+    .nav-icon { display: grid; place-items: center; width: 22px; color: currentColor; font-size: 17px; line-height: 1; }
+    .sidebar-spacer { flex: 1; }
+
+    .sidebar-reminder { padding: 14px; border: 1px solid #e7e3d6; border-radius: 16px; background: #fff9e9; }
+    .sidebar-reminder-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .sidebar-reminder .mini-icon { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 9px; background: #f8e7b6; color: #9f7620; font-size: 13px; }
+    .sidebar-reminder .eyebrow { color: #aa8540; }
+    .sidebar-reminder p { margin: 0; color: #604f2e; font-size: 12px; line-height: 1.4; }
+    .sidebar-reminder button { display: inline-flex; align-items: center; gap: 5px; margin-top: 11px; padding: 0; background: transparent; color: #9f7620; font-size: 11px; font-weight: 700; }
+    .sidebar-footer { padding-top: 16px; color: #a0aea8; font-size: 10px; text-align: center; }
+
+    .main-content {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      height: 100vh;
+      overflow-y: auto;
+      scrollbar-color: #c6d9d0 transparent;
+      scrollbar-width: thin;
+    }
+
+    .content-wrap { width: min(100%, 1030px); margin: 0 auto; padding: 27px 32px 38px; }
+    .loading-state { display: grid; place-items: center; min-height: 100vh; color: var(--muted); }
+    .loading-inner { text-align: center; }
+    .loading-orb { width: 48px; height: 48px; margin: 0 auto 13px; border: 4px solid #d9ebe3; border-top-color: var(--coral); border-radius: 50%; animation: spin .9s linear infinite; }
+    .loading-inner p { margin: 0; font-size: 13px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin: 0 32px 16px;
+      padding: 11px 14px;
+      border: 1px solid #f1c7bc;
+      border-radius: 12px;
+      background: #fff2ee;
+      color: #8a4639;
+      font-size: 12px;
+    }
+
+    .error-banner button { flex: 0 0 auto; background: transparent; color: #8a4639; font-size: 18px; line-height: 1; }
+
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 43px; margin-bottom: 25px; }
+    .topbar-context { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .topbar-context .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 5px rgba(245, 120, 98, .11); }
+    .topbar-context span { overflow: hidden; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .02em; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar-actions { display: flex; align-items: center; gap: 9px; }
+
+    .topbar-reminder {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255, 254, 251, .8);
+      color: var(--ink-soft);
+      font-size: 11px;
+      font-weight: 700;
+      transition: border-color .2s ease, background .2s ease;
+    }
+
+    .topbar-reminder:hover { border-color: #c2ddd2; background: var(--mint); }
+    .topbar-reminder .bell { color: #b88929; font-size: 14px; }
+    .avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: var(--ink); color: #ecf7ef; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+    .view[hidden] { display: none; }
+    .eyebrow { margin: 0; color: var(--mint-deep); font-size: 10px; font-weight: 800; letter-spacing: .15em; line-height: 1.2; text-transform: uppercase; }
+
+    .view-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
+    .view-heading h1, .view-heading h2, .welcome h1 { margin: 5px 0 0; color: var(--ink); font-size: clamp(26px, 3vw, 37px); letter-spacing: -.055em; line-height: 1.05; }
+    .view-heading p:not(.eyebrow), .welcome-copy { max-width: 560px; margin: 9px 0 0; color: var(--muted); font-size: 13px; }
+    .welcome { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    .welcome h1 { max-width: 480px; font-size: clamp(30px, 4vw, 44px); }
+    .welcome-copy { max-width: 430px; font-size: 14px; line-height: 1.55; }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: -.01em;
+      white-space: nowrap;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    }
+
+    .button:hover { transform: translateY(-1px); }
+    .button:active { transform: translateY(1px); }
+    .button.primary { background: var(--coral); color: #fffdf8; box-shadow: 0 9px 20px rgba(245, 120, 98, .19); }
+    .button.primary:hover { background: var(--coral-dark); }
+    .button.secondary { background: var(--mint); color: var(--mint-dark); }
+    .button.secondary:hover { background: #ccecdf; }
+    .button.ghost { border-color: var(--line); background: rgba(255, 254, 251, .75); color: var(--ink-soft); }
+    .button.ghost:hover { border-color: #bdd6cc; background: #f8fcf9; }
+    .button.text { min-height: 30px; padding: 0 2px; background: transparent; color: var(--mint-deep); }
+    .button.small { min-height: 31px; padding: 0 10px; border-radius: 9px; font-size: 11px; }
+    .button.icon-only { width: 34px; padding: 0; }
+
+    .home-hero-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(190px, .75fr); gap: 16px; margin-bottom: 27px; }
+    .feature-card { position: relative; display: flex; min-height: 225px; overflow: hidden; border-radius: var(--radius-lg); background: var(--ink); color: #f1f8f3; box-shadow: var(--shadow); }
+    .feature-copy { position: relative; z-index: 1; display: flex; flex: 1 1 55%; flex-direction: column; align-items: flex-start; justify-content: center; padding: 27px 10px 27px 29px; }
+    .feature-copy .eyebrow { color: #80c9ae; }
+    .feature-copy h2 { max-width: 290px; margin: 8px 0 8px; color: #f8fcf8; font-size: clamp(24px, 3vw, 33px); letter-spacing: -.06em; line-height: .98; }
+    .feature-copy p { max-width: 240px; margin: 0 0 18px; color: #aec8bb; font-size: 12px; line-height: 1.5; }
+    .feature-copy .button { min-height: 35px; background: #ecf8ef; color: var(--ink); box-shadow: none; }
+    .feature-copy .button:hover { background: #fff; }
+    .feature-art { position: absolute; top: 0; right: 0; bottom: 0; width: 48%; min-width: 235px; opacity: .96; }
+    .feature-art::before { position: absolute; right: -26px; bottom: -49px; width: 235px; height: 235px; border-radius: 50%; background: rgba(56, 176, 139, .32); content: ""; }
+    .feature-art svg { position: absolute; right: 10px; bottom: 7px; width: 100%; max-width: 280px; height: auto; color: #98dac0; transform: scale(1.1); transform-origin: bottom right; }
+    .feature-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 42%; opacity: .72; mix-blend-mode: screen; }
+
+    .streak-card { display: flex; flex-direction: column; justify-content: space-between; min-height: 225px; padding: 21px; border: 1px solid #f0dfb5; border-radius: var(--radius-lg); background: #fff8e5; box-shadow: var(--shadow-small); }
+    .streak-top { display: flex; align-items: flex-start; justify-content: space-between; }
+    .streak-top .eyebrow { color: #b38324; }
+    .flame { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 11px; background: #f9e8b8; color: #d28a2c; font-size: 17px; }
+    .streak-value { display: flex; align-items: baseline; gap: 7px; margin-top: 8px; }
+    .streak-value strong { color: #5e4b28; font-size: 47px; font-weight: 750; letter-spacing: -.08em; line-height: 1; }
+    .streak-value span { color: #a38140; font-size: 12px; font-weight: 700; }
+    .streak-copy { margin: 0; color: #796642; font-size: 12px; line-height: 1.45; }
+    .week-dots { display: flex; align-items: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid rgba(219, 190, 123, .35); }
+    .week-dot { display: grid; justify-items: center; gap: 5px; color: #b49c6a; font-size: 9px; }
+    .week-dot i { display: block; width: 8px; height: 8px; border: 1px solid #dbbd7b; border-radius: 50%; background: transparent; }
+    .week-dot.is-done i { border-color: #d99b3f; background: #e9a64a; }
+    .week-dot.is-today { color: #806026; font-weight: 800; }
+    .week-dot.is-today i { box-shadow: 0 0 0 3px rgba(233, 166, 74, .15); }
+
+    .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; margin: 0 0 13px; }
+    .section-head h2 { margin: 0; color: var(--ink); font-size: 18px; letter-spacing: -.04em; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 11px; }
+    .routine-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-bottom: 28px; }
+
+    .routine-card { display: flex; min-width: 0; flex-direction: column; min-height: 214px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: rgba(255, 254, 251, .88); box-shadow: 0 5px 18px rgba(35, 77, 62, .035); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+    .routine-card:hover { border-color: #cce0d6; box-shadow: var(--shadow-small); transform: translateY(-2px); }
+    .routine-art { position: relative; height: 92px; overflow: hidden; background: #ecf8f1; }
+    .routine-art::after { position: absolute; right: -12px; bottom: -28px; width: 116px; height: 116px; border-radius: 50%; background: rgba(119, 205, 167, .2); content: ""; }
+    .routine-art svg { position: absolute; right: 2px; bottom: -8px; z-index: 1; width: 170px; height: 112px; }
+    .routine-art img { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; object-position: center 42%; filter: saturate(.82); opacity: .9; }
+    .routine-content { display: flex; flex: 1; flex-direction: column; align-items: flex-start; padding: 13px 14px 14px; }
+    .routine-content h3 { margin: 4px 0 3px; color: var(--ink); font-size: 15px; letter-spacing: -.035em; line-height: 1.1; }
+    .routine-content p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .routine-bottom { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 8px; margin-top: auto; padding-top: 10px; }
+    .routine-time { color: var(--muted); font-size: 10px; font-weight: 700; }
+    .routine-time strong { color: var(--ink-soft); font-size: 11px; }
+
+    .stats-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 26px; }
+    .stat-card { min-height: 94px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255, 254, 251, .72); }
+    .stat-card .stat-label { color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+    .stat-card strong { display: block; margin-top: 5px; color: var(--ink); font-size: 26px; letter-spacing: -.06em; line-height: 1; }
+    .stat-card small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+
+    .home-lower { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(230px, .7fr); gap: 16px; }
+    .panel { border: 1px solid var(--line); border-radius: var(--radius-md); background: rgba(255, 254, 251, .72); box-shadow: 0 5px 18px rgba(35, 77, 62, .025); }
+    .panel-inner { padding: 17px; }
+    .favorite-list { display: grid; gap: 9px; }
+    .favorite-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px; border-radius: 12px; background: #f5faf6; text-align: left; }
+    .favorite-thumb { display: grid; flex: 0 0 48px; place-items: center; width: 48px; height: 42px; overflow: hidden; border-radius: 10px; background: #e1f3e9; }
+    .favorite-thumb svg { width: 70px; height: 50px; }
+    .favorite-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .favorite-row-copy { min-width: 0; }
+    .favorite-row-copy strong { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .favorite-row-copy span { color: var(--muted); font-size: 10px; }
+    .empty-inline { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 13px; border: 1px dashed #cbded4; border-radius: 12px; background: #f8fcf9; color: var(--muted); font-size: 11px; }
+    .empty-inline p { margin: 0; line-height: 1.4; }
+    .safety-note { display: flex; gap: 10px; padding: 13px 15px; border: 1px solid #d7e7df; border-radius: 14px; background: #eef8f1; color: #4b6d60; font-size: 11px; line-height: 1.45; }
+    .safety-note .safety-icon { flex: 0 0 auto; color: var(--mint-deep); font-size: 16px; }
+    .safety-note strong { color: var(--ink-soft); }
+
+    .library-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .search-box { position: relative; flex: 0 1 235px; }
+    .search-box span { position: absolute; top: 50%; left: 12px; color: var(--muted); font-size: 14px; transform: translateY(-50%); }
+    .search-box input, .select-control, .text-control, .time-control { width: 100%; min-height: 37px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; outline: 0; background: rgba(255, 254, 251, .86); color: var(--ink); font-size: 12px; transition: border-color .2s ease, box-shadow .2s ease; }
+    .search-box input { padding-left: 34px; }
+    .search-box input:focus, .select-control:focus, .text-control:focus, .time-control:focus { border-color: #aad1c0; box-shadow: 0 0 0 3px rgba(132, 201, 171, .14); }
+    .filter-row { display: flex; align-items: center; gap: 7px; min-width: 0; overflow-x: auto; padding-bottom: 3px; scrollbar-width: none; }
+    .filter-row::-webkit-scrollbar { display: none; }
+    .filter-chip { flex: 0 0 auto; min-height: 29px; padding: 0 11px; border: 1px solid var(--line); border-radius: 99px; background: rgba(255, 254, 251, .62); color: var(--muted); font-size: 11px; font-weight: 700; transition: background .2s ease, border-color .2s ease, color .2s ease; }
+    .filter-chip:hover { border-color: #b9d6c9; color: var(--ink-soft); }
+    .filter-chip.is-active { border-color: var(--mint); background: var(--mint); color: var(--mint-dark); }
+    .library-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+
+    .exercise-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: rgba(255, 254, 251, .87); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+    .exercise-card:hover { border-color: #c5ddd2; box-shadow: var(--shadow-small); transform: translateY(-2px); }
+    .exercise-art { position: relative; display: grid; place-items: center; width: 100%; height: 125px; overflow: hidden; padding: 0; background: #e9f6ee; }
+    .exercise-art::before { position: absolute; top: -36px; left: -25px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255, 255, 255, .58); content: ""; }
+    .exercise-art svg { position: relative; z-index: 1; width: 220px; height: 145px; }
+    .exercise-art img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; object-position: center 42%; filter: saturate(.82); }
+    .exercise-card-content { padding: 12px 13px 13px; }
+    .card-topline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .card-topline .eyebrow { color: #86a094; font-size: 9px; letter-spacing: .1em; }
+    .favorite-button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: transparent; color: #a7b8b0; font-size: 18px; line-height: 1; transition: color .2s ease, background .2s ease; }
+    .favorite-button:hover { background: #fff1ec; color: var(--coral); }
+    .favorite-button.is-favorite { color: var(--coral); }
+    .exercise-card h3 { margin: 3px 0 3px; color: var(--ink); font-size: 14px; letter-spacing: -.03em; line-height: 1.15; }
+    .exercise-card .cue { overflow: hidden; min-height: 31px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .exercise-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; padding-top: 9px; border-top: 1px solid #edf2ee; }
+    .exercise-duration { color: var(--muted); font-size: 10px; font-weight: 700; }
+
+    .empty-state { display: grid; place-items: center; min-height: 190px; padding: 25px; border: 1px dashed #c8ddd2; border-radius: var(--radius-md); background: rgba(248, 252, 249, .8); color: var(--muted); text-align: center; }
+    .empty-state .empty-mark { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 10px; border-radius: 14px; background: var(--mint); color: var(--mint-deep); font-size: 19px; }
+    .empty-state strong { display: block; color: var(--ink-soft); font-size: 13px; }
+    .empty-state p { max-width: 330px; margin: 5px 0 13px; font-size: 11px; line-height: 1.45; }
+
+    .routine-layout { display: grid; grid-template-columns: minmax(0, 1.03fr) minmax(0, 1.4fr); align-items: start; gap: 16px; }
+    .builder-panel { padding: 19px; }
+    .builder-panel h2, .saved-panel h2 { margin: 0; color: var(--ink); font-size: 17px; letter-spacing: -.045em; }
+    .builder-panel > p, .saved-panel > p { margin: 6px 0 17px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .field-label { display: block; margin: 0 0 6px; color: var(--ink-soft); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .builder-selected { display: grid; gap: 7px; min-height: 76px; margin: 0 0 14px; padding: 9px; border: 1px dashed #cbded4; border-radius: 12px; background: #f8fcf9; }
+    .selected-placeholder { display: grid; place-items: center; min-height: 55px; color: #9cafa5; font-size: 11px; text-align: center; }
+    .selected-move { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 6px 7px; border-radius: 9px; background: #fffefb; box-shadow: 0 3px 8px rgba(36, 76, 62, .04); }
+    .selected-index { display: grid; flex: 0 0 21px; place-items: center; width: 21px; height: 21px; border-radius: 7px; background: var(--mint); color: var(--mint-dark); font-size: 10px; font-weight: 800; }
+    .selected-name { min-width: 0; overflow: hidden; color: var(--ink-soft); font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .selected-actions { display: flex; gap: 2px; margin-left: auto; }
+    .selected-actions button { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 6px; background: transparent; color: #9aaca3; font-size: 12px; }
+    .selected-actions button:hover { background: #eef7f1; color: var(--ink-soft); }
+    .builder-add-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; margin-bottom: 15px; }
+    .builder-add-row .button { min-width: 68px; }
+    .builder-meta { display: flex; align-items: center; justify-content: space-between; margin: 0 0 14px; color: var(--muted); font-size: 11px; }
+    .builder-meta strong { color: var(--ink-soft); }
+    .builder-error { margin: -4px 0 12px; color: #b15445; font-size: 11px; }
+    .builder-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 14px; border-top: 1px solid #edf2ee; }
+    .saved-panel { padding: 19px; }
+    .saved-list { display: grid; gap: 10px; }
+    .saved-list .routine-card { min-height: 0; flex-direction: row; align-items: stretch; }
+    .saved-list .routine-art { flex: 0 0 118px; height: auto; min-height: 128px; }
+    .saved-list .routine-art svg { right: -19px; bottom: -4px; width: 160px; }
+    .saved-list .routine-content { padding: 15px; }
+    .saved-list .routine-content p { max-width: 280px; }
+    .routine-card.custom .routine-art { background: #f3edfb; }
+    .routine-card.custom .routine-art::after { background: rgba(156, 122, 214, .2); }
+    .routine-card.custom .routine-content .eyebrow { color: #8b6ab0; }
+    .routine-card .delete-routine { color: #a67970; }
+    .routine-card .delete-routine:hover { border-color: #f0c9c0; background: #fff2ee; color: #a14c3e; }
+
+    .progress-grid { display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(245px, .72fr); gap: 16px; }
+    .chart-panel, .history-panel, .progress-favorites-panel { padding: 19px; }
+    .chart-panel h2, .history-panel h2, .progress-favorites-panel h2 { margin: 0; color: var(--ink); font-size: 16px; letter-spacing: -.04em; }
+    .panel-subtitle { margin: 5px 0 18px; color: var(--muted); font-size: 11px; }
+    .week-chart { display: grid; grid-template-columns: repeat(7, 1fr); align-items: end; gap: 10px; height: 172px; padding: 0 5px; border-bottom: 1px solid #e5eee8; }
+    .chart-column { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: flex-end; gap: 7px; color: var(--muted); font-size: 10px; }
+    .chart-bar-wrap { display: flex; align-items: flex-end; width: 100%; height: 132px; }
+    .chart-bar { width: 100%; min-height: 4px; border-radius: 8px 8px 3px 3px; background: #cdebdc; transition: height .35s ease; }
+    .chart-column.is-today .chart-bar { background: var(--coral); }
+    .chart-column.is-today .chart-label { color: var(--ink); font-weight: 800; }
+    .history-panel { margin-top: 16px; }
+    .history-list { display: grid; gap: 8px; }
+    .history-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #edf2ee; }
+    .history-row:last-child { border-bottom: 0; }
+    .history-icon { display: grid; flex: 0 0 33px; place-items: center; width: 33px; height: 33px; border-radius: 10px; background: var(--mint); color: var(--mint-dark); font-size: 14px; }
+    .history-copy { min-width: 0; }
+    .history-copy strong { display: block; overflow: hidden; color: var(--ink-soft); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .history-copy span { color: var(--muted); font-size: 10px; }
+    .history-minutes { margin-left: auto; color: var(--mint-deep); font-size: 11px; font-weight: 800; }
+    .progress-favorites-panel { height: max-content; }
+    .progress-favorite-list { display: grid; gap: 8px; margin-top: 13px; }
+    .progress-favorite { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 7px; border-radius: 10px; background: #f6faf7; text-align: left; }
+    .progress-favorite .favorite-thumb { width: 40px; height: 34px; flex-basis: 40px; }
+    .progress-favorite .favorite-thumb svg { width: 58px; height: 43px; }
+    .progress-favorite-copy { min-width: 0; }
+    .progress-favorite-copy strong { display: block; overflow: hidden; color: var(--ink-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .progress-favorite-copy span { color: var(--muted); font-size: 9px; }
+
+    .modal-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(18, 47, 39, .44); backdrop-filter: blur(5px); animation: fade-in .18s ease both; }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .modal-card { width: min(100%, 640px); max-height: min(720px, calc(100vh - 36px)); overflow: auto; border: 1px solid rgba(255, 255, 255, .62); border-radius: 24px; background: var(--paper); box-shadow: 0 28px 90px rgba(13, 46, 36, .28); animation: modal-in .24s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes modal-in { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; padding: 20px 22px 0; }
+    .modal-header h2 { margin: 4px 0 0; color: var(--ink); font-size: 25px; letter-spacing: -.055em; line-height: 1; }
+    .modal-close { display: grid; flex: 0 0 auto; place-items: center; width: 31px; height: 31px; border-radius: 10px; background: #f2f7f3; color: var(--muted); font-size: 20px; line-height: 1; }
+    .modal-close:hover { background: #e5f2eb; color: var(--ink); }
+    .detail-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 21px; padding: 20px 22px 22px; }
+    .detail-art { display: grid; place-items: center; min-height: 195px; overflow: hidden; border-radius: 18px; background: #e9f6ee; }
+    .detail-art svg { width: 280px; height: 205px; }
+    .detail-art img { width: 100%; height: 100%; min-height: 195px; object-fit: cover; object-position: center 42%; }
+    .image-missing::after { display: grid; place-items: center; height: 100%; min-height: 100px; color: var(--muted); content: "Image unavailable"; font-size: 11px; font-weight: 700; }
+    img.image-failed { display: none; }
+    .image-credit { margin: 10px 0 0; color: var(--muted); font-size: 9px; line-height: 1.35; }
+    .image-credit a { color: var(--mint-deep); text-decoration: none; }
+    .image-credit a:hover { text-decoration: underline; }
+    .detail-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 1px 0 14px; }
+    .meta-tag { padding: 5px 8px; border-radius: 7px; background: #eef7f1; color: var(--mint-deep); font-size: 10px; font-weight: 750; }
+    .detail-copy h3 { margin: 0 0 8px; color: var(--ink); font-size: 17px; letter-spacing: -.04em; }
+    .detail-copy > p { margin: 0 0 16px; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+    .detail-section-label { margin: 0 0 7px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .steps-list { display: grid; gap: 6px; margin: 0 0 15px; padding: 0; list-style: none; counter-reset: step; }
+    .steps-list li { display: flex; gap: 8px; color: var(--ink-soft); font-size: 11px; line-height: 1.4; }
+    .steps-list li::before { display: grid; flex: 0 0 17px; place-items: center; width: 17px; height: 17px; border-radius: 6px; background: var(--mint); color: var(--mint-deep); content: counter(step); counter-increment: step; font-size: 9px; font-weight: 800; }
+    .detail-safety { padding: 10px; border-radius: 10px; background: #fff6e6; color: #7d693f; font-size: 10px; line-height: 1.45; }
+    .detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+
+    .settings-body { padding: 19px 22px 22px; }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px 0; border-bottom: 1px solid #edf2ee; }
+    .setting-row:last-of-type { border-bottom: 0; }
+    .setting-copy strong { display: block; color: var(--ink-soft); font-size: 13px; }
+    .setting-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .switch { position: relative; display: inline-flex; flex: 0 0 auto; align-items: center; }
+    .switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .switch-track { position: relative; width: 42px; height: 24px; border-radius: 99px; background: #cddbd4; transition: background .2s ease; }
+    .switch-track::after { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(23, 58, 50, .18); content: ""; transition: transform .2s ease; }
+    .switch input:checked + .switch-track { background: var(--mint-deep); }
+    .switch input:checked + .switch-track::after { transform: translateX(18px); }
+    .switch input:focus-visible + .switch-track { outline: 3px solid rgba(245, 120, 98, .36); outline-offset: 3px; }
+    .time-field { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 15px; }
+    .settings-note { margin: 14px 0 0; padding: 11px 12px; border-radius: 10px; background: #f3f8f4; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .settings-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    .player-modal { place-items: stretch; padding: 0; background: rgba(15, 42, 34, .73); }
+    .player-card { display: flex; width: 100%; min-height: 100vh; flex-direction: column; background: radial-gradient(circle at 74% 14%, rgba(222, 246, 235, .95), transparent 26rem), var(--bg); animation: none; }
+    .player-topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 22px 30px; border-bottom: 1px solid rgba(224, 234, 228, .85); }
+    .player-brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 13px; font-weight: 800; }
+    .player-brand-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--coral); color: #fff; font-size: 15px; }
+    .player-routine-name { overflow: hidden; max-width: 320px; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .player-main { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr); flex: 1; align-items: center; gap: clamp(22px, 6vw, 80px); width: min(100%, 1040px); margin: 0 auto; padding: 36px 30px 50px; }
+    .player-visual { min-width: 0; }
+    .player-art { position: relative; display: grid; place-items: center; min-height: 340px; overflow: hidden; border-radius: 29px; background: #e3f5eb; }
+    .player-art::before { position: absolute; top: 25px; left: 26px; width: 154px; height: 154px; border-radius: 50%; background: rgba(255, 255, 255, .58); content: ""; }
+    .player-art::after { position: absolute; right: -45px; bottom: -76px; width: 280px; height: 280px; border-radius: 50%; background: rgba(111, 201, 164, .25); content: ""; }
+    .player-art svg { position: relative; z-index: 1; width: min(85%, 420px); height: auto; }
+    .player-art img { position: relative; z-index: 1; width: 100%; height: 100%; min-height: 340px; object-fit: cover; object-position: center 42%; filter: saturate(.84); }
+    .player-progress-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 17px 0 0; color: var(--muted); font-size: 10px; font-weight: 700; }
+    .progress-track { flex: 1; height: 6px; overflow: hidden; border-radius: 99px; background: #dcebe3; }
+    .progress-fill { width: 0; height: 100%; border-radius: inherit; background: var(--coral); transition: width .3s ease; }
+    .player-info { min-width: 0; }
+    .player-info .eyebrow { color: var(--coral-dark); }
+    .player-info h1 { max-width: 450px; margin: 8px 0 9px; color: var(--ink); font-size: clamp(30px, 5vw, 51px); letter-spacing: -.075em; line-height: .97; }
+    .player-cue { max-width: 410px; margin: 0 0 19px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
+    .timer-layout { display: flex; align-items: center; gap: 17px; margin-bottom: 20px; }
+    .timer-ring { --progress: 0deg; display: grid; flex: 0 0 92px; place-items: center; width: 92px; height: 92px; border-radius: 50%; background: conic-gradient(var(--coral) var(--progress), #dcebe4 0deg); transition: background .35s ease; }
+    .timer-ring::before { display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; background: var(--paper); content: ""; }
+    .timer-value { position: absolute; color: var(--ink); font-size: 22px; font-weight: 800; letter-spacing: -.07em; }
+    .timer-side-label { color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .timer-side-label strong { display: block; color: var(--ink-soft); font-size: 12px; }
+    .player-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 19px; }
+    .player-controls .button.primary { min-width: 120px; }
+    .player-next { padding: 13px 14px; border: 1px solid #e0eae4; border-radius: 13px; background: rgba(255, 254, 251, .66); }
+    .player-next .detail-section-label { margin-bottom: 5px; }
+    .player-next p { margin: 0; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+    .player-next span { color: var(--muted); font-size: 10px; font-weight: 500; }
+    .player-safety { margin-top: 10px; }
+
+    .toast { position: fixed; z-index: 40; right: 23px; bottom: 22px; max-width: min(340px, calc(100vw - 40px)); padding: 11px 14px; border: 1px solid rgba(255, 255, 255, .65); border-radius: 11px; background: var(--ink); color: #f0faf3; box-shadow: 0 14px 32px rgba(14, 42, 34, .24); font-size: 11px; font-weight: 650; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; }
+    .toast.is-visible { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 820px) {
+      .content-wrap { padding-right: 22px; padding-left: 22px; }
+      .sidebar { flex-basis: 76px; padding-right: 10px; padding-left: 10px; }
+      .brand { justify-content: center; padding-right: 0; padding-left: 0; }
+      .brand-copy, .nav-label, .nav-item span:not(.nav-icon), .sidebar-reminder, .sidebar-footer { display: none; }
+      .nav-item { justify-content: center; padding: 0; }
+      .nav-icon { width: auto; font-size: 19px; }
+      .home-hero-grid { grid-template-columns: minmax(0, 1.45fr) minmax(180px, .75fr); }
+      .feature-copy { padding-left: 23px; }
+      .library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .player-main { grid-template-columns: minmax(0, 1fr) minmax(290px, .9fr); gap: 26px; padding-right: 22px; padding-left: 22px; }
+      .player-art { min-height: 290px; }
+      .player-art img { min-height: 290px; }
+    }
+
+    @media (max-width: 650px) {
+      .main-content { height: auto; min-height: 100vh; }
+      .content-wrap { padding: 19px 15px 32px; }
+      .topbar { margin-bottom: 22px; }
+      .topbar-context span { max-width: 180px; }
+      .topbar-reminder { padding: 0 8px; }
+      .topbar-reminder span { display: none; }
+      .welcome { align-items: flex-start; flex-direction: column; gap: 15px; }
+      .welcome .button { width: 100%; }
+      .home-hero-grid, .home-lower, .routine-layout, .progress-grid { grid-template-columns: 1fr; }
+      .feature-card { min-height: 260px; }
+      .feature-copy { padding-right: 35%; }
+      .streak-card { min-height: 188px; }
+      .routine-grid { grid-template-columns: 1fr; }
+      .routine-grid .routine-card { min-height: 196px; }
+      .stats-strip { gap: 7px; }
+      .stat-card { padding: 12px 10px; }
+      .stat-card strong { font-size: 22px; }
+      .library-toolbar { align-items: stretch; flex-direction: column-reverse; }
+      .search-box { flex-basis: auto; }
+      .library-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+      .exercise-art { height: 105px; }
+      .exercise-art svg { width: 175px; height: 120px; }
+      .exercise-card-content { padding: 10px; }
+      .exercise-card h3 { font-size: 12px; }
+      .exercise-card .cue { font-size: 9px; }
+      .detail-layout { grid-template-columns: 1fr; padding-top: 15px; }
+      .detail-art { min-height: 150px; }
+      .detail-art svg { width: 240px; height: 175px; }
+      .saved-list .routine-card { flex-direction: column; }
+      .saved-list .routine-art { flex-basis: auto; height: 94px; min-height: 94px; }
+      .saved-list .routine-art svg { width: 170px; }
+      .player-topbar { padding: 15px; }
+      .player-routine-name { max-width: 160px; }
+      .player-main { grid-template-columns: 1fr; align-content: start; gap: 20px; padding: 18px 15px 30px; }
+      .player-art { min-height: 230px; }
+      .player-art img { min-height: 230px; }
+      .player-art svg { width: 78%; }
+      .player-info h1 { font-size: 37px; }
+      .player-cue { font-size: 13px; }
+      .timer-layout { margin-bottom: 14px; }
+    }
+
+    @media (max-width: 420px) {
+      .sidebar { flex-basis: 61px; padding-right: 6px; padding-left: 6px; }
+      .brand-mark { width: 34px; height: 34px; }
+      .library-grid { grid-template-columns: 1fr; }
+      .library-grid .exercise-art { height: 125px; }
+      .stats-strip { grid-template-columns: 1fr; }
+      .stat-card { min-height: 73px; }
+      .stat-card strong { display: inline-block; margin-right: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="#" data-view="home" aria-label="Stretch Flow home">
+        <span class="brand-mark">✦</span>
+        <span class="brand-copy"><strong>stretch flow</strong><span>make room to move</span></span>
+      </a>
+
+      <div class="nav-label">Your space</div>
+      <nav class="nav" aria-label="App sections">
+        <button class="nav-item is-active" type="button" data-view="home"><span class="nav-icon" aria-hidden="true">⌂</span><span>Today</span></button>
+        <button class="nav-item" type="button" data-view="library"><span class="nav-icon" aria-hidden="true">◌</span><span>Move library</span></button>
+        <button class="nav-item" type="button" data-view="routines"><span class="nav-icon" aria-hidden="true">≋</span><span>My routines</span></button>
+        <button class="nav-item" type="button" data-view="progress"><span class="nav-icon" aria-hidden="true">↗</span><span>Progress</span></button>
+      </nav>
+
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-reminder">
+        <div class="sidebar-reminder-top"><span class="eyebrow">Daily nudge</span><span class="mini-icon" aria-hidden="true">◷</span></div>
+        <p id="sidebarReminderText">A small pause goes a long way.</p>
+        <button type="button" data-action="open-reminder">Tune reminder <span aria-hidden="true">↗</span></button>
+      </div>
+      <div class="sidebar-footer">gentle progress, daily</div>
+    </aside>
+
+    <main class="main-content">
+      <div class="loading-state" id="loadingState">
+        <div class="loading-inner"><div class="loading-orb" aria-hidden="true"></div><p>Setting up your flow…</p></div>
+      </div>
+
+      <div class="error-banner" id="errorBanner" hidden role="alert">
+        <span id="errorText">Your saved progress could not be loaded.</span>
+        <button type="button" data-action="dismiss-error" aria-label="Dismiss message">×</button>
+      </div>
+
+      <div class="content-wrap" id="contentArea" hidden>
+        <header class="topbar">
+          <div class="topbar-context"><span class="dot" aria-hidden="true"></span><span id="topbarContext">A calm moment for your body</span></div>
+          <div class="topbar-actions">
+            <button class="topbar-reminder" type="button" data-action="open-reminder"><span class="bell" aria-hidden="true">◷</span><span id="topbarReminder">Daily reminder · 6:30 PM</span></button>
+            <div class="avatar" aria-label="Your profile">SF</div>
+          </div>
+        </header>
+
+        <section class="view" data-view-panel="home" aria-labelledby="homeTitle">
+          <div class="welcome">
+            <div>
+              <p class="eyebrow" id="homeDate">TODAY</p>
+              <h1 id="homeTitle">Make room to move.</h1>
+              <p class="welcome-copy" id="welcomeCopy">A few mindful minutes can change how the rest of your day feels.</p>
+            </div>
+            <button class="button primary" type="button" data-action="start-routine" data-routine="daily-reset"><span aria-hidden="true">▶</span> Start today’s flow</button>
+          </div>
+
+          <div class="home-hero-grid">
+            <article class="feature-card">
+              <div class="feature-copy">
+                <p class="eyebrow">Recommended for today</p>
+                <h2>Daily mobility reset</h2>
+                <p>Unwind the places that work hard for you, from neck to ankles.</p>
+                <button class="button" type="button" data-action="start-routine" data-routine="daily-reset">Begin flow <span aria-hidden="true">→</span></button>
+              </div>
+              <div class="feature-art" aria-hidden="true">
+                <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Stretching_yoga_exercise_%28147548a6-935d-8bb8-9d98-0ac9fd66c142%29.jpg?width=900" alt="" loading="lazy" referrerpolicy="no-referrer" data-stretch-image>
+              </div>
+            </article>
+
+            <article class="streak-card">
+              <div>
+                <div class="streak-top"><p class="eyebrow">Your rhythm</p><span class="flame" aria-hidden="true">♨</span></div>
+                <div class="streak-value"><strong id="streakValue">0</strong><span id="streakLabel">days<br>to begin</span></div>
+                <p class="streak-copy" id="streakCopy">Your first session starts the streak.</p>
+              </div>
+              <div class="week-dots" id="homeWeekDots" aria-label="Last seven days"></div>
+            </article>
+          </div>
+
+          <div class="section-head"><h2>Pick a flow</h2><button class="button text" type="button" data-view="routines">See all routines <span aria-hidden="true">→</span></button></div>
+          <div class="routine-grid" id="homeRoutineGrid"></div>
+
+          <div class="home-lower">
+            <section class="panel">
+              <div class="panel-inner">
+                <div class="section-head"><h2>Saved moves</h2><span id="favoriteCountLabel">0 saved</span></div>
+                <div class="favorite-list" id="homeFavoriteList"></div>
+              </div>
+            </section>
+            <div class="safety-note"><span class="safety-icon" aria-hidden="true">✦</span><div><strong>Keep it kind.</strong><br>Move into gentle tension, breathe slowly, and never push through sharp pain.</div></div>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="library" aria-labelledby="libraryTitle" hidden>
+          <div class="view-heading">
+            <div><p class="eyebrow">Explore movement</p><h1 id="libraryTitle">Move library</h1><p>Small, clear stretches for a more mobile everyday body.</p></div>
+            <button class="button secondary" type="button" data-view="routines"><span aria-hidden="true">＋</span> Build a routine</button>
+          </div>
+          <div class="library-toolbar">
+            <div class="filter-row" id="areaFilters" aria-label="Filter by body area"></div>
+            <label class="search-box"><span aria-hidden="true">⌕</span><input id="librarySearch" type="search" placeholder="Search moves" aria-label="Search moves"></label>
+          </div>
+          <div class="library-toolbar library-toolbar-bottom">
+            <p class="panel-subtitle" id="libraryResultCount" style="margin:0">12 moves</p>
+            <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;font-weight:700">Focus
+              <select class="select-control" id="focusFilter" aria-label="Filter by focus" style="width:150px">
+                <option value="All">All focuses</option><option value="Mobility">Mobility</option><option value="Flexibility">Flexibility</option><option value="Posture">Posture</option><option value="Relaxation">Relaxation</option>
+              </select>
+            </label>
+          </div>
+          <div class="library-grid" id="libraryGrid"></div>
+          <div class="empty-state" id="libraryEmpty" hidden>
+            <div class="empty-mark" aria-hidden="true">⌕</div><strong>No stretches found</strong><p>Try a different body area, focus, or search phrase.</p><button class="button ghost small" type="button" data-action="clear-library-filters">Clear filters</button>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="routines" aria-labelledby="routinesTitle" hidden>
+          <div class="view-heading"><div><p class="eyebrow">Make it yours</p><h1 id="routinesTitle">My routines</h1><p>Follow a flow as-is, or make a little sequence that fits your day.</p></div></div>
+          <div class="routine-layout">
+            <section class="panel builder-panel" aria-labelledby="builderTitle">
+              <p class="eyebrow">Custom flow</p><h2 id="builderTitle">Build your own</h2><p>Choose the moves you want to return to. We’ll keep the order you set.</p>
+              <label class="field-label" for="builderName">Routine name</label><input class="text-control" id="builderName" type="text" maxlength="50" placeholder="My evening reset">
+              <label class="field-label" for="builderAddSelect" style="margin-top:14px">Add a move</label>
+              <div class="builder-add-row"><select class="select-control" id="builderAddSelect" aria-label="Choose a stretch to add"></select><button class="button secondary" type="button" data-action="add-selected-builder">Add</button></div>
+              <div class="builder-selected" id="builderSelected" aria-live="polite"></div>
+              <div class="builder-meta"><span><strong id="builderCount">0</strong> moves</span><span>about <strong id="builderTime">0 min</strong></span></div>
+              <p class="builder-error" id="builderError" hidden></p>
+              <div class="builder-actions"><button class="button ghost small" type="button" data-action="clear-builder">Clear</button><button class="button primary small" type="button" data-action="save-routine">Save routine</button></div>
+            </section>
+
+            <section class="panel saved-panel" aria-labelledby="savedTitle">
+              <p class="eyebrow">Ready when you are</p><h2 id="savedTitle">Flow library</h2><p>Start with a gentle full-body sequence, or pick one made for a specific moment.</p>
+              <div class="saved-list" id="savedRoutines"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" data-view-panel="progress" aria-labelledby="progressTitle" hidden>
+          <div class="view-heading"><div><p class="eyebrow">Notice the change</p><h1 id="progressTitle">Your progress</h1><p>Consistency is simply coming back to your body, one day at a time.</p></div></div>
+          <div class="stats-strip">
+            <div class="stat-card"><span class="stat-label">Current streak</span><strong id="progressStreak">0 days</strong><small id="progressStreakNote">Start with one flow</small></div>
+            <div class="stat-card"><span class="stat-label">This week</span><strong id="progressWeekMinutes">0 min</strong><small>of mindful movement</small></div>
+            <div class="stat-card"><span class="stat-label">All sessions</span><strong id="progressSessions">0</strong><small>flows completed</small></div>
+          </div>
+          <div class="progress-grid">
+            <div>
+              <section class="panel chart-panel"><h2>Weekly movement</h2><p class="panel-subtitle">Minutes logged over the last seven days</p><div class="week-chart" id="weekChart" aria-label="Weekly movement chart"></div></section>
+              <section class="panel history-panel"><h2>Recent sessions</h2><p class="panel-subtitle">A quiet record of showing up.</p><div class="history-list" id="historyList"></div></section>
+            </div>
+            <section class="panel progress-favorites-panel"><h2>Saved moves</h2><p class="panel-subtitle">Your personal short list.</p><div class="progress-favorite-list" id="progressFavoriteList"></div></section>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="detailModal" hidden>
+    <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="detailModalTitle">
+      <div class="modal-header"><div><p class="eyebrow">A closer look</p><h2 id="detailModalTitle">Stretch details</h2></div><button class="modal-close" type="button" data-action="close-detail" aria-label="Close stretch details">×</button></div>
+      <div class="detail-layout">
+        <div class="detail-art" id="detailArt" aria-hidden="true"></div>
+        <div class="detail-copy">
+          <div class="detail-meta" id="detailMeta"></div><h3 id="detailName"></h3><p id="detailCue"></p>
+          <p class="detail-section-label">How to move</p><ol class="steps-list" id="detailSteps"></ol><div class="detail-safety" id="detailSafety"></div><p class="image-credit" id="detailCredit"></p>
+          <div class="detail-actions"><button class="button primary small" type="button" data-action="start-detail">Start this move</button><button class="button ghost small" type="button" data-action="toggle-detail-favorite" id="detailFavoriteButton">♡ Save move</button><button class="button ghost small" type="button" data-action="add-detail-builder">＋ Add to routine</button></div>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="modal-backdrop" id="reminderModal" hidden>
+    <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="reminderTitle">
+      <div class="modal-header"><div><p class="eyebrow">Keep your promise to yourself</p><h2 id="reminderTitle">Daily reminder</h2></div><button class="modal-close" type="button" data-action="close-reminder" aria-label="Close reminder settings">×</button></div>
+      <div class="settings-body">
+        <div class="setting-row"><div class="setting-copy"><strong>One gentle nudge each day</strong><span>Show a reminder while Stretch Flow is open.</span></div><label class="switch" aria-label="Enable daily reminder"><input id="reminderEnabled" type="checkbox"><span class="switch-track"></span></label></div>
+        <div class="setting-row time-field"><div class="setting-copy"><strong>Reminder time</strong><span>Pick a time you’re likely to have a minute.</span></div><input class="time-control" id="reminderTime" type="time" value="18:30" aria-label="Daily reminder time"></div>
+        <p class="settings-note">Stretch Flow can gently notify you in this window while the app is open. Your setting is saved to your workspace.</p>
+        <div class="settings-actions"><button class="button ghost small" type="button" data-action="close-reminder">Cancel</button><button class="button primary small" type="button" data-action="save-reminder">Save reminder</button></div>
+      </div>
+    </article>
+  </div>
+
+  <div class="modal-backdrop player-modal" id="playerModal" hidden>
+    <article class="player-card" role="dialog" aria-modal="true" aria-labelledby="playerExerciseName">
+      <header class="player-topbar"><div class="player-brand"><span class="player-brand-mark">✦</span><span>stretch flow</span></div><span class="player-routine-name" id="playerRoutineName">Daily mobility reset</span><button class="button ghost small" type="button" data-action="close-player">Exit flow</button></header>
+      <div class="player-main">
+        <div class="player-visual"><div class="player-art" id="playerArt" aria-hidden="true"></div><div class="player-progress-row"><span id="playerProgressLabel">Move 1 of 6</span><div class="progress-track" aria-hidden="true"><div class="progress-fill" id="playerProgressFill"></div></div><span id="playerProgressPercent">0%</span></div></div>
+        <div class="player-info">
+          <p class="eyebrow" id="playerPhase">STRETCH 1 OF 6</p><h1 id="playerExerciseName">Morning reach</h1><p class="player-cue" id="playerCue">Grow tall through the crown of your head, then breathe into your ribs.</p>
+          <div class="timer-layout"><div class="timer-ring" id="timerRing"><span class="timer-value" id="playerTimer" aria-live="off">0:35</span></div><div class="timer-side-label"><strong id="timerSideTitle">Breathe and hold</strong><span id="timerSideCopy">There is nowhere else to be.</span></div></div>
+          <div class="player-controls"><button class="button primary" type="button" data-action="toggle-player" id="playerPauseButton">Pause</button><button class="button ghost" type="button" data-action="skip-player" id="playerSkipButton">Skip stretch</button><button class="button text" type="button" data-action="finish-player">End &amp; save</button></div>
+          <div class="player-next"><p class="detail-section-label">Up next</p><p id="playerNextName">Cat-cow <span>after this hold</span></p></div>
+          <div class="safety-note player-safety"><span class="safety-icon" aria-hidden="true">✦</span><div id="playerSafety"><strong>Keep it kind.</strong> Gentle tension is enough.</div></div>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="sr-only" id="appStatus" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var APP_NAME = "Stretch Flow";
+      var STORAGE_KEY = "stretch-flow-state-v1";
+      var REST_SECONDS = 8;
+      var imageSources = {
+        "morning-reach": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Stretching_yoga_exercise_%28147548a6-935d-8bb8-9d98-0ac9fd66c142%29.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Stretching_yoga_exercise_(147548a6-935d-8bb8-9d98-0ac9fd66c142).jpg", license: "Public domain · U.S. National Park Service", position: "center 42%" },
+        "cat-cow": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Yoga_at_Your_Park_-_Bidalasana.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Yoga_at_Your_Park_-_Bidalasana.jpg", license: "Public domain · U.S. National Park Service", position: "center 42%" },
+        "half-kneeling-hip-flexor": { image: "https://images.unsplash.com/photo-1602520628350-fbf9db1f02ae?fm=jpg&ixlib=rb-4.1.0&q=80&w=900", page: "https://unsplash.com/photos/man-in-black-and-white-t-shirt-and-black-shorts-sitting-on-green-grass-field-during-We6cFKHo8sQ", license: "Unsplash image", position: "center 48%" },
+        "seated-hamstring": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Hamstring_stretch.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Hamstring_stretch.jpg", license: "CC BY-SA 3.0 · Chuck Marean", position: "center 48%" },
+        "figure-four": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Wshamstringstretch.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Wshamstringstretch.jpg", license: "CC BY 2.5 Netherlands · Richardkiwi", position: "center 48%" },
+        "open-book": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Stretching_yoga_exercise_%28147548a6-935d-8bb8-9d98-0ac9fd66c142%29.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Stretching_yoga_exercise_(147548a6-935d-8bb8-9d98-0ac9fd66c142).jpg", license: "Public domain · U.S. National Park Service", position: "center 50%" },
+        "doorway-chest": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Flickr_-_Nicholas_T_-_Side_Stretch.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Flickr_-_Nicholas_T_-_Side_Stretch.jpg", license: "CC BY 2.0 · Nicholas A. Tonelli", position: "center 40%" },
+        "ankle-rocks": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Stretching_yoga_exercise_%28147548a6-935d-8bb8-9d98-0ac9fd66c142%29.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Stretching_yoga_exercise_(147548a6-935d-8bb8-9d98-0ac9fd66c142).jpg", license: "Public domain · U.S. National Park Service", position: "center 58%" },
+        "child-pose": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Hatha_yoga_child_pose.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Hatha_yoga_child_pose.jpg", license: "CC BY-SA 3.0 · Daniel Case", position: "center 48%" },
+        "standing-side-bend": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Flickr_-_Nicholas_T_-_Side_Stretch.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Flickr_-_Nicholas_T_-_Side_Stretch.jpg", license: "CC BY 2.0 · Nicholas A. Tonelli", position: "center 42%" },
+        "worlds-greatest-stretch": { image: "https://images.unsplash.com/photo-1654678759755-ae9070a49a99?auto=format&fit=crop&fm=jpg&q=80&w=900", page: "https://unsplash.com/photos/a-woman-doing-a-yoga-pose-in-a-field-CbkQ3Uqf73A", license: "Unsplash image", position: "center 43%" },
+        "neck-glide": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Stretching_yoga_exercise_%28147548a6-935d-8bb8-9d98-0ac9fd66c142%29.jpg?width=900", page: "https://commons.wikimedia.org/wiki/File:Stretching_yoga_exercise_(147548a6-935d-8bb8-9d98-0ac9fd66c142).jpg", license: "Public domain · U.S. National Park Service", position: "center 42%" }
+      };
+
+      var exercises = [
+        { id: "morning-reach", name: "Morning reach", area: "Full body", focus: "Mobility", duration: 35, level: "Easy", pose: "reach", accent: "#61bd92", cue: "Grow tall through the crown of your head, then breathe into your ribs.", steps: ["Stand with feet under your hips.", "Sweep both arms up without lifting your shoulders.", "Take five slow breaths, reaching a little farther on each inhale."], safety: "Keep your ribs relaxed and your neck long; never force your shoulders overhead." },
+        { id: "cat-cow", name: "Cat-cow", area: "Spine", focus: "Mobility", duration: 40, level: "Easy", pose: "catcow", accent: "#f0af58", cue: "Let your spine move one piece at a time with the rhythm of your breath.", steps: ["Come to hands and knees with wrists under shoulders.", "Inhale to lengthen your chest forward.", "Exhale to round gently, pressing the floor away."], safety: "Keep the movement smooth and small if your back feels sensitive." },
+        { id: "half-kneeling-hip-flexor", name: "Half-kneeling hip flexor", area: "Hips", focus: "Flexibility", duration: 45, level: "Easy", pose: "lunge", accent: "#ce8b74", cue: "Tuck your tail slightly and glide your hips forward until the front of your hip opens.", steps: ["Place one knee under your hip and the other foot forward.", "Stack your ribs over your pelvis.", "Shift forward slowly, then switch sides."], safety: "Pad your back knee and keep the stretch in the front of the hip, not the low back." },
+        { id: "seated-hamstring", name: "Seated hamstring", area: "Hamstrings", focus: "Flexibility", duration: 45, level: "Easy", pose: "fold", accent: "#8c91ca", cue: "Reach your heart toward your toes while keeping the back of your neck soft.", steps: ["Sit tall with one leg long and the other relaxed.", "Hinge from your hips, keeping your spine spacious.", "Rest your hands wherever they land comfortably."], safety: "A bent knee is welcome. Avoid pulling yourself into the shape." },
+        { id: "figure-four", name: "Seated figure four", area: "Hips", focus: "Mobility", duration: 45, level: "Easy", pose: "figure", accent: "#73b7c5", cue: "Soften around your hips and let your breath create room across your outer glute.", steps: ["Sit with both feet grounded and place one ankle over the opposite thigh.", "Keep your chest lifted.", "Lean forward only as far as your breath stays easy, then switch."], safety: "Keep the crossed foot flexed and stop if you feel pinching in the knee." },
+        { id: "open-book", name: "Open book", area: "Spine", focus: "Mobility", duration: 40, level: "Easy", pose: "twist", accent: "#d58b93", cue: "Rotate from the middle of your back and follow your top hand with your eyes.", steps: ["Lie on your side with knees bent and arms stacked.", "Open the top arm across your body.", "Pause when your chest feels spacious, then return and switch."], safety: "Keep your knees stacked so the movement stays in your upper back." },
+        { id: "doorway-chest", name: "Doorway chest opener", area: "Shoulders", focus: "Posture", duration: 35, level: "Easy", pose: "chest", accent: "#e09e51", cue: "Turn your sternum toward the open room and let the front of your shoulder soften.", steps: ["Place your forearm on a wall or doorway.", "Step through until you feel a gentle opening.", "Keep your shoulder away from your ear and breathe."], safety: "Stay below a strong pull in the front of the shoulder." },
+        { id: "ankle-rocks", name: "Ankle rocks", area: "Ankles", focus: "Mobility", duration: 35, level: "Easy", pose: "ankle", accent: "#6cadc4", cue: "Explore the edge of your ankle’s range without letting your heel lift.", steps: ["Stand facing a wall with one foot forward.", "Glide the front knee toward the wall.", "Return slowly and repeat, then change sides."], safety: "Keep the heel heavy and use the wall for balance." },
+        { id: "child-pose", name: "Child’s pose", area: "Full body", focus: "Relaxation", duration: 50, level: "Easy", pose: "child", accent: "#8bbd91", cue: "Let your forehead and breath tell your body it is safe to settle.", steps: ["Bring your knees wide and sit your hips toward your heels.", "Reach your arms forward or rest them by your sides.", "Stay for a few slow breaths, widening your back as you inhale."], safety: "Support your head or keep your hips higher if the shape feels uncomfortable." },
+        { id: "standing-side-bend", name: "Standing side bend", area: "Spine", focus: "Mobility", duration: 35, level: "Easy", pose: "side", accent: "#bf8dc2", cue: "Create length between your ribs and hip rather than collapsing into the bend.", steps: ["Stand tall and clasp one wrist overhead.", "Lean gently away from that arm.", "Keep both feet grounded, then switch sides."], safety: "Keep the movement in one plane and do not force the range." },
+        { id: "worlds-greatest-stretch", name: "World’s greatest stretch", area: "Hips", focus: "Mobility", duration: 45, level: "Steady", pose: "world", accent: "#d48664", cue: "Move slowly between your lunge, rotation, and long back leg.", steps: ["Step one foot outside your hand from a low lunge.", "Reach the same-side arm up and rotate.", "Return to the floor and switch sides."], safety: "Use blocks or a chair for support and keep your front knee tracking over your toes." },
+        { id: "neck-glide", name: "Neck glide", area: "Shoulders", focus: "Posture", duration: 30, level: "Easy", pose: "neck", accent: "#83bca7", cue: "Keep your jaw loose as you make your neck feel tall and unhurried.", steps: ["Sit or stand with your head balanced over your ribs.", "Glide your chin straight back, then release.", "Add a slow turn side to side without lifting your shoulders."], safety: "Keep the range tiny and skip any movement that causes dizziness or pain." }
+      ];
+
+      var presets = [
+        { id: "daily-reset", name: "Daily mobility reset", tag: "Most days", estimate: "10 min", description: "A little space for your whole body.", exerciseIds: ["morning-reach", "cat-cow", "half-kneeling-hip-flexor", "open-book", "ankle-rocks", "child-pose"], accent: "#61bd92" },
+        { id: "wake-up", name: "Wake up & align", tag: "Start fresh", estimate: "6 min", description: "Open the front body and find your length.", exerciseIds: ["morning-reach", "standing-side-bend", "doorway-chest", "ankle-rocks"], accent: "#e6b05b" },
+        { id: "hips-hamstrings", name: "Hips + hamstrings", tag: "After sitting", estimate: "8 min", description: "Unwind the places that hold your day.", exerciseIds: ["half-kneeling-hip-flexor", "seated-hamstring", "figure-four", "worlds-greatest-stretch"], accent: "#8c91ca" }
+      ];
+
+      var exerciseMap = {};
+      exercises.forEach(function (exercise) { exerciseMap[exercise.id] = exercise; });
+
+      var state = { favorites: [], completions: [], customRoutines: [], reminder: { enabled: true, time: "18:30" }, lastReminder: "" };
+      var ui = { view: "home", area: "All", focus: "All", query: "", builderIds: [], builderName: "", detailId: "", toastTimer: null, reminderTimer: null, playerTimer: null, player: null, singleRoutine: null, lastFocused: null };
+
+      function $(selector, root) { return (root || document).querySelector(selector); }
+      function $all(selector, root) { return Array.prototype.slice.call((root || document).querySelectorAll(selector)); }
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value).replace(/[&<>"']/g, function (character) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+        });
+      }
+
+      function safeText(value, fallback, max) {
+        var text = typeof value === "string" ? value.trim() : "";
+        if (!text) return fallback || "";
+        return text.slice(0, max || 120);
+      }
+
+      function pad(value) { return String(value).padStart(2, "0"); }
+      function dateKey(date) { var value = date || new Date(); return value.getFullYear() + "-" + pad(value.getMonth() + 1) + "-" + pad(value.getDate()); }
+      function dateFromKey(key) { return new Date(key + "T12:00:00"); }
+      function addDays(key, amount) { var date = dateFromKey(key); date.setDate(date.getDate() + amount); return dateKey(date); }
+      function formatDate(date) { return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+      function formatWeekday(key) { return dateFromKey(key).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 2); }
+      function formatTime(value) { var pieces = String(value || "18:30").split(":"); var hour = Number(pieces[0]); var minute = pieces[1] || "00"; if (!Number.isFinite(hour)) hour = 18; return ((hour + 11) % 12 + 1) + ":" + minute + " " + (hour >= 12 ? "PM" : "AM"); }
+      function formatClock(seconds) { var value = Math.max(0, Math.round(Number(seconds) || 0)); return Math.floor(value / 60) + ":" + pad(value % 60); }
+
+      function setPageTitle(title) {
+        document.title = title ? title + " · " + APP_NAME : APP_NAME;
+        try {
+          if (typeof window.setTitle === "function") window.setTitle(title || APP_NAME);
+          else if (window.Workshop && typeof window.Workshop.setTitle === "function") window.Workshop.setTitle(title || APP_NAME);
+        } catch (error) {}
+      }
+
+      function notifyUser(message) {
+        try {
+          if (typeof window.notify === "function") window.notify(message);
+          else if (window.Workshop && typeof window.Workshop.notify === "function") window.Workshop.notify(message);
+        } catch (error) {}
+        var toast = $("#toast");
+        if (!toast) return;
+        toast.textContent = message;
+        toast.classList.add("is-visible");
+        window.clearTimeout(ui.toastTimer);
+        ui.toastTimer = window.setTimeout(function () { toast.classList.remove("is-visible"); }, 3200);
+      }
+
+      function announce(message) { var status = $("#appStatus"); if (status) status.textContent = message; }
+
+      function storageApi() {
+        if (window.storage && typeof window.storage.get === "function" && typeof window.storage.set === "function") return window.storage;
+        if (window.Workshop && window.Workshop.storage && typeof window.Workshop.storage.get === "function" && typeof window.Workshop.storage.set === "function") return window.Workshop.storage;
+        return null;
+      }
+
+      async function readSavedState() {
+        var api = storageApi();
+        if (api) return await api.get(STORAGE_KEY);
+        var localValue = window.localStorage.getItem(STORAGE_KEY);
+        return localValue ? JSON.parse(localValue) : null;
+      }
+
+      async function persistState() {
+        var api = storageApi();
+        if (api) { await api.set(STORAGE_KEY, state); return; }
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function defaultState() { return { favorites: [], completions: [], customRoutines: [], reminder: { enabled: true, time: "18:30" }, lastReminder: "" }; }
+
+      function normalizeState(raw) {
+        var source = raw;
+        if (typeof source === "string") { try { source = JSON.parse(source); } catch (error) { source = null; } }
+        if (!source || typeof source !== "object") return defaultState();
+        var favoriteIds = Array.isArray(source.favorites) ? source.favorites : [];
+        var favorites = favoriteIds.filter(function (id, index) { return typeof id === "string" && exerciseMap[id] && favoriteIds.indexOf(id) === index; }).slice(0, 50);
+        var rawCompletions = Array.isArray(source.completions) ? source.completions : [];
+        var completions = rawCompletions.map(function (item, index) {
+          if (!item || typeof item !== "object") return null;
+          var date = typeof item.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item.date) ? item.date : "";
+          if (!date) return null;
+          var minutes = Number(item.minutes);
+          var exercisesDone = Number(item.exercises);
+          return { id: safeText(item.id, "session-" + index, 80), date: date, routineId: safeText(item.routineId, "flow", 80), routineName: safeText(item.routineName, "Stretch flow", 80), minutes: Number.isFinite(minutes) ? Math.max(1, Math.min(180, Math.round(minutes))) : 1, exercises: Number.isFinite(exercisesDone) ? Math.max(1, Math.min(30, Math.round(exercisesDone))) : 1, completed: item.completed !== false };
+        }).filter(Boolean).slice(0, 200);
+        var rawCustom = Array.isArray(source.customRoutines) ? source.customRoutines : [];
+        var customRoutines = rawCustom.map(function (routine, index) {
+          if (!routine || typeof routine !== "object") return null;
+          var ids = Array.isArray(routine.exerciseIds) ? routine.exerciseIds.filter(function (id) { return typeof id === "string" && exerciseMap[id]; }).slice(0, 20) : [];
+          if (!ids.length) return null;
+          return { id: safeText(routine.id, "custom-" + index, 80), name: safeText(routine.name, "My custom flow", 50), exerciseIds: ids, createdAt: safeText(routine.createdAt, "", 30) };
+        }).filter(Boolean).slice(0, 20);
+        var rawReminder = source.reminder && typeof source.reminder === "object" ? source.reminder : {};
+        var reminderTime = typeof rawReminder.time === "string" && /^\d{2}:\d{2}$/.test(rawReminder.time) ? rawReminder.time : "18:30";
+        return { favorites: favorites, completions: completions, customRoutines: customRoutines, reminder: { enabled: rawReminder.enabled !== false, time: reminderTime }, lastReminder: typeof source.lastReminder === "string" && /^\d{4}-\d{2}-\d{2}$/.test(source.lastReminder) ? source.lastReminder : "" };
+      }
+
+      function routineById(id) {
+        var builtIn = presets.find(function (routine) { return routine.id === id; });
+        if (builtIn) return builtIn;
+        if (ui.singleRoutine && ui.singleRoutine.id === id) return ui.singleRoutine;
+        var custom = state.customRoutines.find(function (routine) { return routine.id === id; });
+        if (!custom) return null;
+        var first = exerciseMap[custom.exerciseIds[0]];
+        return { id: custom.id, name: custom.name, tag: "Your routine", estimate: estimateRoutine(custom.exerciseIds), description: "A sequence you made for yourself.", exerciseIds: custom.exerciseIds, accent: first ? first.accent : "#9b83c0", custom: true };
+      }
+
+      function estimateRoutine(ids) {
+        var total = ids.reduce(function (sum, id) { var exercise = exerciseMap[id]; return sum + (exercise ? exercise.duration : 0); }, 0);
+        total += Math.max(0, ids.length - 1) * REST_SECONDS;
+        return Math.max(1, Math.round(total / 60)) + " min";
+      }
+
+      function getAllRoutines() {
+        return presets.concat(state.customRoutines.map(function (routine) { return routineById(routine.id); }).filter(Boolean));
+      }
+
+      function routineArt(routine) {
+        var first = exerciseMap[(routine.exerciseIds || [])[0]] || exercises[0];
+        return artFor(first, true);
+      }
+
+      function artFor(exercise, compact) {
+        var source = imageSources[exercise && exercise.id] || imageSources["morning-reach"];
+        var position = source.position || "center 42%";
+        return '<img class="stretch-image" data-stretch-image="true" src="' + escapeHtml(source.image) + '" alt="" loading="lazy" referrerpolicy="no-referrer" style="object-position:' + escapeHtml(position) + '">';
+      }
+
+      function restArt() { return '<svg viewBox="0 0 260 170" fill="none" aria-hidden="true"><circle cx="130" cy="85" r="46" fill="#fff" opacity=".6"/><path d="M76 94c17-12 30-12 47 0 17 12 31 12 48 0 17-12 31-12 47 0" stroke="#61bd92" stroke-width="6" stroke-linecap="round"/><path d="M94 73c10-8 20-8 30 0m13 0c10-8 20-8 30 0" stroke="#173a32" stroke-width="5" stroke-linecap="round"/></svg>'; }
+
+      function stats() {
+        var today = dateKey();
+        var dates = new Set(state.completions.map(function (item) { return item.date; }));
+        var cursor = today;
+        if (!dates.has(cursor)) cursor = addDays(cursor, -1);
+        var streak = 0;
+        while (dates.has(cursor)) { streak += 1; cursor = addDays(cursor, -1); }
+        var weekKeys = [];
+        for (var i = 6; i >= 0; i -= 1) weekKeys.push(addDays(today, -i));
+        var weekMinutes = state.completions.reduce(function (sum, item) { return weekKeys.indexOf(item.date) >= 0 ? sum + item.minutes : sum; }, 0);
+        return { today: today, streak: streak, weekKeys: weekKeys, weekMinutes: weekMinutes };
+      }
+
+      function currentGreeting() { var hour = new Date().getHours(); if (hour < 12) return "Good morning. Make room to move."; if (hour < 18) return "Good afternoon. Make room to move."; return "Good evening. Make room to move."; }
+
+      function showView(view) {
+        var valid = ["home", "library", "routines", "progress"].indexOf(view) >= 0 ? view : "home";
+        ui.view = valid;
+        $all("[data-view-panel]").forEach(function (panel) { panel.hidden = panel.getAttribute("data-view-panel") !== valid; });
+        $all(".nav-item").forEach(function (item) { item.classList.toggle("is-active", item.getAttribute("data-view") === valid); });
+        setPageTitle(valid === "home" ? "Today" : valid.charAt(0).toUpperCase() + valid.slice(1));
+        renderAll();
+        var main = $(".main-content");
+        if (main) main.scrollTop = 0;
+      }
+
+      function renderAll() { renderReminderSummary(); renderHome(); renderLibrary(); renderRoutines(); renderProgress(); }
+
+      function renderReminderSummary() {
+        var label = state.reminder.enabled ? "Daily reminder · " + formatTime(state.reminder.time) : "Reminders off";
+        var topbarReminder = $("#topbarReminder");
+        var sidebarText = $("#sidebarReminderText");
+        if (topbarReminder) topbarReminder.textContent = label;
+        if (sidebarText) sidebarText.textContent = state.reminder.enabled ? "Next nudge at " + formatTime(state.reminder.time) + "." : "Your daily nudge is paused.";
+        var topbarContext = $("#topbarContext");
+        if (topbarContext) topbarContext.textContent = state.reminder.enabled ? "A calm moment for your body" : "Take the time when it feels right";
+      }
+
+      function renderHome() {
+        var summary = stats();
+        var dateElement = $("#homeDate");
+        var title = $("#homeTitle");
+        if (dateElement) dateElement.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }).toUpperCase();
+        if (title) title.textContent = currentGreeting();
+        var copy = $("#welcomeCopy");
+        if (copy) copy.textContent = state.completions.some(function (item) { return item.date === summary.today; }) ? "You’ve already made time for yourself today. A little more or a little rest — both count." : "A few mindful minutes can change how the rest of your day feels.";
+        var streakValue = $("#streakValue");
+        var streakLabel = $("#streakLabel");
+        var streakCopy = $("#streakCopy");
+        if (streakValue) streakValue.textContent = String(summary.streak);
+        if (streakLabel) streakLabel.innerHTML = summary.streak === 1 ? "day<br>in motion" : summary.streak > 1 ? "days<br>in motion" : "days<br>to begin";
+        if (streakCopy) streakCopy.textContent = summary.streak > 0 ? (state.completions.some(function (item) { return item.date === summary.today; }) ? "You showed up today. Keep the rhythm gentle." : "Come back today to keep your rhythm.") : "Your first session starts the streak.";
+        var dots = $("#homeWeekDots");
+        if (dots) dots.innerHTML = summary.weekKeys.map(function (key) { var done = state.completions.some(function (item) { return item.date === key; }); var todayClass = key === summary.today ? " is-today" : ""; return '<span class="week-dot' + (done ? " is-done" : "") + todayClass + '"><i></i>' + escapeHtml(formatWeekday(key)) + "</span>"; }).join("");
+        var homeRoutineGrid = $("#homeRoutineGrid");
+        if (homeRoutineGrid) homeRoutineGrid.innerHTML = presets.map(routineCard).join("");
+        var favoriteCountLabel = $("#favoriteCountLabel");
+        if (favoriteCountLabel) favoriteCountLabel.textContent = state.favorites.length + " saved";
+        var favoriteList = $("#homeFavoriteList");
+        if (favoriteList) {
+          var favoriteExercises = state.favorites.map(function (id) { return exerciseMap[id]; }).filter(Boolean).slice(0, 3);
+          favoriteList.innerHTML = favoriteExercises.length ? favoriteExercises.map(function (exercise) { return '<button class="favorite-row" type="button" data-action="view-exercise" data-exercise="' + exercise.id + '"><span class="favorite-thumb" aria-hidden="true">' + artFor(exercise, true) + '</span><span class="favorite-row-copy"><strong>' + escapeHtml(exercise.name) + '</strong><span>' + escapeHtml(exercise.area) + " · " + exercise.duration + ' sec</span></span><span aria-hidden="true" style="margin-left:auto;color:var(--coral)">♥</span></button>'; }).join("") : '<div class="empty-inline"><p>Save a move from the library to make it yours.</p><button class="button text small" type="button" data-view="library">Explore <span aria-hidden="true">→</span></button></div>';
+        }
+      }
+
+      function routineCard(routine) {
+        var isCustom = Boolean(routine.custom);
+        var tag = routine.tag || (isCustom ? "Your routine" : "Flow");
+        var deleteButton = isCustom ? '<button class="button ghost small delete-routine" type="button" data-action="delete-custom" data-routine="' + escapeHtml(routine.id) + '">Remove</button>' : "";
+        return '<article class="routine-card' + (isCustom ? " custom" : "") + '"><div class="routine-art" style="background:' + escapeHtml(isCustom ? "#f3edfb" : "#ecf8f1") + '">' + routineArt(routine) + '</div><div class="routine-content"><p class="eyebrow">' + escapeHtml(tag) + '</p><h3>' + escapeHtml(routine.name) + '</h3><p>' + escapeHtml(routine.description) + '</p><div class="routine-bottom"><span class="routine-time"><strong>' + escapeHtml(routine.estimate) + '</strong> · ' + routine.exerciseIds.length + " moves</span><span style=\"display:flex;gap:6px;align-items:center\">" + deleteButton + '<button class="button secondary small" type="button" data-action="start-routine" data-routine="' + escapeHtml(routine.id) + '">Start <span aria-hidden="true">→</span></button></span></div></div></article>';
+      }
+
+      function renderAreaFilters() {
+        var container = $("#areaFilters");
+        if (!container) return;
+        var areas = ["All", "Full body", "Hips", "Hamstrings", "Spine", "Shoulders", "Ankles"];
+        container.innerHTML = areas.map(function (area) { var active = area === ui.area ? " is-active" : ""; return '<button class="filter-chip' + active + '" type="button" data-action="set-area" data-area="' + escapeHtml(area) + '" aria-pressed="' + (area === ui.area ? "true" : "false") + '">' + escapeHtml(area === "All" ? "All moves" : area) + "</button>"; }).join("");
+      }
+
+      function renderLibrary() {
+        renderAreaFilters();
+        var search = ui.query.trim().toLowerCase();
+        var filtered = exercises.filter(function (exercise) {
+          var areaMatch = ui.area === "All" || exercise.area === ui.area;
+          var focusMatch = ui.focus === "All" || exercise.focus === ui.focus;
+          var queryMatch = !search || [exercise.name, exercise.area, exercise.focus, exercise.cue].join(" ").toLowerCase().indexOf(search) >= 0;
+          return areaMatch && focusMatch && queryMatch;
+        });
+        var grid = $("#libraryGrid");
+        var empty = $("#libraryEmpty");
+        var count = $("#libraryResultCount");
+        if (grid) grid.innerHTML = filtered.map(exerciseCard).join("");
+        if (empty) empty.hidden = filtered.length > 0;
+        if (grid) grid.hidden = filtered.length === 0;
+        if (count) count.textContent = filtered.length + (filtered.length === 1 ? " move" : " moves");
+        var searchInput = $("#librarySearch");
+        if (searchInput && searchInput.value !== ui.query) searchInput.value = ui.query;
+        var focusFilter = $("#focusFilter");
+        if (focusFilter && focusFilter.value !== ui.focus) focusFilter.value = ui.focus;
+      }
+
+      function exerciseCard(exercise) {
+        var isFavorite = state.favorites.indexOf(exercise.id) >= 0;
+        return '<article class="exercise-card"><button class="exercise-art" type="button" data-action="view-exercise" data-exercise="' + exercise.id + '" aria-label="View details for ' + escapeHtml(exercise.name) + '">' + artFor(exercise) + '</button><div class="exercise-card-content"><div class="card-topline"><p class="eyebrow">' + escapeHtml(exercise.area) + '</p><button class="favorite-button' + (isFavorite ? " is-favorite" : "") + '" type="button" data-action="toggle-favorite" data-exercise="' + exercise.id + '" aria-label="' + (isFavorite ? "Remove " : "Save ") + escapeHtml(exercise.name) + '" aria-pressed="' + (isFavorite ? "true" : "false") + '">' + (isFavorite ? "♥" : "♡") + '</button></div><h3>' + escapeHtml(exercise.name) + '</h3><p class="cue">' + escapeHtml(exercise.cue) + '</p><div class="exercise-footer"><span class="exercise-duration">' + exercise.duration + " sec · " + escapeHtml(exercise.focus) + '</span><button class="button ghost small" type="button" data-action="add-builder" data-exercise="' + exercise.id + '">＋ Add</button></div></div></article>';
+      }
+
+      function renderRoutines() {
+        var nameInput = $("#builderName");
+        if (nameInput && nameInput.value !== ui.builderName) nameInput.value = ui.builderName;
+        var select = $("#builderAddSelect");
+        if (select) {
+          var currentValue = select.value;
+          select.innerHTML = '<option value="">Choose a stretch…</option>' + exercises.map(function (exercise) { return '<option value="' + exercise.id + '">' + escapeHtml(exercise.name) + " · " + escapeHtml(exercise.area) + "</option>"; }).join("");
+          if (exerciseMap[currentValue] && ui.builderIds.indexOf(currentValue) < 0) select.value = currentValue;
+        }
+        var selected = $("#builderSelected");
+        if (selected) selected.innerHTML = ui.builderIds.length ? ui.builderIds.map(function (id, index) { var exercise = exerciseMap[id]; return '<div class="selected-move"><span class="selected-index">' + (index + 1) + '</span><span class="selected-name">' + escapeHtml(exercise.name) + '</span><span class="selected-actions"><button type="button" data-action="move-builder-up" data-index="' + index + '" aria-label="Move ' + escapeHtml(exercise.name) + ' up"' + (index === 0 ? " disabled" : "") + '>↑</button><button type="button" data-action="move-builder-down" data-index="' + index + '" aria-label="Move ' + escapeHtml(exercise.name) + ' down"' + (index === ui.builderIds.length - 1 ? " disabled" : "") + '>↓</button><button type="button" data-action="remove-builder" data-index="' + index + '" aria-label="Remove ' + escapeHtml(exercise.name) + '">×</button></span></div>'; }).join("") : '<div class="selected-placeholder">Your sequence will appear here.</div>';
+        var count = $("#builderCount");
+        var time = $("#builderTime");
+        if (count) count.textContent = String(ui.builderIds.length);
+        if (time) time.textContent = ui.builderIds.length ? estimateRoutine(ui.builderIds) : "0 min";
+        var routines = $("#savedRoutines");
+        if (routines) routines.innerHTML = getAllRoutines().map(routineCard).join("");
+      }
+
+      function renderProgress() {
+        var summary = stats();
+        var streak = $("#progressStreak");
+        var streakNote = $("#progressStreakNote");
+        var weekMinutes = $("#progressWeekMinutes");
+        var sessions = $("#progressSessions");
+        if (streak) streak.textContent = summary.streak + (summary.streak === 1 ? " day" : " days");
+        if (streakNote) streakNote.textContent = summary.streak ? "Keep the rhythm gentle" : "Start with one flow";
+        if (weekMinutes) weekMinutes.textContent = summary.weekMinutes + " min";
+        if (sessions) sessions.textContent = String(state.completions.length);
+        var minutesByDay = {};
+        summary.weekKeys.forEach(function (key) { minutesByDay[key] = 0; });
+        state.completions.forEach(function (item) { if (Object.prototype.hasOwnProperty.call(minutesByDay, item.date)) minutesByDay[item.date] += item.minutes; });
+        var maxMinutes = Math.max(10, Math.max.apply(null, Object.keys(minutesByDay).map(function (key) { return minutesByDay[key]; })));
+        var chart = $("#weekChart");
+        if (chart) chart.innerHTML = summary.weekKeys.map(function (key) { var height = Math.max(4, Math.round((minutesByDay[key] / maxMinutes) * 100)); return '<div class="chart-column' + (key === summary.today ? " is-today" : "") + '"><div class="chart-bar-wrap"><div class="chart-bar" style="height:' + height + '%" title="' + minutesByDay[key] + ' minutes"></div></div><span class="chart-label">' + escapeHtml(formatWeekday(key)) + "</span></div>"; }).join("");
+        var history = $("#historyList");
+        if (history) {
+          var recent = state.completions.slice().sort(function (a, b) { return (b.date + b.id).localeCompare(a.date + a.id); }).slice(0, 8);
+          history.innerHTML = recent.length ? recent.map(function (item) { return '<div class="history-row"><span class="history-icon" aria-hidden="true">' + (item.completed ? "✓" : "·") + '</span><span class="history-copy"><strong>' + escapeHtml(item.routineName) + '</strong><span>' + escapeHtml(formatDate(dateFromKey(item.date))) + " · " + item.exercises + (item.exercises === 1 ? " move" : " moves") + '</span></span><span class="history-minutes">' + item.minutes + " min</span></div>"; }).join("") : '<div class="empty-state" style="min-height:140px"><div class="empty-mark" aria-hidden="true">↗</div><strong>Your first flow is waiting</strong><p>Complete a routine and your movement will show up here.</p><button class="button secondary small" type="button" data-action="start-routine" data-routine="daily-reset">Start a flow <span aria-hidden="true">→</span></button></div>';
+        }
+        var favoriteList = $("#progressFavoriteList");
+        if (favoriteList) {
+          var favorites = state.favorites.map(function (id) { return exerciseMap[id]; }).filter(Boolean);
+          favoriteList.innerHTML = favorites.length ? favorites.map(function (exercise) { return '<button class="progress-favorite" type="button" data-action="view-exercise" data-exercise="' + exercise.id + '"><span class="favorite-thumb" aria-hidden="true">' + artFor(exercise, true) + '</span><span class="progress-favorite-copy"><strong>' + escapeHtml(exercise.name) + '</strong><span>' + exercise.duration + " sec · " + escapeHtml(exercise.area) + '</span></span><span aria-hidden="true" style="margin-left:auto;color:var(--coral)">♥</span></button>'; }).join("") : '<div class="empty-state" style="min-height:145px;padding:15px"><div class="empty-mark" aria-hidden="true">♡</div><strong>Nothing saved yet</strong><p>Tap the heart on a move you want close by.</p><button class="button ghost small" type="button" data-view="library">Browse library</button></div>';
+        }
+      }
+
+      function toggleFavorite(id) {
+        if (!exerciseMap[id]) return;
+        var index = state.favorites.indexOf(id);
+        if (index >= 0) { state.favorites.splice(index, 1); notifyUser(exerciseMap[id].name + " removed from saved moves."); }
+        else { state.favorites.unshift(id); notifyUser(exerciseMap[id].name + " saved for later."); }
+        persistState().catch(function () { showError("Your change could not be saved. Try again in a moment."); });
+        renderAll();
+        if (ui.detailId === id) updateDetailFavorite();
+      }
+
+      function addBuilderMove(id, announceChange) {
+        if (!exerciseMap[id]) return;
+        if (ui.builderIds.indexOf(id) >= 0) { if (announceChange !== false) notifyUser(exerciseMap[id].name + " is already in your flow."); return; }
+        ui.builderIds.push(id);
+        if (announceChange !== false) notifyUser(exerciseMap[id].name + " added to your flow.");
+        renderRoutines();
+      }
+
+      function clearBuilder() {
+        ui.builderIds = [];
+        ui.builderName = "";
+        var error = $("#builderError");
+        if (error) error.hidden = true;
+        renderRoutines();
+      }
+
+      function saveBuilder() {
+        var error = $("#builderError");
+        if (!ui.builderIds.length) {
+          if (error) { error.textContent = "Add at least one move before saving."; error.hidden = false; }
+          announce("Add at least one move before saving.");
+          return;
+        }
+        var routineName = safeText(ui.builderName, "My custom flow", 50);
+        var routine = { id: "custom-" + Date.now(), name: routineName, exerciseIds: ui.builderIds.slice(), createdAt: new Date().toISOString() };
+        state.customRoutines.unshift(routine);
+        ui.builderIds = [];
+        ui.builderName = "";
+        if (error) error.hidden = true;
+        persistState().catch(function () { showError("The routine was added for this session but could not be saved."); });
+        renderAll();
+        notifyUser(routineName + " is ready in your flow library.");
+      }
+
+      function deleteCustomRoutine(id) {
+        var routine = state.customRoutines.find(function (item) { return item.id === id; });
+        if (!routine) return;
+        if (!window.confirm("Remove " + routine.name + " from your routines?")) return;
+        state.customRoutines = state.customRoutines.filter(function (item) { return item.id !== id; });
+        persistState().catch(function () { showError("That routine could not be removed from saved storage."); });
+        renderAll();
+        notifyUser("Routine removed.");
+      }
+
+      function openModal(element, focusSelector) {
+        if (!element) return;
+        ui.lastFocused = document.activeElement;
+        element.hidden = false;
+        document.body.classList.add("modal-open");
+        window.requestAnimationFrame(function () { var focusTarget = focusSelector ? $(focusSelector, element) : $(".modal-close", element); if (focusTarget) focusTarget.focus(); });
+      }
+
+      function closeModal(element) {
+        if (!element) return;
+        element.hidden = true;
+        if (!$all(".modal-backdrop:not([hidden])").length) document.body.classList.remove("modal-open");
+        if (ui.lastFocused && typeof ui.lastFocused.focus === "function") ui.lastFocused.focus();
+      }
+
+      function openDetail(id) {
+        var exercise = exerciseMap[id];
+        if (!exercise) return;
+        ui.detailId = id;
+        $("#detailArt").innerHTML = artFor(exercise);
+        $("#detailModalTitle").textContent = exercise.name;
+        $("#detailName").textContent = exercise.name;
+        $("#detailCue").textContent = exercise.cue;
+        $("#detailMeta").innerHTML = '<span class="meta-tag">' + escapeHtml(exercise.area) + '</span><span class="meta-tag">' + exercise.duration + ' seconds</span><span class="meta-tag">' + escapeHtml(exercise.focus) + "</span>";
+        $("#detailSteps").innerHTML = exercise.steps.map(function (step) { return "<li>" + escapeHtml(step) + "</li>"; }).join("");
+        $("#detailSafety").textContent = "Keep it kind: " + exercise.safety;
+        var source = imageSources[exercise.id] || imageSources["morning-reach"];
+        var provider = source.page.indexOf("unsplash.com") >= 0 ? "Unsplash" : "Wikimedia Commons";
+        $("#detailCredit").innerHTML = '<a href="' + escapeHtml(source.page) + '" target="_blank" rel="noreferrer">Image source · ' + provider + '</a><br>' + escapeHtml(source.license);
+        updateDetailFavorite();
+        openModal($("#detailModal"), ".modal-close");
+      }
+
+      function updateDetailFavorite() {
+        var button = $("#detailFavoriteButton");
+        if (!button || !ui.detailId) return;
+        var saved = state.favorites.indexOf(ui.detailId) >= 0;
+        button.textContent = saved ? "♥ Saved move" : "♡ Save move";
+        button.classList.toggle("secondary", saved);
+        button.setAttribute("aria-pressed", saved ? "true" : "false");
+      }
+
+      function openReminder() {
+        var enabled = $("#reminderEnabled");
+        var time = $("#reminderTime");
+        if (enabled) enabled.checked = state.reminder.enabled;
+        if (time) time.value = state.reminder.time;
+        openModal($("#reminderModal"), "#reminderTime");
+      }
+
+      function saveReminder() {
+        var enabled = $("#reminderEnabled");
+        var time = $("#reminderTime");
+        var nextTime = time && /^\d{2}:\d{2}$/.test(time.value) ? time.value : "18:30";
+        state.reminder = { enabled: Boolean(enabled && enabled.checked), time: nextTime };
+        state.lastReminder = "";
+        persistState().catch(function () { showError("Your reminder could not be saved."); });
+        renderReminderSummary();
+        closeModal($("#reminderModal"));
+        notifyUser(state.reminder.enabled ? "Daily reminder set for " + formatTime(nextTime) + "." : "Daily reminder paused.");
+      }
+
+      function startRoutine(id) {
+        var routine = routineById(id);
+        if (!routine) { notifyUser("That flow is no longer available."); return; }
+        var ids = routine.exerciseIds.filter(function (exerciseId) { return exerciseMap[exerciseId]; });
+        if (!ids.length) { notifyUser("This flow needs at least one move."); return; }
+        window.clearInterval(ui.playerTimer);
+        ui.singleRoutine = routine.id.indexOf("single-") === 0 ? routine : null;
+        ui.player = { routineId: routine.id, index: 0, phase: "hold", remaining: exerciseMap[ids[0]].duration, ids: ids, startedAt: Date.now(), elapsed: 0, running: true };
+        openModal($("#playerModal"));
+        renderPlayer();
+        startPlayerTimer();
+        announce("Starting " + routine.name + ".");
+      }
+
+      function startPlayerTimer() {
+        window.clearInterval(ui.playerTimer);
+        ui.playerTimer = window.setInterval(function () {
+          if (!ui.player || !ui.player.running) return;
+          ui.player.elapsed += 1;
+          ui.player.remaining -= 1;
+          if (ui.player.remaining <= 0) {
+            if (ui.player.phase === "hold" && ui.player.index < ui.player.ids.length - 1) { ui.player.phase = "rest"; ui.player.remaining = REST_SECONDS; notifyUser("Nice work. Take a breath before the next move."); }
+            else if (ui.player.phase === "rest") { ui.player.index += 1; ui.player.phase = "hold"; ui.player.remaining = exerciseMap[ui.player.ids[ui.player.index]].duration; notifyUser("Next: " + exerciseMap[ui.player.ids[ui.player.index]].name + "."); }
+            else { completeRoutine(false); return; }
+          }
+          renderPlayer();
+        }, 1000);
+      }
+
+      function renderPlayer() {
+        if (!ui.player) return;
+        var routine = routineById(ui.player.routineId);
+        if (!routine) { closePlayer(false); return; }
+        var ids = ui.player.ids;
+        var current = exerciseMap[ids[ui.player.index]] || exercises[0];
+        var next = exerciseMap[ids[ui.player.index + 1]];
+        var isRest = ui.player.phase === "rest";
+        var phaseLabel = isRest ? "RESET · NEXT MOVE" : "STRETCH " + (ui.player.index + 1) + " OF " + ids.length;
+        var name = isRest ? "Reset & breathe" : current.name;
+        var cue = isRest ? "Let your breath settle. Your next shape is ready when you are." : current.cue;
+        var total = ids.reduce(function (sum, id) { return sum + (exerciseMap[id] ? exerciseMap[id].duration : 0); }, 0) + Math.max(0, ids.length - 1) * REST_SECONDS;
+        var progressSeconds = ids.slice(0, ui.player.index).reduce(function (sum, id) { return sum + (exerciseMap[id] ? exerciseMap[id].duration : 0); }, 0) + (isRest ? current.duration : 0) + Math.max(0, ui.player.index - (isRest ? 0 : 1)) * REST_SECONDS;
+        var percent = Math.min(100, Math.max(0, Math.round((progressSeconds / Math.max(1, total)) * 100)));
+        var phasePercent = isRest ? Math.round(((REST_SECONDS - ui.player.remaining) / REST_SECONDS) * 360) : Math.round(((current.duration - ui.player.remaining) / current.duration) * 360);
+        $("#playerRoutineName").textContent = routine.name;
+        $("#playerPhase").textContent = phaseLabel;
+        $("#playerExerciseName").textContent = name;
+        $("#playerCue").textContent = cue;
+        $("#playerTimer").textContent = formatClock(ui.player.remaining);
+        $("#timerRing").style.setProperty("--progress", phasePercent + "deg");
+        $("#timerSideTitle").textContent = isRest ? "Take a breath" : (ui.player.running ? "Breathe and hold" : "Flow paused");
+        $("#timerSideCopy").textContent = isRest ? "Your next move is coming up." : (ui.player.running ? "There is nowhere else to be." : "Resume when you’re ready.");
+        $("#playerArt").innerHTML = isRest ? restArt() : artFor(current);
+        $("#playerProgressLabel").textContent = isRest ? "Reset between moves" : "Move " + (ui.player.index + 1) + " of " + ids.length;
+        $("#playerProgressFill").style.width = percent + "%";
+        $("#playerProgressPercent").textContent = percent + "%";
+        $("#playerPauseButton").textContent = ui.player.running ? "Pause" : "Resume";
+        $("#playerSkipButton").textContent = isRest ? "Start next stretch" : (ui.player.index === ids.length - 1 ? "Finish stretch" : "Skip stretch");
+        $("#playerNextName").innerHTML = next ? escapeHtml(next.name) + ' <span>after this ' + (isRest ? "pause" : "hold") + "</span>" : "<span>This is your final move</span>";
+        $("#playerSafety").innerHTML = isRest ? "<strong>Use the pause.</strong> Let your shoulders drop and arrive in the next shape." : "<strong>Keep it kind.</strong> " + escapeHtml(current.safety);
+      }
+
+      function togglePlayer() { if (!ui.player) return; ui.player.running = !ui.player.running; renderPlayer(); announce(ui.player.running ? "Flow resumed." : "Flow paused."); }
+
+      function skipPlayer() {
+        if (!ui.player) return;
+        if (ui.player.phase === "rest") { ui.player.index += 1; ui.player.phase = "hold"; ui.player.remaining = exerciseMap[ui.player.ids[ui.player.index]].duration; ui.player.running = true; notifyUser("Next: " + exerciseMap[ui.player.ids[ui.player.index]].name + "."); }
+        else if (ui.player.index < ui.player.ids.length - 1) { ui.player.phase = "rest"; ui.player.remaining = REST_SECONDS; ui.player.running = true; notifyUser("Take a breath before your next move."); }
+        else { completeRoutine(false); return; }
+        renderPlayer();
+      }
+
+      function completeRoutine(early) {
+        if (!ui.player) return;
+        var player = ui.player;
+        var routine = routineById(player.routineId);
+        if (!routine) { closePlayer(false); return; }
+        window.clearInterval(ui.playerTimer);
+        var completedExercises = early ? Math.max(1, Math.min(player.ids.length, player.index + (player.phase === "rest" ? 1 : 0))) : player.ids.length;
+        var minutes = early ? Math.max(1, Math.ceil(player.elapsed / 60)) : Math.max(1, parseInt(routine.estimate, 10) || 1);
+        state.completions.unshift({ id: "session-" + Date.now(), date: dateKey(), routineId: routine.id, routineName: routine.name, minutes: minutes, exercises: completedExercises, completed: !early });
+        state.completions = state.completions.slice(0, 200);
+        persistState().catch(function () { showError("Your session was completed but could not be saved."); });
+        ui.player = null;
+        closeModal($("#playerModal"));
+        renderAll();
+        showView("home");
+        notifyUser(early ? "Session saved. Showing up is what matters." : "Flow complete — that time is yours.");
+        announce(early ? "Session saved." : "Flow complete.");
+      }
+
+      function closePlayer(withMessage) {
+        window.clearInterval(ui.playerTimer);
+        ui.playerTimer = null;
+        var hadPlayer = Boolean(ui.player);
+        ui.player = null;
+        ui.singleRoutine = null;
+        closeModal($("#playerModal"));
+        if (withMessage !== false && hadPlayer) notifyUser("Flow paused. It wasn’t added to your progress.");
+      }
+
+      function checkReminder() {
+        if (!state.reminder.enabled || !state.reminder.time) return;
+        var now = new Date();
+        var current = pad(now.getHours()) + ":" + pad(now.getMinutes());
+        var today = dateKey(now);
+        if (current === state.reminder.time && state.lastReminder !== today) { state.lastReminder = today; persistState().catch(function () {}); notifyUser("A gentle nudge: take a few minutes to stretch."); }
+      }
+
+      function showError(message) { var banner = $("#errorBanner"); var text = $("#errorText"); if (text) text.textContent = message; if (banner) banner.hidden = false; }
+      function handleImageError(event) {
+        var image = event.target;
+        if (!image || image.getAttribute("data-stretch-image") !== "true") return;
+        image.classList.add("image-failed");
+        if (image.parentElement) image.parentElement.classList.add("image-missing");
+      }
+      function clearLibraryFilters() { ui.area = "All"; ui.focus = "All"; ui.query = ""; renderLibrary(); }
+
+      function handleClick(event) {
+        var viewTarget = event.target.closest("[data-view]");
+        if (viewTarget) { event.preventDefault(); showView(viewTarget.getAttribute("data-view")); return; }
+        var actionTarget = event.target.closest("[data-action]");
+        if (!actionTarget) return;
+        var action = actionTarget.getAttribute("data-action");
+        if (action === "open-reminder") openReminder();
+        else if (action === "dismiss-error") $("#errorBanner").hidden = true;
+        else if (action === "set-area") { ui.area = actionTarget.getAttribute("data-area") || "All"; renderLibrary(); }
+        else if (action === "clear-library-filters") clearLibraryFilters();
+        else if (action === "view-exercise") openDetail(actionTarget.getAttribute("data-exercise"));
+        else if (action === "toggle-favorite") toggleFavorite(actionTarget.getAttribute("data-exercise"));
+        else if (action === "add-builder") { addBuilderMove(actionTarget.getAttribute("data-exercise")); showView("routines"); }
+        else if (action === "add-selected-builder") { var select = $("#builderAddSelect"); if (select && select.value) { addBuilderMove(select.value); select.value = ""; } else notifyUser("Choose a move to add."); }
+        else if (action === "remove-builder") { ui.builderIds.splice(Number(actionTarget.getAttribute("data-index")), 1); renderRoutines(); }
+        else if (action === "move-builder-up" || action === "move-builder-down") { var index = Number(actionTarget.getAttribute("data-index")); var nextIndex = action === "move-builder-up" ? index - 1 : index + 1; if (nextIndex >= 0 && nextIndex < ui.builderIds.length) { var moved = ui.builderIds.splice(index, 1)[0]; ui.builderIds.splice(nextIndex, 0, moved); renderRoutines(); } }
+        else if (action === "clear-builder") clearBuilder();
+        else if (action === "save-routine") saveBuilder();
+        else if (action === "delete-custom") deleteCustomRoutine(actionTarget.getAttribute("data-routine"));
+        else if (action === "close-detail") closeModal($("#detailModal"));
+        else if (action === "start-detail") { var detailId = ui.detailId; closeModal($("#detailModal")); if (detailId) startSingleMove(detailId); }
+        else if (action === "toggle-detail-favorite") { toggleFavorite(ui.detailId); updateDetailFavorite(); }
+        else if (action === "add-detail-builder") { addBuilderMove(ui.detailId); closeModal($("#detailModal")); showView("routines"); }
+        else if (action === "close-reminder") closeModal($("#reminderModal"));
+        else if (action === "save-reminder") saveReminder();
+        else if (action === "start-routine") startRoutine(actionTarget.getAttribute("data-routine"));
+        else if (action === "toggle-player") togglePlayer();
+        else if (action === "skip-player") skipPlayer();
+        else if (action === "finish-player") completeRoutine(true);
+        else if (action === "close-player") closePlayer(true);
+      }
+
+      function startSingleMove(id) {
+        var exercise = exerciseMap[id];
+        if (!exercise) return;
+        var routine = { id: "single-" + id, name: exercise.name, tag: "Single move", estimate: Math.max(1, Math.round(exercise.duration / 60)) + " min", description: exercise.cue, exerciseIds: [id], accent: exercise.accent };
+        ui.singleRoutine = routine;
+        ui.player = { routineId: routine.id, index: 0, phase: "hold", remaining: exercise.duration, ids: [id], startedAt: Date.now(), elapsed: 0, running: true };
+        openModal($("#playerModal"));
+        renderPlayer();
+        startPlayerTimer();
+      }
+
+      function handleInput(event) {
+        if (event.target.id === "librarySearch") { ui.query = event.target.value.slice(0, 80); renderLibrary(); }
+        else if (event.target.id === "builderName") ui.builderName = event.target.value.slice(0, 50);
+      }
+
+      function handleChange(event) { if (event.target.id === "focusFilter") { ui.focus = event.target.value; renderLibrary(); } }
+
+      function handleKeydown(event) {
+        if (event.key !== "Escape") return;
+        if (ui.player) closePlayer(true);
+        else if (!$("#detailModal").hidden) closeModal($("#detailModal"));
+        else if (!$("#reminderModal").hidden) closeModal($("#reminderModal"));
+      }
+
+      async function init() {
+        setPageTitle("Today");
+        document.addEventListener("click", handleClick);
+        document.addEventListener("input", handleInput);
+        document.addEventListener("change", handleChange);
+        document.addEventListener("keydown", handleKeydown);
+        document.addEventListener("error", handleImageError, true);
+        try { state = normalizeState(await readSavedState()); }
+        catch (error) { state = defaultState(); showError("We couldn’t load saved progress, so this session will still work without it."); }
+        $("#loadingState").hidden = true;
+        $("#contentArea").hidden = false;
+        renderAll();
+        showView("home");
+        ui.reminderTimer = window.setInterval(checkReminder, 30000);
+        checkReminder();
+      }
+
+      init();
+    }());
+  </script>
+</body>
+</html>

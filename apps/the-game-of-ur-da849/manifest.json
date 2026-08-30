@@ -4,12 +4,12 @@
   "description": "Play the ancient Mesopotamian race game solo or with a friend.",
   "icon": "✦",
   "accent": "#d4aa59",
-  "status": "ready",
+  "status": "failed",
   "prompt": "the game of ur",
   "pinned": false,
   "archived": false,
   "createdAt": "2026-08-29T23:02:22.209Z",
-  "updatedAt": "2026-08-30T01:52:43.958Z",
+  "updatedAt": "2026-08-30T03:05:21.032Z",
   "window": {
     "width": 900,
     "height": 650
@@ -17,6 +17,6 @@
   "actions": [],
   "threadId": "01a04fc2-834f-76a0-b805-3e94e62494ba",
   "revision": 3,
-  "model": "luna-high",
-  "error": null
+  "model": "opus-5-high",
+  "error": "Codex turn failed."
 }

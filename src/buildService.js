@@ -6,22 +6,35 @@ import { randomId } from './utils.js';
 import { atomicWrite, createRevision, createWorkspace, getAppDir, readManifest, validateWorkspace, writeManifest } from './workshopStorage.js';
 
 const BUILD_STATES = ['discovering', 'awaiting_input', 'queued', 'running', 'awaiting_approval', 'completed', 'failed', 'cancelled'];
+// Each preset names the agent that runs it. Codex and Claude Code speak the same
+// notification vocabulary, so nothing below this map knows which one is working.
 const MODEL_PRESETS = {
-  'luna-high': { label: 'Luna · High', model: 'gpt-5.6-luna', effort: 'high' },
-  'luna-max': { label: 'Luna · Max', model: 'gpt-5.6-luna', effort: 'max' },
-  'sol-medium': { label: 'Sol · Medium', model: 'gpt-5.6-sol', effort: 'medium' },
+  'luna-high': { label: 'Luna · High', agent: 'codex', model: 'gpt-5.6-luna', effort: 'high' },
+  'luna-max': { label: 'Luna · Max', agent: 'codex', model: 'gpt-5.6-luna', effort: 'max' },
+  'sol-medium': { label: 'Sol · Medium', agent: 'codex', model: 'gpt-5.6-sol', effort: 'medium' },
+  'opus-5-high': { label: 'Opus 5 · High', agent: 'claude', model: 'claude-opus-5', effort: 'high' },
 };
 export const MODEL_KEYS = Object.keys(MODEL_PRESETS);
 export const DEFAULT_MODEL = 'luna-high';
 
 export class BuildService extends EventEmitter {
-  constructor({ codex }) {
+  constructor({ codex, claude = null, agents = null }) {
     super();
-    this.codex = codex;
+    this.agents = agents || { ...(codex ? { codex } : {}), ...(claude ? { claude } : {}) };
+    this.codex = this.agents.codex;
     this.builds = new Map();
     this.approvals = new Map();
     this.initializing = this.hydrate();
-    codex?.on?.('notification', (message) => this.onCodexNotification(message));
+    // Thread ids are minted per agent and never collide, so one handler can
+    // route notifications from every backend by thread alone.
+    for (const agent of Object.values(this.agents)) agent?.on?.('notification', (message) => this.onCodexNotification(message));
+  }
+
+  agentFor(model) {
+    const preset = requirePreset(model);
+    const agent = this.agents[preset.agent];
+    if (!agent) throw new Error(`${preset.label} needs the ${preset.agent} agent, which is not available.`);
+    return agent;
   }
 
   async ready() { await this.initializing; }
@@ -47,7 +60,7 @@ export class BuildService extends EventEmitter {
     requirePreset(model);
     const app = await readManifest(appId);
     await writeManifest(appId, { status: 'building', error: null, model });
-    const build = this.newBuild(appId, prompt, app.threadId, model, 'edit');
+    const build = this.newBuild(appId, prompt, app.threadId, model, 'edit', app.threadAgent);
     build.stage = 'build';
     build.plan = makePlan(true);
     this.push(build, 'planning', 'Making a thoughtful little plan', { plan: build.plan });
@@ -67,9 +80,10 @@ export class BuildService extends EventEmitter {
     return publicBuild(build);
   }
 
-  newBuild(appId, prompt, threadId = null, model = DEFAULT_MODEL, kind = 'edit') {
+  newBuild(appId, prompt, threadId = null, model = DEFAULT_MODEL, kind = 'edit', threadAgent = null) {
     const now = new Date().toISOString();
-    const build = { id: randomId(), appId, prompt, threadId, turnId: null, status: 'queued', stage: 'build', kind, model, ownerPid: process.pid, createdAt: now, updatedAt: now, events: [], answers: null, plan: null, agentText: '' };
+    // Threads created before Workshop recorded an owner were all Codex threads.
+    const build = { id: randomId(), appId, prompt, threadId, threadAgent: threadId ? threadAgent || 'codex' : null, turnId: null, status: 'queued', stage: 'build', kind, model, ownerPid: process.pid, createdAt: now, updatedAt: now, events: [], answers: null, plan: null, agentText: '' };
     this.builds.set(build.id, build);
     this.push(build, 'queued', 'Added to your workbench');
     return build;
@@ -78,11 +92,14 @@ export class BuildService extends EventEmitter {
   // Discovery asks the Codex agent — not Workshop — what it still needs to know.
   async runDiscovery(build) {
     const preset = requirePreset(build.model);
-    const threadId = await this.codex.startThread(getAppDir(build.appId), preset);
+    const agent = this.agentFor(build.model);
+    const threadId = await agent.startThread(getAppDir(build.appId), preset);
     build.threadId = threadId;
+    build.threadAgent = preset.agent;
     build.agentText = '';
-    await writeManifest(build.appId, { threadId });
-    const result = await this.codex.startTurn(threadId, discoveryPrompt(build), preset);
+    await writeManifest(build.appId, { threadId, threadAgent: preset.agent });
+    // Shaping is a thinking turn, so the agent gets read-only tools for it.
+    const result = await agent.startTurn(threadId, discoveryPrompt(build), preset, { readOnly: true });
     build.turnId = result?.turn?.id || null;
     await this.persist(build);
   }
@@ -115,15 +132,21 @@ export class BuildService extends EventEmitter {
     build.agentText = '';
     this.push(build, 'planning', build.kind === 'create' ? 'Shaping the experience' : 'Understanding your change');
     const preset = requirePreset(build.model);
+    const agent = this.agentFor(build.model);
     let threadId = build.threadId;
-    if (threadId) await this.codex.resumeThread(threadId);
+    // A thread belongs to the agent that minted it: Codex ULIDs mean nothing to
+    // `claude --resume`, and vice versa. Switching agents starts a fresh thread —
+    // the workspace files, not the transcript, are what carry the app's state.
+    build.resumed = Boolean(threadId) && build.threadAgent === preset.agent;
+    if (build.resumed) await agent.resumeThread(threadId);
     else {
-      threadId = await this.codex.startThread(getAppDir(build.appId), preset);
+      threadId = await agent.startThread(getAppDir(build.appId), preset);
       build.threadId = threadId;
-      await writeManifest(build.appId, { threadId });
+      build.threadAgent = preset.agent;
+      await writeManifest(build.appId, { threadId, threadAgent: preset.agent });
     }
     this.push(build, 'editing', 'Crafting the app');
-    const result = await this.codex.startTurn(threadId, buildPrompt(build), preset);
+    const result = await agent.startTurn(threadId, buildPrompt(build), preset);
     build.turnId = result?.turn?.id || null;
     await this.persist(build);
   }
@@ -145,7 +168,7 @@ export class BuildService extends EventEmitter {
     if (build.status === 'discovering') {
       if (message.method === 'turn/completed') {
         const status = params.turn?.status;
-        if (status && status !== 'completed') return this.fail(build, new Error(`Codex turn ${status}.`));
+        if (status && status !== 'completed') return this.fail(build, turnError(build, params.turn));
         try { await this.completeDiscovery(build, params.turn); }
         catch (error) { await this.fail(build, error); }
       }
@@ -155,7 +178,7 @@ export class BuildService extends EventEmitter {
     if (message.method === 'item/completed') this.push(build, phaseForItem(params.item, true), itemLabel(params.item, true));
     if (message.method === 'turn/completed') {
       const status = params.turn?.status;
-      if (status && status !== 'completed') return this.fail(build, new Error(`Codex turn ${status}.`));
+      if (status && status !== 'completed') return this.fail(build, turnError(build, params.turn));
       try {
         this.push(build, 'checking', 'Checking every important path');
         await validateWorkspace(build.appId);
@@ -219,7 +242,7 @@ export class BuildService extends EventEmitter {
     await this.ready();
     const build = this.builds.get(buildId);
     if (!build || !BUILD_STATES.includes(build.status)) throw new Error('Build not found.');
-    if (build.threadId && build.turnId) await this.codex.interrupt(build.threadId, build.turnId);
+    if (build.threadId && build.turnId) await this.agentFor(build.model).interrupt(build.threadId, build.turnId);
     build.status = 'cancelled'; this.push(build, 'cancelled', 'Stopped for now');
     await writeManifest(build.appId, { status: 'draft' });
     return publicBuild(build);
@@ -229,7 +252,7 @@ export class BuildService extends EventEmitter {
     const approval = this.approvals.get(approvalId);
     if (!approval) throw new Error('Approval not found.');
     const build = this.builds.get(approval.buildId);
-    this.codex.respond(approval.requestId, { decision: accepted ? 'accept' : 'decline' });
+    if (build) this.agentFor(build.model).respond(approval.requestId, { decision: accepted ? 'accept' : 'decline' });
     this.approvals.delete(approvalId);
     if (build) { build.status = accepted ? 'running' : 'failed'; this.push(build, accepted ? 'editing' : 'failed', accepted ? 'All set—continuing' : 'Permission declined'); }
   }
@@ -239,6 +262,10 @@ export function publicBuild(build) { return { id: build.id, appId: build.appId, 
 function requirePreset(key) { const preset = MODEL_PRESETS[key]; if (!preset) throw new Error('Unknown Workshop model preset.'); return preset; }
 function phaseForItem(item = {}, completed = false) { const type = item.type || ''; if (/command|test/i.test(type)) return 'checking'; if (/file|edit/i.test(type)) return 'editing'; return completed ? 'checking' : 'editing'; }
 function itemLabel(item = {}, completed = false) { const type = item.type || ''; const file = item.path || item.filePath || item.name; if (/command|test/i.test(type)) return completed ? 'Local check passed' : 'Running a local check'; if (/file|edit/i.test(type)) return file ? `${completed ? 'Finished' : 'Editing'} ${path.basename(file)}` : (completed ? 'Interface detail finished' : 'Shaping an interface detail'); return completed ? 'One detail polished' : 'Polishing the experience'; }
+function turnError(build, turn = {}) {
+  const label = MODEL_PRESETS[build.model]?.label || 'The agent';
+  return new Error(turn.error ? `${label}: ${turn.error}` : `${label} turn ${turn.status}.`);
+}
 function approvalSummary(params) { return params.reason || params.item?.command || 'Codex needs permission to continue.'; }
 
 function agentTextFrom(turn) {
@@ -337,7 +364,10 @@ function buildPrompt(build) {
     : '';
   const summary = build.brief ? `\nAgreed summary: ${build.brief}` : '';
   const plan = build.plan ? `\nAgreed plan:\n${build.plan.map((step, index) => `${index + 1}. ${step}`).join('\n')}` : '';
-  return `Build this Workshop mini-app now: ${build.prompt}${summary}${brief}${plan}
+  const cold = build.kind === 'edit' && !build.resumed
+    ? '\n\nYou have not seen this app earlier in this conversation. Read runtime/index.html, manifest.json, and any actions/ files before changing anything, and preserve every behavior the change does not explicitly touch.'
+    : '';
+  return `Build this Workshop mini-app now: ${build.prompt}${summary}${brief}${plan}${cold}
 
 Follow the workshop-app-builder skill and AGENTS.md exactly. Shaping is finished; do not ask any more questions. Work autonomously, write a complete polished runtime, update manifest.json and check the JavaScript syntax. Do not just explain what you would do.`;
 }

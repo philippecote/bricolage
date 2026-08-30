@@ -1,1 +1,1450 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f4f1;color:#252525;font:15px -apple-system,BlinkMacSystemFont,sans-serif}.mark{width:54px;height:54px;border-radius:16px;background:#008f75;display:grid;place-items:center;color:white;font-size:24px;box-shadow:0 14px 32px #0002}.wrap{text-align:center;animation:in .5s ease both}h1{font-size:20px;margin:18px 0 6px}p{color:#777;margin:0}@keyframes in{from{opacity:0;transform:translateY(8px)}}</style></head><body><main class="wrap"><div class="mark">✦</div><h1>A Fractal Studio, With</h1><p>Workshop is shaping this app…</p></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1016">
+  <title>Mandelbrot Studio</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #0b1016;
+      --ink-deep: #080c11;
+      --surface: #111820;
+      --surface-raised: #172029;
+      --surface-soft: #1b2630;
+      --line: rgba(221, 237, 229, 0.105);
+      --line-strong: rgba(221, 237, 229, 0.17);
+      --paper: #eef2e9;
+      --paper-dim: #c8d1ca;
+      --muted: #81909a;
+      --muted-deep: #62717c;
+      --mint: #8fd7c4;
+      --mint-bright: #c0f4db;
+      --coral: #f0a27e;
+      --shadow: rgba(0, 0, 0, 0.34);
+      --mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { width: 100%; height: 100%; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    button, input { font: inherit; }
+
+    button {
+      border: 0;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    canvas:focus-visible {
+      outline: 2px solid var(--mint-bright);
+      outline-offset: 3px;
+    }
+
+    .app {
+      width: 100%;
+      height: 100%;
+      min-height: 560px;
+      display: grid;
+      grid-template-rows: 72px minmax(0, 1fr) 30px;
+      background:
+        radial-gradient(circle at 16% -10%, rgba(56, 107, 100, 0.16), transparent 31%),
+        linear-gradient(145deg, #0d131a 0%, #0b1016 58%, #0a0f14 100%);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(11, 16, 22, 0.72);
+    }
+
+    .brand {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      overflow: hidden;
+      border: 1px solid rgba(192, 244, 219, 0.26);
+      border-radius: 10px;
+      background: #0a1117;
+      box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.025), 0 7px 18px rgba(0, 0, 0, 0.22);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      background: var(--mint);
+      box-shadow: 0 0 12px rgba(143, 215, 196, 0.85);
+    }
+
+    .brand-mark::before { width: 14px; height: 14px; left: 5px; top: 10px; }
+    .brand-mark::after { width: 7px; height: 7px; right: 6px; top: 4px; opacity: 0.7; }
+
+    .brand-mark span,
+    .brand-mark span::before,
+    .brand-mark span::after {
+      position: absolute;
+      display: block;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--coral);
+      box-shadow: 0 0 7px rgba(240, 162, 126, 0.7);
+    }
+
+    .brand-mark span { right: 7px; bottom: 8px; }
+    .brand-mark span::before { content: ""; left: -8px; top: 5px; opacity: 0.7; }
+    .brand-mark span::after { content: ""; left: 3px; top: -9px; opacity: 0.46; }
+
+    .brand-copy { min-width: 0; }
+
+    .brand-title {
+      margin: 0;
+      color: var(--paper);
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      line-height: 1.05;
+    }
+
+    .brand-kicker,
+    .eyebrow,
+    .toolbar-label,
+    .readout-label {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 650;
+      letter-spacing: 0.14em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .brand-kicker { margin: 5px 0 0; color: var(--muted-deep); font-size: 8px; }
+
+    .topbar-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .live-status { display: inline-flex; align-items: center; gap: 7px; }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--mint);
+      box-shadow: 0 0 0 3px rgba(143, 215, 196, 0.1), 0 0 12px rgba(143, 215, 196, 0.58);
+    }
+
+    .status-dot.is-busy { animation: pulse 1.15s ease-in-out infinite; }
+    .status-dot.is-error { background: var(--coral); box-shadow: 0 0 0 3px rgba(240, 162, 126, 0.1); }
+
+    .meta-divider { width: 1px; height: 15px; background: var(--line); }
+
+    .main-shell {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 264px;
+      gap: 18px;
+      padding: 16px 18px 15px;
+    }
+
+    .workspace {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 46px minmax(0, 1fr) 38px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(11, 15, 20, 0.58);
+      box-shadow: 0 20px 45px var(--shadow);
+      overflow: hidden;
+      animation: rise-in 0.55s 0.05s ease both;
+    }
+
+    .workspace-toolbar,
+    .workspace-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 14px;
+    }
+
+    .workspace-toolbar { border-bottom: 1px solid var(--line); }
+    .workspace-foot { border-top: 1px solid var(--line); color: var(--muted); }
+
+    .toolbar-context {
+      margin-left: 10px;
+      color: var(--muted-deep);
+      font-family: var(--mono);
+      font-size: 9px;
+    }
+
+    .canvas-tools { display: flex; align-items: center; gap: 6px; }
+
+    .icon-button,
+    .reset-button,
+    .save-button,
+    .clear-button,
+    .preset-button,
+    .palette-button {
+      transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    .icon-button {
+      width: 27px;
+      height: 27px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.028);
+      color: var(--paper-dim);
+    }
+
+    .icon-button:hover { border-color: var(--line-strong); background: rgba(143, 215, 196, 0.1); color: var(--mint-bright); }
+    .icon-button:active, .reset-button:active, .save-button:active, .preset-button:active, .palette-button:active { transform: translateY(1px); }
+
+    .icon { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+
+    .reset-button {
+      height: 27px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-left: 3px;
+      padding: 0 9px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .reset-button:hover { border-color: var(--line); background: rgba(255, 255, 255, 0.04); color: var(--paper); }
+
+    kbd {
+      min-width: 17px;
+      padding: 2px 4px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--muted-deep);
+      font-family: var(--mono);
+      font-size: 8px;
+      line-height: 1;
+    }
+
+    .canvas-stage {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background: #080b11;
+      isolation: isolate;
+    }
+
+    .canvas-stage::before {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(5, 7, 10, 0.34), transparent 17%, transparent 83%, rgba(5, 7, 10, 0.3)),
+        linear-gradient(0deg, rgba(5, 7, 10, 0.35), transparent 17%, transparent 83%, rgba(5, 7, 10, 0.2));
+      mix-blend-mode: multiply;
+    }
+
+    .canvas-stage::after {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      box-shadow: inset 0 0 80px rgba(4, 6, 9, 0.22);
+    }
+
+    #fractalCanvas {
+      position: absolute;
+      z-index: 1;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+      touch-action: none;
+      user-select: none;
+      transition: filter 220ms ease, transform 120ms ease;
+      will-change: transform;
+    }
+
+    #fractalCanvas.is-pressed { cursor: grabbing; }
+    .canvas-stage.is-rendering #fractalCanvas { filter: saturate(0.86); }
+
+    .stage-corner,
+    .hover-readout,
+    .canvas-hint,
+    .progress-overlay,
+    .error-overlay { position: absolute; z-index: 4; }
+
+    .stage-corner {
+      top: 12px;
+      left: 13px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: rgba(238, 242, 233, 0.62);
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    .stage-corner .status-dot { width: 5px; height: 5px; box-shadow: none; }
+
+    .hover-readout {
+      top: 11px;
+      right: 13px;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      color: rgba(238, 242, 233, 0.58);
+      font-family: var(--mono);
+      font-size: 9px;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+    }
+
+    .hover-readout[hidden] { display: none; }
+    .hover-label { color: rgba(238, 242, 233, 0.32); font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; }
+
+    .canvas-hint {
+      bottom: 13px;
+      left: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(238, 242, 233, 0.58);
+      font-family: var(--mono);
+      font-size: 9px;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .canvas-hint.is-hidden { opacity: 0; transform: translateY(4px); }
+    .hint-divider { color: var(--mint); opacity: 0.8; }
+
+    .progress-overlay {
+      right: 13px;
+      bottom: 13px;
+      width: min(220px, 39%);
+      padding: 9px 10px 10px;
+      border: 1px solid rgba(221, 237, 229, 0.16);
+      border-radius: 8px;
+      background: rgba(7, 11, 15, 0.77);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(5px);
+      transition: opacity 180ms ease, transform 180ms ease;
+      backdrop-filter: blur(9px);
+    }
+
+    .progress-overlay.is-visible { opacity: 1; transform: translateY(0); }
+
+    .progress-copy {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--paper-dim);
+      font-family: var(--mono);
+      font-size: 9px;
+    }
+
+    .progress-copy > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .progress-copy > span:last-child { margin-left: auto; color: var(--mint); }
+
+    .loading-mark {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      border: 1px solid rgba(143, 215, 196, 0.35);
+      border-top-color: var(--mint-bright);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .progress-track { height: 2px; margin-top: 8px; overflow: hidden; border-radius: 4px; background: rgba(143, 215, 196, 0.14); }
+    .progress-bar { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--mint); transition: width 90ms ease; }
+
+    .error-overlay {
+      inset: 50% auto auto 50%;
+      width: min(310px, calc(100% - 34px));
+      padding: 18px;
+      border: 1px solid rgba(240, 162, 126, 0.36);
+      border-radius: 10px;
+      background: rgba(12, 15, 20, 0.93);
+      box-shadow: 0 18px 35px rgba(0, 0, 0, 0.35);
+      text-align: center;
+      transform: translate(-50%, -50%);
+    }
+
+    .error-overlay[hidden] { display: none; }
+    .error-overlay strong { display: block; color: var(--paper); font-size: 12px; }
+    .error-overlay p { margin: 7px 0 13px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .retry-button { padding: 7px 11px; border: 1px solid rgba(240, 162, 126, 0.38); border-radius: 6px; background: rgba(240, 162, 126, 0.1); color: var(--coral); font-size: 10px; }
+    .retry-button:hover { background: rgba(240, 162, 126, 0.18); }
+
+    .location-readout,
+    .zoom-readout { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+    .location-readout strong { overflow: hidden; color: var(--paper-dim); font-family: var(--mono); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .zoom-readout { flex: 0 0 auto; color: var(--muted-deep); font-family: var(--mono); font-size: 9px; }
+    .zoom-readout strong { color: var(--mint); font-weight: 600; }
+
+    .inspector {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(143, 215, 196, 0.24) transparent;
+      animation: rise-in 0.55s 0.13s ease both;
+    }
+
+    .inspector-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 52px;
+      padding: 1px 0 11px;
+    }
+
+    .inspector-top h2,
+    .section-heading h2 { margin: 0; font-weight: 560; letter-spacing: -0.025em; }
+    .inspector-top h2 { margin-top: 5px; color: var(--paper); font-size: 18px; line-height: 1.1; }
+    .section-heading h2 { margin-top: 4px; color: var(--paper-dim); font-size: 12px; }
+    .eyebrow { margin: 0; }
+
+    .save-button {
+      width: 29px;
+      height: 29px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(143, 215, 196, 0.24);
+      border-radius: 8px;
+      background: rgba(143, 215, 196, 0.08);
+      color: var(--mint);
+    }
+
+    .save-button:hover { border-color: var(--mint); background: rgba(143, 215, 196, 0.16); color: var(--mint-bright); }
+    .save-button.is-saved { background: var(--mint); color: #0e1a19; }
+
+    .control-section,
+    .saved-section { padding: 12px 0; border-top: 1px solid var(--line); }
+    .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .section-count { color: var(--muted-deep); font-family: var(--mono); font-size: 9px; }
+
+    .coordinate-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+
+    .coordinate-field {
+      min-width: 0;
+      padding: 8px 9px;
+      border-left: 1px solid rgba(143, 215, 196, 0.42);
+      background: rgba(255, 255, 255, 0.024);
+    }
+
+    .coordinate-field span { display: block; margin-bottom: 5px; color: var(--muted-deep); font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .coordinate-field strong { display: block; overflow: hidden; color: var(--paper-dim); font-family: var(--mono); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+
+    .preset-row { display: flex; gap: 6px; margin-top: 10px; }
+
+    .preset-button {
+      min-width: 0;
+      flex: 1;
+      padding: 7px 5px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.03em;
+    }
+
+    .preset-button:hover { border-color: rgba(143, 215, 196, 0.38); background: rgba(143, 215, 196, 0.07); color: var(--mint-bright); }
+
+    .range-wrap { display: block; margin-top: 13px; }
+    input[type="range"] { width: 100%; height: 16px; display: block; margin: 0; appearance: none; background: transparent; cursor: pointer; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 2px; border-radius: 4px; background: linear-gradient(90deg, var(--mint) var(--range-progress, 23%), rgba(143, 215, 196, 0.16) var(--range-progress, 23%)); }
+    input[type="range"]::-moz-range-track { height: 2px; border-radius: 4px; background: rgba(143, 215, 196, 0.16); }
+    input[type="range"]::-moz-range-progress { height: 2px; border-radius: 4px; background: var(--mint); }
+    input[type="range"]::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -5px; appearance: none; border: 2px solid var(--ink); border-radius: 50%; background: var(--mint-bright); box-shadow: 0 0 0 1px rgba(143, 215, 196, 0.52), 0 0 10px rgba(143, 215, 196, 0.18); }
+    input[type="range"]::-moz-range-thumb { width: 9px; height: 9px; border: 2px solid var(--ink); border-radius: 50%; background: var(--mint-bright); box-shadow: 0 0 0 1px rgba(143, 215, 196, 0.52); }
+    .range-caption { display: flex; justify-content: space-between; margin-top: 3px; color: var(--muted-deep); font-family: var(--mono); font-size: 8px; }
+
+    .palette-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+
+    .palette-button {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 3px 6px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.024);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 8px;
+    }
+
+    .palette-button:hover { color: var(--paper-dim); background: rgba(255, 255, 255, 0.05); }
+    .palette-button.is-active { border-color: rgba(143, 215, 196, 0.48); background: rgba(143, 215, 196, 0.09); color: var(--mint-bright); }
+    .swatch { width: 100%; height: 7px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12); }
+    .swatch-aurora { background: linear-gradient(90deg, #14243a, #218f92, #b2e7c2, #f1b36e, #261531); }
+    .swatch-cinder { background: linear-gradient(90deg, #261121, #a43b45, #f3945b, #ffe0ad, #351628); }
+    .swatch-glacier { background: linear-gradient(90deg, #101b38, #2668ae, #72ced2, #e6f3d3, #183365); }
+    .swatch-mono { background: linear-gradient(90deg, #0c1016, #66727a, #eef2e9, #252d33, #07090c); }
+
+    .saved-section { min-height: 0; flex: 1; display: flex; flex-direction: column; }
+    .saved-heading-actions { display: flex; align-items: center; gap: 7px; }
+
+    .clear-button {
+      padding: 3px 0;
+      background: transparent;
+      color: var(--muted-deep);
+      font-family: var(--mono);
+      font-size: 8px;
+    }
+
+    .clear-button:hover:not(:disabled) { color: var(--coral); }
+    .clear-button:disabled { cursor: default; opacity: 0.34; }
+
+    .saved-list { min-height: 0; margin-top: 9px; overflow: auto; scrollbar-width: thin; scrollbar-color: rgba(143, 215, 196, 0.2) transparent; }
+
+    .empty-state {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 0;
+      color: var(--muted-deep);
+    }
+
+    .empty-glyph { width: 24px; height: 24px; display: grid; place-items: center; border: 1px dashed rgba(143, 215, 196, 0.26); border-radius: 6px; color: var(--mint); font-family: var(--mono); font-size: 11px; }
+    .empty-state p { margin: 0 0 3px; color: var(--muted); font-size: 10px; }
+    .empty-state small { display: block; font-size: 9px; line-height: 1.35; }
+
+    .saved-row { display: flex; align-items: stretch; gap: 4px; min-height: 32px; border-bottom: 1px solid rgba(221, 237, 229, 0.055); }
+    .saved-load { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; background: transparent; text-align: left; }
+    .saved-load:hover .saved-name { color: var(--mint-bright); }
+    .saved-name { overflow: hidden; color: var(--paper-dim); font-family: var(--mono); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .saved-meta { flex: 0 0 auto; color: var(--muted-deep); font-family: var(--mono); font-size: 8px; }
+    .saved-remove { width: 20px; padding: 0; background: transparent; color: var(--muted-deep); font-size: 13px; line-height: 1; }
+    .saved-remove:hover { color: var(--coral); }
+
+    .inspector-note { display: flex; align-items: flex-start; gap: 8px; padding: 12px 0 1px; color: var(--muted-deep); font-size: 9px; line-height: 1.4; }
+    .inspector-note p { margin: 0; }
+    .tip-mark { width: 14px; height: 14px; flex: 0 0 14px; display: grid; place-items: center; border: 1px solid rgba(143, 215, 196, 0.28); border-radius: 50%; color: var(--mint); font-family: Georgia, serif; font-size: 10px; }
+
+    .statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 22px;
+      border-top: 1px solid var(--line);
+      color: var(--muted-deep);
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .statusbar span:last-child { color: rgba(143, 215, 196, 0.54); }
+
+    .is-hidden { display: none !important; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%, 100% { opacity: 0.48; transform: scale(0.84); } 50% { opacity: 1; transform: scale(1); } }
+    @keyframes rise-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 780px) {
+      body { overflow: auto; }
+      .app { height: auto; min-height: 100%; grid-template-rows: 68px auto 30px; }
+      .main-shell { grid-template-columns: 1fr; min-height: 780px; }
+      .workspace { min-height: 510px; }
+      .inspector { overflow: visible; }
+    }
+
+    @media (max-width: 520px) {
+      .topbar { padding: 0 14px; }
+      .topbar-meta .meta-divider, .topbar-meta > span:last-child { display: none; }
+      .main-shell { padding: 12px; }
+      .workspace-foot { padding: 0 10px; }
+      .zoom-readout { display: none; }
+      .canvas-hint { max-width: calc(100% - 26px); flex-wrap: wrap; line-height: 1.5; }
+      .progress-overlay { width: calc(100% - 26px); }
+      .statusbar { padding: 0 14px; }
+      .statusbar span:last-child { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <div class="brand-copy">
+          <h1 class="brand-title">Mandelbrot Studio</h1>
+          <p class="brand-kicker">A field guide to infinite detail</p>
+        </div>
+      </div>
+      <div class="topbar-meta" aria-label="Render status">
+        <span class="live-status"><span class="status-dot" id="headerStatusDot"></span><span id="headerStatus">Ready to explore</span></span>
+        <span class="meta-divider" aria-hidden="true"></span>
+        <span id="headerZoom">1.00× view</span>
+      </div>
+    </header>
+
+    <section class="main-shell" aria-label="Mandelbrot exploration studio">
+      <section class="workspace" aria-label="Fractal canvas">
+        <div class="workspace-toolbar">
+          <div><span class="toolbar-label">Live canvas</span><span class="toolbar-context" id="renderLabel">overview / ready</span></div>
+          <div class="canvas-tools" aria-label="Canvas controls">
+            <button class="icon-button" id="zoomOutButton" type="button" aria-label="Zoom out" title="Zoom out">
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.9" cy="6.9" r="4.2"/><path d="m10.1 10.1 3.1 3.1M5 6.9h3.8"/></svg>
+            </button>
+            <button class="icon-button" id="zoomInButton" type="button" aria-label="Zoom in" title="Zoom in">
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.9" cy="6.9" r="4.2"/><path d="m10.1 10.1 3.1 3.1M5 6.9h3.8M6.9 5v3.8"/></svg>
+            </button>
+            <button class="reset-button" id="resetButton" type="button" title="Reset to overview"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 7a5 5 0 1 1 1.2 3.2"/><path d="M3 3.5v3.6h3.5"/></svg><span>Reset</span><kbd>R</kbd></button>
+          </div>
+        </div>
+
+        <div class="canvas-stage" id="canvasStage">
+          <canvas id="fractalCanvas" tabindex="0" role="img" aria-label="Interactive Mandelbrot fractal. Click to zoom in, shift-click to zoom out, or drag to pan."></canvas>
+          <div class="stage-corner"><span class="status-dot" id="stageStatusDot"></span><span id="stageRenderStatus">render ready</span></div>
+          <div class="hover-readout" id="hoverReadout" hidden aria-live="polite"><span class="hover-label">cursor coordinate</span><span id="hoverCoords">−0.5000 + 0.0000i</span></div>
+          <div class="canvas-hint" id="canvasHint"><span>Click to zoom</span><span class="hint-divider">•</span><span>Drag to pan</span><span class="hint-divider">•</span><span>Shift-click out</span></div>
+          <div class="progress-overlay" id="progressOverlay" role="status" aria-live="polite">
+            <div class="progress-copy"><span class="loading-mark" aria-hidden="true"></span><span id="progressText">Mapping the set…</span><span id="progressPercent">0%</span></div>
+            <div class="progress-track"><span class="progress-bar" id="progressBar"></span></div>
+          </div>
+          <div class="error-overlay" id="errorOverlay" role="alert" hidden>
+            <strong>The field could not be rendered</strong>
+            <p id="errorMessage">Try returning to the overview and rendering again.</p>
+            <button class="retry-button" id="retryButton" type="button">Try again</button>
+          </div>
+        </div>
+
+        <div class="workspace-foot">
+          <div class="location-readout"><span class="readout-label">Origin</span><strong id="centerReadout">−0.5000 + 0.0000i</strong></div>
+          <div class="zoom-readout"><strong id="zoomReadout">1.00×</strong><span>·</span><span id="spanReadout">span 3.25</span></div>
+        </div>
+      </section>
+
+      <aside class="inspector" aria-label="Fractal controls">
+        <div class="inspector-top">
+          <div><p class="eyebrow">Field notes</p><h2>Explore the set</h2></div>
+          <button class="save-button" id="saveViewButton" type="button" aria-label="Save this view" title="Save this view">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 2.7h9.6v10.6l-4.8-2.8-4.8 2.8z"/></svg>
+          </button>
+        </div>
+
+        <section class="control-section" aria-labelledby="navigationTitle">
+          <div class="section-heading"><div><p class="eyebrow">View</p><h2 id="navigationTitle">Navigation</h2></div><span class="section-count" id="viewNumber">01</span></div>
+          <div class="coordinate-stack">
+            <div class="coordinate-field"><span>Center x</span><strong id="centerXReadout">−0.5000</strong></div>
+            <div class="coordinate-field"><span>Center y</span><strong id="centerYReadout">+0.0000</strong></div>
+          </div>
+          <div class="preset-row" aria-label="View presets">
+            <button class="preset-button" type="button" data-preset="overview">Overview</button>
+            <button class="preset-button" type="button" data-preset="seahorse">Seahorse</button>
+            <button class="preset-button" type="button" data-preset="elephant">Elephant</button>
+          </div>
+        </section>
+
+        <section class="control-section" aria-labelledby="detailTitle">
+          <div class="section-heading"><div><p class="eyebrow">Render</p><h2 id="detailTitle">Detail</h2></div><span class="section-count"><output id="iterationValue" for="iterationRange">220</output> iter.</span></div>
+          <label class="range-wrap" for="iterationRange"><input id="iterationRange" type="range" min="80" max="720" step="20" value="220" aria-label="Render detail in iterations"></label>
+          <div class="range-caption"><span>quick</span><span>intricate</span></div>
+        </section>
+
+        <section class="control-section" aria-labelledby="paletteTitle">
+          <div class="section-heading"><div><p class="eyebrow">Color field</p><h2 id="paletteTitle">Palette</h2></div><span class="section-count" id="paletteName">Aurora</span></div>
+          <div class="palette-grid" role="group" aria-label="Color palettes">
+            <button class="palette-button is-active" type="button" data-palette="aurora" aria-label="Use Aurora palette" aria-pressed="true"><span class="swatch swatch-aurora"></span><span>Aurora</span></button>
+            <button class="palette-button" type="button" data-palette="cinder" aria-label="Use Cinder palette" aria-pressed="false"><span class="swatch swatch-cinder"></span><span>Cinder</span></button>
+            <button class="palette-button" type="button" data-palette="glacier" aria-label="Use Glacier palette" aria-pressed="false"><span class="swatch swatch-glacier"></span><span>Glacier</span></button>
+            <button class="palette-button" type="button" data-palette="mono" aria-label="Use Mono palette" aria-pressed="false"><span class="swatch swatch-mono"></span><span>Mono</span></button>
+          </div>
+        </section>
+
+        <section class="saved-section" aria-labelledby="savedTitle">
+          <div class="section-heading"><div><p class="eyebrow">Waypoints</p><h2 id="savedTitle">Saved views</h2></div><div class="saved-heading-actions"><span class="section-count" id="savedCount">0 / 6</span><button class="clear-button" id="clearSavedButton" type="button" disabled>Clear</button></div></div>
+          <div class="saved-list" id="savedViewsList">
+            <div class="empty-state" id="emptySaved"><span class="empty-glyph" aria-hidden="true">+</span><div><p>No waypoints yet</p><small>Save a view to find it again.</small></div></div>
+          </div>
+        </section>
+
+        <div class="inspector-note"><span class="tip-mark" aria-hidden="true">i</span><p>Tip: shift-click or right-click to zoom back out.</p></div>
+      </aside>
+    </section>
+
+    <footer class="statusbar"><span id="footerStatus">Click a detail to begin exploring</span><span>Local canvas · no data leaves this studio</span></footer>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const $ = (id) => document.getElementById(id);
+      const STORAGE_KEY = 'mandelbrot-studio-state';
+      const MAX_SAVED_VIEWS = 6;
+      const DEFAULT_VIEW = Object.freeze({ centerX: -0.5, centerY: 0, span: 3.25 });
+      const PRESETS = {
+        overview: { label: 'overview', centerX: -0.5, centerY: 0, span: 3.25 },
+        seahorse: { label: 'seahorse valley', centerX: -0.743643887037151, centerY: 0.13182590420533, span: 0.012 },
+        elephant: { label: 'elephant valley', centerX: 0.285, centerY: 0.01, span: 0.038 }
+      };
+      const PALETTES = {
+        aurora: {
+          label: 'Aurora',
+          interior: [7, 11, 17],
+          stops: [[0, '#152b3a'], [0.2, '#1b8d8e'], [0.42, '#a7e4c2'], [0.64, '#f1c278'], [0.82, '#d66b6f'], [1, '#211535']]
+        },
+        cinder: {
+          label: 'Cinder',
+          interior: [13, 8, 14],
+          stops: [[0, '#281025'], [0.2, '#9b3045'], [0.43, '#eb784f'], [0.62, '#ffd095'], [0.82, '#b94358'], [1, '#251026']]
+        },
+        glacier: {
+          label: 'Glacier',
+          interior: [6, 11, 21],
+          stops: [[0, '#102243'], [0.22, '#246bb0'], [0.45, '#71cad0'], [0.65, '#e2f2d3'], [0.82, '#ddad69'], [1, '#183563']]
+        },
+        mono: {
+          label: 'Mono',
+          interior: [5, 8, 12],
+          stops: [[0, '#10161b'], [0.25, '#5c6a73'], [0.5, '#edf2e9'], [0.73, '#7c8a8c'], [1, '#11171c']]
+        }
+      };
+
+      const canvas = $('fractalCanvas');
+      const stage = $('canvasStage');
+      const displayContext = canvas.getContext('2d', { alpha: false });
+      const renderCanvas = document.createElement('canvas');
+      const renderContext = renderCanvas.getContext('2d', { alpha: false });
+
+      const state = {
+        view: { ...DEFAULT_VIEW },
+        iterations: 220,
+        palette: 'aurora',
+        savedViews: []
+      };
+
+      let renderToken = 0;
+      let renderFrame = 0;
+      let renderWidth = 0;
+      let renderHeight = 0;
+      let paletteCache = {};
+      let saveTimer = 0;
+      let iterationTimer = 0;
+      let resizeTimer = 0;
+      let pointer = null;
+      let firstRender = true;
+      let canvasHintTimer = 0;
+
+      function getRuntimeStorage() {
+        if (window.Workshop && window.Workshop.storage) return window.Workshop.storage;
+        if (typeof globalThis.storage !== 'undefined') return globalThis.storage;
+        return null;
+      }
+
+      function callAction(name, payload) {
+        if (window.Workshop && typeof window.Workshop.callAction === 'function') {
+          return window.Workshop.callAction(name, payload);
+        }
+        return Promise.resolve(null);
+      }
+
+      function notifyUser(message) {
+        if (typeof window.notify === 'function') window.notify(message);
+        else if (window.Workshop && typeof window.Workshop.notify === 'function') window.Workshop.notify(message);
+      }
+
+      function setAppTitle(title) {
+        document.title = title;
+        if (typeof window.setTitle === 'function') window.setTitle(title);
+        else if (window.Workshop && typeof window.Workshop.setTitle === 'function') window.Workshop.setTitle(title);
+      }
+
+      function finiteNumber(value, fallback) {
+        return Number.isFinite(Number(value)) ? Number(value) : fallback;
+      }
+
+      function normalizeView(candidate) {
+        const view = candidate && typeof candidate === 'object' ? candidate : DEFAULT_VIEW;
+        return {
+          centerX: finiteNumber(view.centerX, DEFAULT_VIEW.centerX),
+          centerY: finiteNumber(view.centerY, DEFAULT_VIEW.centerY),
+          span: Math.min(4, Math.max(0.00000000001, finiteNumber(view.span, DEFAULT_VIEW.span)))
+        };
+      }
+
+      function normalizeSavedView(candidate) {
+        if (!candidate || typeof candidate !== 'object') return null;
+        const view = normalizeView(candidate.view);
+        const palette = Object.prototype.hasOwnProperty.call(PALETTES, candidate.palette) ? candidate.palette : 'aurora';
+        const iterations = Math.min(720, Math.max(80, Math.round(finiteNumber(candidate.iterations, 220) / 20) * 20));
+        const id = typeof candidate.id === 'string' && candidate.id.length < 80 ? candidate.id : `view-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        return { id, name: typeof candidate.name === 'string' && candidate.name.length < 40 ? candidate.name : 'Waypoint', view, palette, iterations };
+      }
+
+      function applyStoredState(raw) {
+        let value = raw;
+        if (typeof value === 'string') {
+          try { value = JSON.parse(value); } catch (error) { value = null; }
+        }
+        if (!value || typeof value !== 'object') return;
+        state.view = normalizeView(value.view);
+        state.iterations = Math.min(720, Math.max(80, Math.round(finiteNumber(value.iterations, 220) / 20) * 20));
+        state.palette = Object.prototype.hasOwnProperty.call(PALETTES, value.palette) ? value.palette : 'aurora';
+        state.savedViews = Array.isArray(value.savedViews) ? value.savedViews.map(normalizeSavedView).filter(Boolean).slice(0, MAX_SAVED_VIEWS) : [];
+      }
+
+      async function loadStoredState() {
+        const store = getRuntimeStorage();
+        if (!store || typeof store.get !== 'function') return;
+        try {
+          const saved = await store.get(STORAGE_KEY);
+          applyStoredState(saved);
+        } catch (error) {
+          // A missing or unavailable store should never block the local canvas.
+        }
+      }
+
+      function persistState() {
+        window.clearTimeout(saveTimer);
+        saveTimer = window.setTimeout(async () => {
+          const store = getRuntimeStorage();
+          if (!store || typeof store.set !== 'function') return;
+          const payload = {
+            view: { ...state.view },
+            iterations: state.iterations,
+            palette: state.palette,
+            savedViews: state.savedViews.slice(0, MAX_SAVED_VIEWS).map((item) => ({ ...item, view: { ...item.view } }))
+          };
+          try { await store.set(STORAGE_KEY, payload); } catch (error) { /* local state remains usable */ }
+        }, 160);
+      }
+
+      function formatFixed(value, digits = 4, signed = false) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return '—';
+        const absolute = Math.abs(number).toFixed(digits);
+        if (number < 0) return `−${absolute}`;
+        return signed ? `+${absolute}` : absolute;
+      }
+
+      function coordinateDigits() {
+        return Math.min(11, Math.max(4, Math.ceil(-Math.log10(Math.max(state.view.span / 4, 0.00000000001))) + 2));
+      }
+
+      function formatComplex(x, y) {
+        const digits = coordinateDigits();
+        return `${formatFixed(x, digits)} ${formatFixed(y, digits, true)}i`;
+      }
+
+      function formatSpan(span) {
+        if (span >= 0.01) return span.toFixed(2);
+        if (span >= 0.0001) return span.toFixed(5);
+        return span.toExponential(2).replace('e-', 'e−');
+      }
+
+      function zoomFactor() { return DEFAULT_VIEW.span / state.view.span; }
+
+      function updateRangeProgress() {
+        const range = $('iterationRange');
+        const min = Number(range.min);
+        const max = Number(range.max);
+        const percent = ((state.iterations - min) / (max - min)) * 100;
+        range.style.setProperty('--range-progress', `${percent}%`);
+        range.value = String(state.iterations);
+        $('iterationValue').textContent = String(state.iterations);
+      }
+
+      function updateViewReadouts() {
+        const { centerX, centerY, span } = state.view;
+        const zoom = zoomFactor();
+        const zoomText = `${zoom >= 100 ? zoom.toFixed(0) : zoom.toFixed(2)}×`;
+        const complexText = formatComplex(centerX, centerY);
+        $('centerReadout').textContent = complexText;
+        $('centerXReadout').textContent = formatFixed(centerX, coordinateDigits());
+        $('centerYReadout').textContent = formatFixed(centerY, coordinateDigits(), true);
+        $('zoomReadout').textContent = zoomText;
+        $('spanReadout').textContent = `span ${formatSpan(span)}`;
+        $('headerZoom').textContent = `${zoomText} view`;
+        $('viewNumber').textContent = zoom >= 10 ? '02' : '01';
+        $('paletteName').textContent = PALETTES[state.palette].label;
+        canvas.setAttribute('aria-label', `Interactive Mandelbrot fractal centered at ${complexText}, ${zoomText} zoom. Click to zoom in, shift-click to zoom out, or drag to pan.`);
+      }
+
+      function setHeaderStatus(message, status = 'ready') {
+        $('headerStatus').textContent = message;
+        $('stageRenderStatus').textContent = status === 'busy' ? 'rendering' : status === 'error' ? 'render error' : 'render ready';
+        $('footerStatus').textContent = status === 'busy' ? 'Mapping the selected field' : message;
+        $('headerStatusDot').classList.toggle('is-busy', status === 'busy');
+        $('stageStatusDot').classList.toggle('is-busy', status === 'busy');
+        $('headerStatusDot').classList.toggle('is-error', status === 'error');
+        $('stageStatusDot').classList.toggle('is-error', status === 'error');
+      }
+
+      function setProgress(active, percent = 0, message = 'Mapping the set…') {
+        $('progressOverlay').classList.toggle('is-visible', active);
+        $('progressBar').style.width = `${Math.round(percent)}%`;
+        $('progressPercent').textContent = `${Math.round(percent)}%`;
+        $('progressText').textContent = message;
+        stage.classList.toggle('is-rendering', active);
+      }
+
+      function setError(error) {
+        const message = error && error.message ? error.message : 'The canvas encountered an unexpected render error.';
+        $('errorMessage').textContent = message.length > 110 ? `${message.slice(0, 107)}…` : message;
+        $('errorOverlay').hidden = false;
+        setProgress(false);
+        setHeaderStatus('Render needs a retry', 'error');
+      }
+
+      function clearError() {
+        $('errorOverlay').hidden = true;
+      }
+
+      function hexToRgb(hex) {
+        const clean = hex.replace('#', '');
+        const value = clean.length === 3 ? clean.split('').map((part) => part + part).join('') : clean;
+        return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
+      }
+
+      function mixColor(a, b, amount) {
+        return [
+          Math.round(a[0] + (b[0] - a[0]) * amount),
+          Math.round(a[1] + (b[1] - a[1]) * amount),
+          Math.round(a[2] + (b[2] - a[2]) * amount)
+        ];
+      }
+
+      function getPalette(key) {
+        if (paletteCache[key]) return paletteCache[key];
+        const definition = PALETTES[key] || PALETTES.aurora;
+        const stops = definition.stops.map(([position, color]) => [position, hexToRgb(color)]);
+        const colors = new Uint8ClampedArray(1024 * 3);
+        for (let index = 0; index < 1024; index += 1) {
+          const position = index / 1023;
+          let left = stops[0];
+          let right = stops[stops.length - 1];
+          for (let stopIndex = 1; stopIndex < stops.length; stopIndex += 1) {
+            if (position <= stops[stopIndex][0]) {
+              left = stops[stopIndex - 1];
+              right = stops[stopIndex];
+              break;
+            }
+          }
+          const amount = right[0] === left[0] ? 0 : (position - left[0]) / (right[0] - left[0]);
+          const color = mixColor(left[1], right[1], Math.max(0, Math.min(1, amount)));
+          colors[index * 3] = color[0];
+          colors[index * 3 + 1] = color[1];
+          colors[index * 3 + 2] = color[2];
+        }
+        paletteCache[key] = { colors, interior: definition.interior };
+        return paletteCache[key];
+      }
+
+      function ensureCanvasSize() {
+        const rect = stage.getBoundingClientRect();
+        const cssWidth = Math.max(240, Math.floor(rect.width));
+        const cssHeight = Math.max(220, Math.floor(rect.height));
+        const pixels = cssWidth * cssHeight;
+        const maxPixels = 430000;
+        const density = Math.min(1.35, Math.max(0.75, Math.sqrt(maxPixels / Math.max(pixels, 1))));
+        const width = Math.max(240, Math.floor(cssWidth * density));
+        const height = Math.max(180, Math.floor(cssHeight * density));
+        if (width === renderWidth && height === renderHeight) return false;
+        renderWidth = width;
+        renderHeight = height;
+        canvas.width = width;
+        canvas.height = height;
+        renderCanvas.width = width;
+        renderCanvas.height = height;
+        return true;
+      }
+
+      function screenToComplex(clientX, clientY, view = state.view) {
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(rect.width, 1)));
+        const y = Math.max(0, Math.min(1, (clientY - rect.top) / Math.max(rect.height, 1)));
+        const ratio = rect.height / Math.max(rect.width, 1);
+        return {
+          x: view.centerX + (x - 0.5) * view.span,
+          y: view.centerY + (y - 0.5) * view.span * ratio
+        };
+      }
+
+      function smoothEscape(real, imaginary, maxIterations) {
+        const shiftedX = real - 0.25;
+        const cardioidQ = shiftedX * shiftedX + imaginary * imaginary;
+        if (cardioidQ * (cardioidQ + shiftedX) <= 0.25 * imaginary * imaginary) return -1;
+        const bulbX = real + 1;
+        if (bulbX * bulbX + imaginary * imaginary <= 0.0625) return -1;
+
+        let zx = 0;
+        let zy = 0;
+        let iteration = 0;
+        let magnitudeSquared = 0;
+        while (magnitudeSquared <= 4 && iteration < maxIterations) {
+          const nextX = zx * zx - zy * zy + real;
+          zy = 2 * zx * zy + imaginary;
+          zx = nextX;
+          magnitudeSquared = zx * zx + zy * zy;
+          iteration += 1;
+        }
+        if (iteration >= maxIterations) return -1;
+        const smooth = iteration + 1 - Math.log(Math.log(Math.sqrt(magnitudeSquared))) / Math.log(2);
+        return Math.max(0, Math.min(1, smooth / maxIterations));
+      }
+
+      function renderFractal(options = {}) {
+        const { preview = false, label = 'Mapping the set…' } = options;
+        clearError();
+        ensureCanvasSize();
+        const token = ++renderToken;
+        if (renderFrame) window.cancelAnimationFrame(renderFrame);
+        const width = renderWidth;
+        const height = renderHeight;
+        const image = renderContext.createImageData(width, height);
+        const pixels = image.data;
+        const palette = getPalette(state.palette);
+        const iterations = preview ? Math.min(80, state.iterations) : state.iterations;
+        const view = { ...state.view };
+        const ratio = height / width;
+        let row = 0;
+        let lastDrawnRow = 0;
+        setHeaderStatus(label, 'busy');
+        setProgress(true, 0, label);
+
+        const drawChunk = () => {
+          try {
+            if (token !== renderToken) return;
+          const frameStart = performance.now();
+          const startRow = row;
+          while (row < height && (row === startRow || performance.now() - frameStart < 11)) {
+            const imaginary = view.centerY + (row / height - 0.5) * view.span * ratio;
+            for (let column = 0; column < width; column += 1) {
+              const real = view.centerX + (column / width - 0.5) * view.span;
+              const escape = smoothEscape(real, imaginary, iterations);
+              const pixelIndex = (row * width + column) * 4;
+              if (escape < 0) {
+                pixels[pixelIndex] = palette.interior[0];
+                pixels[pixelIndex + 1] = palette.interior[1];
+                pixels[pixelIndex + 2] = palette.interior[2];
+              } else {
+                const colorIndex = Math.min(1023, Math.floor(Math.pow(escape, 0.78) * 1023));
+                pixels[pixelIndex] = palette.colors[colorIndex * 3];
+                pixels[pixelIndex + 1] = palette.colors[colorIndex * 3 + 1];
+                pixels[pixelIndex + 2] = palette.colors[colorIndex * 3 + 2];
+              }
+              pixels[pixelIndex + 3] = 255;
+            }
+            row += 1;
+          }
+
+          if (row > lastDrawnRow) {
+            renderContext.putImageData(image, 0, 0, 0, lastDrawnRow, width, row - lastDrawnRow);
+            lastDrawnRow = row;
+          }
+          const progress = (row / height) * 100;
+          setProgress(true, progress, label);
+          if (row < height) {
+            renderFrame = window.requestAnimationFrame(drawChunk);
+            return;
+          }
+
+          displayContext.clearRect(0, 0, width, height);
+          displayContext.drawImage(renderCanvas, 0, 0);
+          canvas.style.transform = '';
+          setProgress(false, 100, 'Render complete');
+          setHeaderStatus(firstRender ? 'Ready to explore' : 'Field updated', 'ready');
+          $('renderLabel').textContent = `${viewLabel()} / ready`;
+          updateViewReadouts();
+          firstRender = false;
+            renderFrame = 0;
+          } catch (error) {
+            if (token !== renderToken) return;
+            renderFrame = 0;
+            setError(error);
+          }
+        };
+
+        renderFrame = window.requestAnimationFrame(drawChunk);
+      }
+
+      function viewLabel() {
+        let nearest = 'custom field';
+        Object.keys(PRESETS).forEach((key) => {
+          const preset = PRESETS[key];
+          if (Math.abs(state.view.centerX - preset.centerX) < state.view.span * 0.0001 && Math.abs(state.view.centerY - preset.centerY) < state.view.span * 0.0001 && Math.abs(state.view.span - preset.span) < state.view.span * 0.0001) nearest = preset.label;
+        });
+        return nearest;
+      }
+
+      function scheduleRender(options = {}) {
+        window.clearTimeout(scheduleRender.timer);
+        scheduleRender.timer = window.setTimeout(() => renderFractal(options), options.preview ? 35 : 0);
+      }
+
+      function zoomAt(clientX, clientY, factor, sourceLabel) {
+        const previous = { ...state.view };
+        const point = screenToComplex(clientX, clientY, previous);
+        const nextSpan = Math.min(4, Math.max(0.00000000001, previous.span * factor));
+        const rect = canvas.getBoundingClientRect();
+        const xRatio = (clientX - rect.left) / Math.max(rect.width, 1) - 0.5;
+        const yRatio = (clientY - rect.top) / Math.max(rect.height, 1) - 0.5;
+        state.view = {
+          centerX: point.x - xRatio * nextSpan,
+          centerY: point.y - yRatio * nextSpan * (rect.height / Math.max(rect.width, 1)),
+          span: nextSpan
+        };
+        updateViewReadouts();
+        $('renderLabel').textContent = `${sourceLabel || 'custom field'} / queued`;
+        showHintBriefly();
+        persistState();
+        renderFractal({ label: factor < 1 ? 'Zooming into the set…' : 'Zooming out…' });
+      }
+
+      function zoomViewport(factor) {
+        const rect = canvas.getBoundingClientRect();
+        zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor, factor < 1 ? 'center zoom' : 'center zoom out');
+      }
+
+      function panBy(deltaX, deltaY) {
+        state.view = {
+          ...state.view,
+          centerX: state.view.centerX + deltaX * state.view.span,
+          centerY: state.view.centerY + deltaY * state.view.span * (canvas.clientHeight / Math.max(canvas.clientWidth, 1))
+        };
+        updateViewReadouts();
+        persistState();
+        renderFractal({ label: 'Panning the field…' });
+      }
+
+      function resetView(message = 'Overview restored') {
+        state.view = { ...DEFAULT_VIEW };
+        updateViewReadouts();
+        persistState();
+        notifyUser(message);
+        renderFractal({ label: 'Returning to overview…' });
+      }
+
+      function applyPreset(key) {
+        const preset = PRESETS[key];
+        if (!preset) return;
+        state.view = { centerX: preset.centerX, centerY: preset.centerY, span: preset.span };
+        updateViewReadouts();
+        persistState();
+        notifyUser(`${preset.label[0].toUpperCase()}${preset.label.slice(1)} loaded`);
+        renderFractal({ label: `Opening ${preset.label}…` });
+      }
+
+      function showHintBriefly() {
+        $('canvasHint').classList.remove('is-hidden');
+        window.clearTimeout(canvasHintTimer);
+        canvasHintTimer = window.setTimeout(() => $('canvasHint').classList.add('is-hidden'), 4500);
+      }
+
+      function updateHover(clientX, clientY) {
+        const point = screenToComplex(clientX, clientY);
+        $('hoverCoords').textContent = formatComplex(point.x, point.y);
+        $('hoverReadout').hidden = false;
+      }
+
+      function saveCurrentView() {
+        const index = state.savedViews.length + 1;
+        const item = {
+          id: `view-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          name: `Waypoint ${String(index).padStart(2, '0')}`,
+          view: { ...state.view },
+          palette: state.palette,
+          iterations: state.iterations
+        };
+        state.savedViews = [item, ...state.savedViews].slice(0, MAX_SAVED_VIEWS).map((saved, savedIndex) => ({ ...saved, name: `Waypoint ${String(savedIndex + 1).padStart(2, '0')}` }));
+        persistState();
+        renderSavedViews();
+        const button = $('saveViewButton');
+        button.classList.add('is-saved');
+        window.setTimeout(() => button.classList.remove('is-saved'), 500);
+        notifyUser(`${item.name} saved`);
+      }
+
+      function loadSavedView(index) {
+        const item = state.savedViews[index];
+        if (!item) return;
+        state.view = { ...item.view };
+        state.palette = item.palette;
+        state.iterations = item.iterations;
+        updateRangeProgress();
+        updatePaletteButtons();
+        updateViewReadouts();
+        persistState();
+        notifyUser(`${item.name} loaded`);
+        renderFractal({ label: `Opening ${item.name}…` });
+      }
+
+      function removeSavedView(index) {
+        const removed = state.savedViews[index];
+        if (!removed) return;
+        state.savedViews.splice(index, 1);
+        state.savedViews = state.savedViews.map((item, itemIndex) => ({ ...item, name: `Waypoint ${String(itemIndex + 1).padStart(2, '0')}` }));
+        persistState();
+        renderSavedViews();
+        notifyUser(`${removed.name} removed`);
+      }
+
+      function renderSavedViews() {
+        const list = $('savedViewsList');
+        list.innerHTML = '';
+        $('savedCount').textContent = `${state.savedViews.length} / ${MAX_SAVED_VIEWS}`;
+        $('clearSavedButton').disabled = state.savedViews.length === 0;
+        if (state.savedViews.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'empty-state';
+          empty.innerHTML = '<span class="empty-glyph" aria-hidden="true">+</span><div><p>No waypoints yet</p><small>Save a view to find it again.</small></div>';
+          list.appendChild(empty);
+          return;
+        }
+        state.savedViews.forEach((item, index) => {
+          const row = document.createElement('div');
+          row.className = 'saved-row';
+          const load = document.createElement('button');
+          load.className = 'saved-load';
+          load.type = 'button';
+          load.title = `Load ${item.name}`;
+          const name = document.createElement('span');
+          name.className = 'saved-name';
+          name.textContent = item.name;
+          const meta = document.createElement('span');
+          meta.className = 'saved-meta';
+          meta.textContent = `${zoomFactorFor(item.view).toFixed(0)}×`;
+          load.append(name, meta);
+          load.addEventListener('click', () => loadSavedView(index));
+          const remove = document.createElement('button');
+          remove.className = 'saved-remove';
+          remove.type = 'button';
+          remove.setAttribute('aria-label', `Remove ${item.name}`);
+          remove.title = `Remove ${item.name}`;
+          remove.textContent = '×';
+          remove.addEventListener('click', () => removeSavedView(index));
+          row.append(load, remove);
+          list.appendChild(row);
+        });
+      }
+
+      function zoomFactorFor(view) { return DEFAULT_VIEW.span / Math.max(view.span, 0.00000000001); }
+
+      function updatePaletteButtons() {
+        document.querySelectorAll('[data-palette]').forEach((button) => {
+          const active = button.dataset.palette === state.palette;
+          button.classList.toggle('is-active', active);
+          button.setAttribute('aria-pressed', String(active));
+        });
+        $('paletteName').textContent = PALETTES[state.palette].label;
+      }
+
+      function beginPointer(event) {
+        if (event.button !== 0) return;
+        pointer = { id: event.pointerId, startX: event.clientX, startY: event.clientY, currentX: event.clientX, currentY: event.clientY, moved: false, startView: { ...state.view } };
+        canvas.setPointerCapture(event.pointerId);
+        canvas.classList.add('is-pressed');
+        showHintBriefly();
+      }
+
+      function movePointer(event) {
+        updateHover(event.clientX, event.clientY);
+        if (!pointer || pointer.id !== event.pointerId) return;
+        pointer.currentX = event.clientX;
+        pointer.currentY = event.clientY;
+        const deltaX = event.clientX - pointer.startX;
+        const deltaY = event.clientY - pointer.startY;
+        if (Math.abs(deltaX) + Math.abs(deltaY) > 5) pointer.moved = true;
+        if (pointer.moved) {
+          canvas.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+          stage.classList.add('is-dragging');
+        }
+      }
+
+      function finishPointer(event) {
+        if (!pointer || pointer.id !== event.pointerId) return;
+        const activePointer = pointer;
+        const deltaX = event.clientX - activePointer.startX;
+        const deltaY = event.clientY - activePointer.startY;
+        pointer = null;
+        canvas.classList.remove('is-pressed');
+        stage.classList.remove('is-dragging');
+        try { canvas.releasePointerCapture(event.pointerId); } catch (error) { /* already released */ }
+        if (activePointer.moved) {
+          const rect = canvas.getBoundingClientRect();
+          const start = activePointer.startView;
+          state.view = {
+            centerX: start.centerX - (deltaX / Math.max(rect.width, 1)) * start.span,
+            centerY: start.centerY - (deltaY / Math.max(rect.width, 1)) * start.span,
+            span: start.span
+          };
+          updateViewReadouts();
+          persistState();
+          renderFractal({ label: 'Panning the field…' });
+        } else {
+          zoomAt(event.clientX, event.clientY, event.shiftKey ? 2 : 0.5, event.shiftKey ? 'zoom out' : 'zoom in');
+        }
+      }
+
+      function cancelPointer(event) {
+        if (!pointer || pointer.id !== event.pointerId) return;
+        pointer = null;
+        canvas.style.transform = '';
+        canvas.classList.remove('is-pressed');
+        stage.classList.remove('is-dragging');
+      }
+
+      function handleKey(event) {
+        const key = event.key.toLowerCase();
+        if (key === 'r') { event.preventDefault(); resetView(); return; }
+        if (event.key === '+' || event.key === '=') { event.preventDefault(); zoomViewport(0.5); return; }
+        if (event.key === '-' || event.key === '_') { event.preventDefault(); zoomViewport(2); return; }
+        if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(key)) {
+          event.preventDefault();
+          const amount = 0.16;
+          panBy(key === 'arrowleft' ? -amount : key === 'arrowright' ? amount : 0, key === 'arrowup' ? -amount : key === 'arrowdown' ? amount : 0);
+        }
+      }
+
+      function attachEvents() {
+        canvas.addEventListener('pointerdown', beginPointer);
+        canvas.addEventListener('pointermove', movePointer);
+        canvas.addEventListener('pointerup', finishPointer);
+        canvas.addEventListener('pointercancel', cancelPointer);
+        canvas.addEventListener('pointerleave', () => { if (!pointer) $('hoverReadout').hidden = true; });
+        canvas.addEventListener('contextmenu', (event) => {
+          event.preventDefault();
+          zoomAt(event.clientX, event.clientY, 2, 'zoom out');
+        });
+        canvas.addEventListener('wheel', (event) => {
+          event.preventDefault();
+          zoomAt(event.clientX, event.clientY, event.deltaY > 0 ? 1.35 : 0.74, event.deltaY > 0 ? 'wheel out' : 'wheel in');
+        }, { passive: false });
+        canvas.addEventListener('keydown', handleKey);
+        $('zoomInButton').addEventListener('click', () => zoomViewport(0.5));
+        $('zoomOutButton').addEventListener('click', () => zoomViewport(2));
+        $('resetButton').addEventListener('click', () => resetView());
+        $('retryButton').addEventListener('click', () => renderFractal({ label: 'Retrying the field…' }));
+        $('saveViewButton').addEventListener('click', saveCurrentView);
+        $('clearSavedButton').addEventListener('click', () => {
+          if (!state.savedViews.length) return;
+          state.savedViews = [];
+          persistState();
+          renderSavedViews();
+          notifyUser('Saved views cleared');
+        });
+        document.querySelectorAll('[data-preset]').forEach((button) => button.addEventListener('click', () => applyPreset(button.dataset.preset)));
+        document.querySelectorAll('[data-palette]').forEach((button) => button.addEventListener('click', () => {
+          const palette = button.dataset.palette;
+          if (!PALETTES[palette] || palette === state.palette) return;
+          state.palette = palette;
+          updatePaletteButtons();
+          persistState();
+          notifyUser(`${PALETTES[palette].label} palette applied`);
+          renderFractal({ label: `Applying ${PALETTES[palette].label}…` });
+        }));
+        $('iterationRange').addEventListener('input', (event) => {
+          state.iterations = Number(event.target.value);
+          updateRangeProgress();
+          persistState();
+          window.clearTimeout(iterationTimer);
+          iterationTimer = window.setTimeout(() => renderFractal({ preview: true, label: 'Tuning render detail…' }), 120);
+        });
+        window.addEventListener('keydown', (event) => {
+          if (event.key.toLowerCase() === 'r' && event.target === document.body) resetView();
+        });
+        if (typeof ResizeObserver === 'function') {
+          const observer = new ResizeObserver(() => {
+            window.clearTimeout(resizeTimer);
+            resizeTimer = window.setTimeout(() => renderFractal({ preview: true, label: 'Fitting the canvas…' }), 80);
+          });
+          observer.observe(stage);
+        } else {
+          window.addEventListener('resize', () => {
+            window.clearTimeout(resizeTimer);
+            resizeTimer = window.setTimeout(() => renderFractal({ preview: true, label: 'Fitting the canvas…' }), 80);
+          });
+        }
+      }
+
+      async function boot() {
+        setAppTitle('Mandelbrot Studio');
+        await loadStoredState();
+        updateRangeProgress();
+        updatePaletteButtons();
+        updateViewReadouts();
+        renderSavedViews();
+        attachEvents();
+        showHintBriefly();
+        renderFractal({ label: 'Mapping the set…' });
+      }
+
+      boot().catch((error) => setError(error));
+    })();
+  </script>
+</body>
+</html>
