@@ -1,5 +1,5 @@
 {
-  "name": "workshop",
+  "name": "bricolage",
   "version": "1.0.0",
   "description": "A local-first desktop where you and a coding agent make small apps together, and then use them.",
   "main": "index.js",

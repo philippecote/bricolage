@@ -5,7 +5,7 @@ async function request<T>(path: string, options: RequestInit & { timeoutMs?: num
     const xhr = new XMLHttpRequest();
     const method = options.method || 'GET';
     const endpoint = path.split('?')[0];
-    const trace = (event: string, extra: Record<string, unknown> = {}) => console.info('[Workshop trace]', event, { method, endpoint, at: Date.now(), ...extra });
+    const trace = (event: string, extra: Record<string, unknown> = {}) => console.info('[Bricolage trace]', event, { method, endpoint, at: Date.now(), ...extra });
     trace('request:start', { hasBody: Boolean(options.body), query: path.includes('?') });
     xhr.open(method, path);
     xhr.timeout = options.timeoutMs ?? 10_000;
@@ -16,12 +16,12 @@ async function request<T>(path: string, options: RequestInit & { timeoutMs?: num
       trace('request:load', { status: xhr.status });
       let body: Record<string, unknown>;
       try { body = JSON.parse(xhr.responseText); }
-      catch { reject(new Error(`Workshop returned an unreadable response (${xhr.status}).`)); return; }
+      catch { reject(new Error(`Bricolage returned an unreadable response (${xhr.status}).`)); return; }
       if (xhr.status < 200 || xhr.status >= 300) { reject(new Error(String(body.error || `Request failed (${xhr.status})`))); return; }
       resolve(body as T);
     };
-    xhr.onerror = () => { trace('request:error'); reject(new Error('Workshop’s local builder is offline.')); };
-    xhr.ontimeout = () => { trace('request:timeout'); reject(new Error('Workshop’s local builder did not respond.')); };
+    xhr.onerror = () => { trace('request:error'); reject(new Error('Bricolage’s local builder is offline.')); };
+    xhr.ontimeout = () => { trace('request:timeout'); reject(new Error('Bricolage’s local builder did not respond.')); };
     const abort = () => xhr.abort();
     options.signal?.addEventListener('abort', abort, { once: true });
     xhr.onloadend = () => options.signal?.removeEventListener('abort', abort);
@@ -38,10 +38,10 @@ async function requestViaForm<T>(path: string, fields: Record<string, string>): 
     let form: HTMLFormElement | null = null;
     const endpoint = path.split('?')[0];
     const frameName = `workshop-response-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const trace = (event: string, extra: Record<string, unknown> = {}) => console.info('[Workshop trace]', event, { method: 'FORM-POST', endpoint, at: Date.now(), ...extra });
+    const trace = (event: string, extra: Record<string, unknown> = {}) => console.info('[Bricolage trace]', event, { method: 'FORM-POST', endpoint, at: Date.now(), ...extra });
     trace('request:form:start', { fields: Object.keys(fields) });
     const cleanup = () => { clearTimeout(timeout); frame.remove(); form?.remove(); form = null; };
-    const timeout = window.setTimeout(() => { trace('request:form:timeout'); cleanup(); reject(new Error('Workshop’s local builder did not respond.')); }, 10_000);
+    const timeout = window.setTimeout(() => { trace('request:form:timeout'); cleanup(); reject(new Error('Bricolage’s local builder did not respond.')); }, 10_000);
     frame.hidden = true;
     frame.setAttribute('aria-hidden', 'true');
     frame.onload = () => {
@@ -57,10 +57,10 @@ async function requestViaForm<T>(path: string, fields: Record<string, string>): 
         resolve(body as T);
       } catch {
         cleanup();
-        reject(new Error('Workshop returned an unreadable response.'));
+        reject(new Error('Bricolage returned an unreadable response.'));
       }
     };
-    frame.onerror = () => { trace('request:form:error'); cleanup(); reject(new Error('Workshop’s local builder is offline.')); };
+    frame.onerror = () => { trace('request:form:error'); cleanup(); reject(new Error('Bricolage’s local builder is offline.')); };
     frame.name = frameName;
     document.body.appendChild(frame);
     const nativeForm = document.createElement('form');
@@ -88,7 +88,7 @@ export const api = {
   createDirect: (prompt: string, model: ModelPreset) =>
     request<{ appId: string; buildId: string; app: WorkshopApp; build: BuildSummary }>('/api/apps', { method: 'POST', body: JSON.stringify({ prompt, model }), timeoutMs: 30_000 }),
   create: (prompt: string, model: ModelPreset) => {
-    console.info('[Workshop trace] create:submit', { model, promptChars: prompt.length, at: Date.now() });
+    console.info('[Bricolage trace] create:submit', { model, promptChars: prompt.length, at: Date.now() });
     return requestViaForm<{ appId: string; buildId: string; app: WorkshopApp; build: BuildSummary }>('/workshop/build', { prompt, model });
   },
   edit: (id: string, prompt: string, model: ModelPreset) => request<{ buildId: string; build: BuildSummary }>(`/api/apps/${id}/messages`, { method: 'POST', body: JSON.stringify({ prompt, model }) }),

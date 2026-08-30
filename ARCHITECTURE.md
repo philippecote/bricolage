@@ -1,6 +1,6 @@
 # Architecture
 
-Workshop is one Node process that serves a React desktop, orchestrates coding agents over stdio, and executes app code. There is no database and no cloud component. Everything it knows lives in files you can read.
+Bricolage is one Node process that serves a React desktop, orchestrates coding agents over stdio, and executes app code. There is no database and no cloud component. Everything it knows lives in files you can read.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -95,6 +95,12 @@ apps/<appId>/
   .workshop/revisions/<n>/           full snapshots, restorable
 ```
 
+> **On the name.** The project was called Workshop before it was Bricolage. Internal
+> identifiers keep the old name on purpose — `window.Workshop`, `.workshop/`,
+> `WORKSHOP_DATA_DIR`, the `workshop-app-builder` skill. Renaming them would break the
+> bridge every existing app calls and orphan build records and connections on disk.
+> New apps can use `window.Bricolage`, which is the same object.
+
 `.workshop/` at the root holds build records and `connections.json`. `WORKSHOP_DATA_DIR` relocates all mutable state — the test suite uses it so a test run can never hydrate and fail the dev server's in-flight builds.
 
 ## The runtime sandbox
@@ -132,9 +138,9 @@ Action code runs server-side in `node:vm` with an injected, frozen context:
 
 ## Connections (MCP)
 
-Workshop is an MCP host. Servers are stdio child processes; it speaks `initialize` → `tools/list` → `tools/call`. First contact gets a longer timeout than a tool call, since a cold `npx` server may download a package.
+Bricolage is an MCP host. Servers are stdio child processes; it speaks `initialize` → `tools/list` → `tools/call`. First contact gets a longer timeout than a tool call, since a cold `npx` server may download a package.
 
-Secrets are per-connection env values. A value of `$NAME` is a **reference** to Workshop's own environment, so a token can stay in `.env`; literals are stored in `connections.json`. The API returns key names and where they resolve from — **never values**.
+Secrets are per-connection env values. A value of `$NAME` is a **reference** to Bricolage's own environment, so a token can stay in `.env`; literals are stored in `connections.json`. The API returns key names and where they resolve from — **never values**.
 
 The catalog's rules are enforced by tests: org-scoped packages only, pinned versions only.
 

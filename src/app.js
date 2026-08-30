@@ -98,7 +98,7 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       probeAgent('Claude Code', claude),
     ]);
     // `codex` stays for the existing clients; `agents` is the shape that scales.
-    res.json({ name: 'Workshop', version: '1.0.0', codex: codexState, agents: { codex: codexState, claude: claudeState }, connections: await mcp.list().catch(() => []), activeBuilds: builds.listActive() });
+    res.json({ name: 'Bricolage', version: '1.0.0', codex: codexState, agents: { codex: codexState, claude: claudeState }, connections: await mcp.list().catch(() => []), activeBuilds: builds.listActive() });
   });
   // The composer routes before it builds: a cheap model call decides what should
   // happen, and only then does an agent turn start.
@@ -320,7 +320,7 @@ function createAppStorage(appId) {
 // The bridge also forwards pointerdown: events inside an iframe never reach the
 // parent document, so without this only the title bar could raise a window.
 function runtimeBridge(appId) {
-  return `(function(){let n=0;const p=new Map();window.Workshop={callAction:(name,payload)=>call('action',{name,payload}),notify:(message)=>call('notify',{message}),setTitle:(title)=>call('title',{title}),openLink:(url)=>call('link',{url}),storage:{get:(key)=>call('storage.get',{key}),set:(key,value)=>call('storage.set',{key,value})}};addEventListener('pointerdown',function(){parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},type:'focus'},'*')},true);function call(type,payload){const id=++n;parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},id,type,payload},'*');return new Promise((resolve,reject)=>{p.set(id,{resolve,reject});setTimeout(function(){if(p.has(id)){p.delete(id);reject(new Error('Workshop did not respond.'))}},15000)})}addEventListener('message',e=>{const m=e.data;if(!m||m.source!=='workshop-host'||!p.has(m.id))return;const q=p.get(m.id);p.delete(m.id);m.error?q.reject(new Error(m.error)):q.resolve(m.result)})})();`;
+  return `(function(){let n=0;const p=new Map();window.Bricolage=window.Workshop={callAction:(name,payload)=>call('action',{name,payload}),notify:(message)=>call('notify',{message}),setTitle:(title)=>call('title',{title}),openLink:(url)=>call('link',{url}),storage:{get:(key)=>call('storage.get',{key}),set:(key,value)=>call('storage.set',{key,value})}};addEventListener('pointerdown',function(){parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},type:'focus'},'*')},true);function call(type,payload){const id=++n;parent.postMessage({source:'workshop-app',appId:${JSON.stringify(appId)},id,type,payload},'*');return new Promise((resolve,reject)=>{p.set(id,{resolve,reject});setTimeout(function(){if(p.has(id)){p.delete(id);reject(new Error('Workshop did not respond.'))}},15000)})}addEventListener('message',e=>{const m=e.data;if(!m||m.source!=='workshop-host'||!p.has(m.id))return;const q=p.get(m.id);p.delete(m.id);m.error?q.reject(new Error(m.error)):q.resolve(m.result)})})();`;
 }
 
 async function migrateStarters() {

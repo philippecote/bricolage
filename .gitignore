@@ -3,9 +3,17 @@ node_modules/
 coverage/
 public/assets/
 .workshop/
+# Apps are personal. Four are kept as examples of what Workshop produces;
+# their saved data never is. The rest live only on disk.
+apps/*
+!apps/a-fractal-studio-with-7a71b
+!apps/a-tip-calculator-that-7980a
+!apps/an-app-that-lets-e572a
+!apps/the-game-of-ur-da849
 apps/*/data.json
 apps/*/.workshop/
-actions/
+/actions/*
+!/actions/sec
 specs/*.md
 !specs/sec.md
 .workshop-test/

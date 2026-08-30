@@ -73,12 +73,12 @@ export function Workshop() {
 
   useEffect(() => {
     let mounted = true;
-    refresh().catch(() => setCreateError(builderMessage('Workshop’s local builder is offline.')));
+    refresh().catch(() => setCreateError(builderMessage('Bricolage’s local builder is offline.')));
     api.status().then((next) => {
       if (!mounted) return;
       setStatus(next); setCreateError('');
       next.activeBuilds.forEach((build) => { seedBuild(build.appId, build.id, build.events || []); watchBuild(build.appId, build.id); });
-    }).catch(() => { setStatus(null); setCreateError(builderMessage('Workshop’s local builder is offline.')); });
+    }).catch(() => { setStatus(null); setCreateError(builderMessage('Bricolage’s local builder is offline.')); });
     const timer = setInterval(() => setClock(new Date()), 30_000);
     const reconciler = setInterval(() => { reconcile(); }, 20_000);
     const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -139,16 +139,16 @@ export function Workshop() {
 
   async function create(prompt = composer) {
     const clean = prompt.trim(); if (!clean || creating) return;
-    console.info('[Workshop trace] create:handler', { model, promptChars: clean.length, at: Date.now() });
+    console.info('[Bricolage trace] create:handler', { model, promptChars: clean.length, at: Date.now() });
     setCreating(true); setCreateError(''); setSpotlight(false);
     try {
       let result;
       try { result = await api.createDirect(clean, model); }
       catch { result = await api.create(clean, model); }
-      console.info('[Workshop trace] create:success', { appId: result.appId, buildId: result.buildId, at: Date.now() });
+      console.info('[Bricolage trace] create:success', { appId: result.appId, buildId: result.buildId, at: Date.now() });
       adoptCreated(result);
     } catch (error) {
-      console.info('[Workshop trace] create:error', { message: error instanceof Error ? error.message : String(error), at: Date.now() });
+      console.info('[Bricolage trace] create:error', { message: error instanceof Error ? error.message : String(error), at: Date.now() });
       setCreateError(builderMessage(error instanceof Error ? error.message : 'Could not create app'));
     }
     finally { setCreating(false); }
@@ -367,7 +367,7 @@ export function Workshop() {
   return <main className="desktop" aria-label="Workshop desktop">
     <div className="wallpaper-orb orb-one" /><div className="wallpaper-orb orb-two" />
     <header className="menu-bar">
-      <div className="menu-left"><button className="wordmark" onClick={() => setLibrary(false)} aria-label="Workshop home"><span>W</span> Workshop</button><button onClick={() => setLibrary(true)}>Library</button><button onClick={() => setSpotlight(true)}>Create</button></div>
+      <div className="menu-left"><button className="wordmark" onClick={() => setLibrary(false)} aria-label="Bricolage home"><span>B</span> Bricolage</button><button onClick={() => setLibrary(true)}>Library</button><button onClick={() => setSpotlight(true)}>Create</button></div>
       <div className="menu-right">{activity.length > 0 && <button className={`working-chip ${activity.some((item) => item.waiting) ? 'waiting' : ''}`} onClick={() => setActivityOpen((value) => !value)} aria-label="Show desktop activity"><i />{activity.some((item) => item.waiting) ? 'Needs you' : `${activity.length} working`}</button>}<button className={`codex-state ${codexReady ? 'online' : ''}`} onClick={() => setSettings(true)}><i />{agentLabel}</button><button onClick={() => setSpotlight(true)} className="shortcut">⌘ K</button><time>{clock.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} &nbsp; {clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
     </header>
 
@@ -380,7 +380,7 @@ export function Workshop() {
           <div className="composer-foot"><ModelPicker value={model} onChange={setModel} compact /><button className={`build-arrow ${creating || routing ? 'creating' : ''}`} aria-label={creating ? 'Creating app' : routing ? 'Thinking' : 'Build app'} disabled={!composer.trim() || creating || routing}>{creating || routing ? '✦' : '↑'}</button></div>
         </form>
         {(turns.length > 0 || routing) && <Conversation turns={turns} thinking={routing} apps={apps} onApprove={approveAct} onDecline={declineAct} onClear={() => { setTurns([]); conversationId.current = undefined; }} />}
-        {createError && <div className="create-error" role="alert"><div><strong>Couldn’t start that app</strong><span>{createError} Start Workshop with <code>npm start</code>, then try again.</span></div><button onClick={() => { setCreateError(''); create(); }}>Try again</button></div>}
+        {createError && <div className="create-error" role="alert"><div><strong>Couldn’t start that app</strong><span>{createError} Start Bricolage with <code>npm start</code>, then try again.</span></div><button onClick={() => { setCreateError(''); create(); }}>Try again</button></div>}
         <div className="starter-list">{STARTERS.map(([name, prompt]) => <button key={name} onClick={() => sayToDesktop(prompt)}><span>{name}</span><small>{prompt}</small><b>↗</b></button>)}</div>
       </div>
     </section>
@@ -548,7 +548,7 @@ function Spotlight({ apps, onClose, onCreate, onOpen }: { apps: WorkshopApp[]; o
 
 function Library({ apps, onClose, onOpen, onRestore }: { apps: WorkshopApp[]; onClose: () => void; onOpen: (app: WorkshopApp) => void; onRestore: (app: WorkshopApp) => void }) {
   const [query, setQuery] = useState(''); const [archived, setArchived] = useState(false); const shown = apps.filter((app) => app.archived === archived && app.name.toLowerCase().includes(query.toLowerCase()));
-  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="library-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">WORKSHOP</span><h2>App Library</h2></div><button onClick={onClose}>Done</button></header><div className="library-tools"><input placeholder="Search apps" value={query} onChange={(e) => setQuery(e.target.value)} /><div><button className={!archived ? 'active' : ''} onClick={() => setArchived(false)}>Apps</button><button className={archived ? 'active' : ''} onClick={() => setArchived(true)}>Archive</button></div></div><div className="library-grid">{shown.map((app) => <button key={app.id} onClick={() => archived ? onRestore(app) : onOpen(app)}><AppIcon app={app} /><div><strong>{app.name}</strong><small>{app.description}</small></div><span>{archived ? 'Restore' : 'Open'}</span></button>)}</div>{!shown.length && <div className="library-empty">Nothing here yet.</div>}</section></div>;
+  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="library-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">BRICOLAGE</span><h2>App Library</h2></div><button onClick={onClose}>Done</button></header><div className="library-tools"><input placeholder="Search apps" value={query} onChange={(e) => setQuery(e.target.value)} /><div><button className={!archived ? 'active' : ''} onClick={() => setArchived(false)}>Apps</button><button className={archived ? 'active' : ''} onClick={() => setArchived(true)}>Archive</button></div></div><div className="library-grid">{shown.map((app) => <button key={app.id} onClick={() => archived ? onRestore(app) : onOpen(app)}><AppIcon app={app} /><div><strong>{app.name}</strong><small>{app.description}</small></div><span>{archived ? 'Restore' : 'Open'}</span></button>)}</div>{!shown.length && <div className="library-empty">Nothing here yet.</div>}</section></div>;
 }
 
 function Settings({ status, theme, setTheme, sounds, setSounds, onClose }: { status: SystemStatus | null; theme: string; setTheme: (v: string) => void; sounds: boolean; setSounds: (v: boolean) => void; onClose: () => void }) {
@@ -556,11 +556,11 @@ function Settings({ status, theme, setTheme, sounds, setSounds, onClose }: { sta
     ['Codex', 'npm install -g @openai/codex', status?.agents?.codex ?? status?.codex],
     ['Claude Code', 'npm install -g @anthropic-ai/claude-code', status?.agents?.claude],
   ];
-  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="settings-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">WORKSHOP</span><h2>Settings</h2></div><button onClick={onClose}>Done</button></header><div className="setting-row"><div><strong>Appearance</strong><small>Choose the desktop surface.</small></div><div className="segmented"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}>Light</button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}>Dark</button></div></div><div className="setting-row"><div><strong>Completion sounds</strong><small>Play a quiet chime when work finishes.</small></div><button className={`switch ${sounds ? 'on' : ''}`} onClick={() => setSounds(!sounds)} aria-label="Toggle sounds"><i /></button></div><div className="agent-panels">{agents.map(([name, install, state]) => {
+  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="settings-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">BRICOLAGE</span><h2>Settings</h2></div><button onClick={onClose}>Done</button></header><div className="setting-row"><div><strong>Appearance</strong><small>Choose the desktop surface.</small></div><div className="segmented"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}>Light</button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}>Dark</button></div></div><div className="setting-row"><div><strong>Completion sounds</strong><small>Play a quiet chime when work finishes.</small></div><button className={`switch ${sounds ? 'on' : ''}`} onClick={() => setSounds(!sounds)} aria-label="Toggle sounds"><i /></button></div><div className="agent-panels">{agents.map(([name, install, state]) => {
     const ready = Boolean(state?.available && state?.authenticated);
     return <div key={name} className="codex-panel">
       <div className={`large-state ${ready ? 'ok' : ''}`}><i />{name}{ready && state?.accountType ? <em>{state.accountType}</em> : null}</div>
-      <p>{ready ? `Workshop can build with ${name}.` : state?.error || `Install and sign in to ${name} to build with it.`}</p>
+      <p>{ready ? `Bricolage can build with ${name}.` : state?.error || `Install and sign in to ${name} to build with it.`}</p>
       {state && !state.available && <code>{install}</code>}
     </div>;
   })}</div><Connections /></section></div>;

@@ -1,11 +1,11 @@
-# Workshop
+# Bricolage
 
 **A local-first desktop where you and an agent make small apps together — and then use them.**
 
 You describe something you want. A coding agent shapes it with you, builds it into its own workspace, and it becomes an app on your desktop: an icon, a window, its own saved data, its own version history. You keep it. You change it by asking. The agent is the manufacturing process, not the interface.
 
 ```
-┌─ Workshop ────────────────────────── ◐ 1 working · 2 agents ready ─┐
+┌─ Bricolage ────────────────────────── ◐ 1 working · 2 agents ready ─┐
 │                                                                    │
 │  What should we make?                          [Tea Steep Timer]   │
 │  ┌──────────────────────────────────────┐      [Fair Share]        │
@@ -24,7 +24,7 @@ You describe something you want. A coding agent shapes it with you, builds it in
 
 A chatbot with generative UI puts the model on the critical path of **every** interaction — slow, metered, different every time, gone when you scroll.
 
-Workshop puts it there **once**. A tea timer costs one build. After that it opens in milliseconds, works offline, costs nothing, and behaves identically every time. It's a crystallized intention with a filename and an undo history.
+Bricolage puts it there **once**. A tea timer costs one build. After that it opens in milliseconds, works offline, costs nothing, and behaves identically every time. It's a crystallized intention with a filename and an undo history.
 
 See [VISION.md](VISION.md) for where that idea goes.
 
@@ -47,7 +47,7 @@ Then open **http://localhost:4000**. For frontend development, `npm run dev` ser
 ## The loop
 
 1. **Say what you want.** The desktop agent reads your library first, so it can tell you when something you already have covers it.
-2. **It asks what it needs to.** The coding agent — not Workshop — decides the questions, and they're specific to your request. It skips them when the request is already clear.
+2. **It asks what it needs to.** The coding agent — not Bricolage — decides the questions, and they're specific to your request. It skips them when the request is already clear.
 3. **It builds, and you watch.** The preview reloads as files land; the feed shows the agent's own narration and the commands it runs.
 4. **You change it by asking.** Edits reuse the app's thread, snapshot a version, and can be rolled back.
 
@@ -85,7 +85,7 @@ export async function handler(input, ctx) {
 
 ## Connections
 
-Settings → Connections offers a small catalog built on two checkable rules: every npm entry sits under an **org scope only its vendor can publish to**, and every version is **pinned**. The **Docker MCP Gateway** leads it, because each server then runs in its own container rather than as a process holding Workshop's environment.
+Settings → Connections offers a small catalog built on two checkable rules: every npm entry sits under an **org scope only its vendor can publish to**, and every version is **pinned**. The **Docker MCP Gateway** leads it, because each server then runs in its own container rather than as a process holding Bricolage's environment.
 
 Apps declare what they need; you grant it; ungranted calls fail by name.
 

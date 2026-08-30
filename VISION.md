@@ -4,7 +4,7 @@
 
 **Software is about to become cheap enough to be personal.** Not personalized — *personal*. Made for one person, by that person, in an afternoon, and thrown away when it stops being useful.
 
-We don't have a place to put that software. We have chat windows, which forget, and app stores, which are for products. Workshop is an attempt at the missing place.
+We don't have a place to put that software. We have chat windows, which forget, and app stores, which are for products. Bricolage is an attempt at the missing place.
 
 ## What a desktop has that a chat window doesn't
 
@@ -16,7 +16,7 @@ A desktop has a shared, manipulable surface: objects with identity, position, an
 
 A chatbot with generative UI puts the model on the critical path of **every** interaction. Every render is a fresh inference — slow, metered, non-deterministic, gone when you scroll. Ask twice, get two different widgets.
 
-Workshop puts it there **once**. The build is manufacturing, not latency. Afterwards you hold something that opens instantly, runs offline, costs nothing, and behaves the same every time.
+Bricolage puts it there **once**. The build is manufacturing, not latency. Afterwards you hold something that opens instantly, runs offline, costs nothing, and behaves the same every time.
 
 That reframes the whole product. Slow builds aren't a UX failure to be optimized away; they're the cost of fabrication, paid once. What matters is that the wait is *legible* — which is why the preview streams and the feed carries the agent's own words rather than a spinner and a canned phrase.
 
