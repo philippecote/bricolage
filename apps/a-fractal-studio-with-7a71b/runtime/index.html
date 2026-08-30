@@ -316,6 +316,50 @@
     #fractalCanvas.is-pressed { cursor: grabbing; }
     .canvas-stage.is-rendering #fractalCanvas { filter: saturate(0.86); }
 
+    .empty-canvas-state {
+      position: absolute;
+      z-index: 3;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      text-align: center;
+      transition: opacity 240ms ease, transform 240ms ease;
+    }
+
+    .empty-canvas-state[hidden] { display: none; }
+
+    .empty-canvas-copy {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 7px;
+      transform: translateY(-2px);
+    }
+
+    .empty-orbit {
+      position: relative;
+      width: 74px;
+      height: 74px;
+      margin-bottom: 5px;
+      border: 1px solid rgba(143, 215, 196, 0.25);
+      border-radius: 50%;
+      box-shadow: 0 0 0 10px rgba(143, 215, 196, 0.025), inset 0 0 22px rgba(143, 215, 196, 0.06);
+      animation: float-orbit 4s ease-in-out infinite;
+    }
+
+    .empty-orbit::before,
+    .empty-orbit::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+    }
+
+    .empty-orbit::before { width: 22px; height: 22px; left: 25px; top: 25px; background: rgba(143, 215, 196, 0.11); box-shadow: 0 0 20px rgba(143, 215, 196, 0.18); }
+    .empty-orbit::after { width: 7px; height: 7px; left: 10px; top: 10px; background: var(--mint); box-shadow: 0 0 13px rgba(143, 215, 196, 0.7); }
+    .empty-canvas-copy strong { color: rgba(238, 242, 233, 0.86); font-size: 14px; font-weight: 560; letter-spacing: -0.02em; }
+    .empty-canvas-copy span:last-child { color: rgba(129, 144, 154, 0.8); font-family: var(--mono); font-size: 9px; }
+
     .stage-corner,
     .hover-readout,
     .canvas-hint,
@@ -607,6 +651,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes pulse { 0%, 100% { opacity: 0.48; transform: scale(0.84); } 50% { opacity: 1; transform: scale(1); } }
     @keyframes rise-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes float-orbit { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
 
     @media (max-width: 780px) {
       body { overflow: auto; }
@@ -667,9 +712,17 @@
 
         <div class="canvas-stage" id="canvasStage">
           <canvas id="fractalCanvas" tabindex="0" role="img" aria-label="Interactive Mandelbrot fractal. Click to zoom in, shift-click to zoom out, or drag to pan."></canvas>
-          <div class="stage-corner"><span class="status-dot" id="stageStatusDot"></span><span id="stageRenderStatus">render ready</span></div>
+          <div class="stage-corner"><span class="status-dot" id="stageStatusDot"></span><span id="stageRenderStatus">waiting for click</span></div>
           <div class="hover-readout" id="hoverReadout" hidden aria-live="polite"><span class="hover-label">cursor coordinate</span><span id="hoverCoords">−0.5000 + 0.0000i</span></div>
-          <div class="canvas-hint" id="canvasHint"><span>Click to zoom</span><span class="hint-divider">•</span><span>Drag to pan</span><span class="hint-divider">•</span><span>Shift-click out</span></div>
+          <div class="empty-canvas-state" id="canvasEmptyState" role="status" aria-live="polite">
+            <div class="empty-canvas-copy">
+              <div class="empty-orbit" aria-hidden="true"></div>
+              <p class="eyebrow">Quiet canvas</p>
+              <strong>Click to begin exploring</strong>
+              <span>The first render starts at the overview.</span>
+            </div>
+          </div>
+          <div class="canvas-hint" id="canvasHint"><span id="hintPrimary">Click to render</span><span class="hint-divider">•</span><span>Drag to pan</span><span class="hint-divider">•</span><span>Shift-click out</span></div>
           <div class="progress-overlay" id="progressOverlay" role="status" aria-live="polite">
             <div class="progress-copy"><span class="loading-mark" aria-hidden="true"></span><span id="progressText">Mapping the set…</span><span id="progressPercent">0%</span></div>
             <div class="progress-track"><span class="progress-bar" id="progressBar"></span></div>
@@ -797,6 +850,7 @@
       let resizeTimer = 0;
       let pointer = null;
       let firstRender = true;
+      let hasRendered = false;
       let canvasHintTimer = 0;
 
       function getRuntimeStorage() {
@@ -936,7 +990,7 @@
 
       function setHeaderStatus(message, status = 'ready') {
         $('headerStatus').textContent = message;
-        $('stageRenderStatus').textContent = status === 'busy' ? 'rendering' : status === 'error' ? 'render error' : 'render ready';
+        $('stageRenderStatus').textContent = status === 'busy' ? 'rendering' : status === 'error' ? 'render error' : status === 'idle' ? 'waiting for click' : 'render ready';
         $('footerStatus').textContent = status === 'busy' ? 'Mapping the selected field' : message;
         $('headerStatusDot').classList.toggle('is-busy', status === 'busy');
         $('stageStatusDot').classList.toggle('is-busy', status === 'busy');
@@ -1060,6 +1114,9 @@
       function renderFractal(options = {}) {
         const { preview = false, label = 'Mapping the set…' } = options;
         clearError();
+        hasRendered = true;
+        $('canvasEmptyState').hidden = true;
+        $('hintPrimary').textContent = 'Click to zoom';
         ensureCanvasSize();
         const token = ++renderToken;
         if (renderFrame) window.cancelAnimationFrame(renderFrame);
@@ -1334,6 +1391,18 @@
         canvas.classList.remove('is-pressed');
         stage.classList.remove('is-dragging');
         try { canvas.releasePointerCapture(event.pointerId); } catch (error) { /* already released */ }
+        if (!hasRendered) {
+          canvas.style.transform = '';
+          if (activePointer.moved) {
+            $('footerStatus').textContent = 'Click without dragging to render the first image';
+            return;
+          }
+          state.view = { ...DEFAULT_VIEW };
+          updateViewReadouts();
+          persistState();
+          renderFractal({ label: 'Mapping the set…' });
+          return;
+        }
         if (activePointer.moved) {
           const rect = canvas.getBoundingClientRect();
           const start = activePointer.startView;
@@ -1419,12 +1488,14 @@
         });
         if (typeof ResizeObserver === 'function') {
           const observer = new ResizeObserver(() => {
+            if (!hasRendered) return;
             window.clearTimeout(resizeTimer);
             resizeTimer = window.setTimeout(() => renderFractal({ preview: true, label: 'Fitting the canvas…' }), 80);
           });
           observer.observe(stage);
         } else {
           window.addEventListener('resize', () => {
+            if (!hasRendered) return;
             window.clearTimeout(resizeTimer);
             resizeTimer = window.setTimeout(() => renderFractal({ preview: true, label: 'Fitting the canvas…' }), 80);
           });
@@ -1439,8 +1510,10 @@
         updateViewReadouts();
         renderSavedViews();
         attachEvents();
+        setHeaderStatus('Awaiting first click', 'idle');
+        $('renderLabel').textContent = 'empty canvas / waiting';
+        $('footerStatus').textContent = 'Click anywhere on the canvas to render';
         showHintBriefly();
-        renderFractal({ label: 'Mapping the set…' });
       }
 
       boot().catch((error) => setError(error));

@@ -105,3 +105,50 @@ describe('safeFetch guards', () => {
     expect([4, 6]).toContain(address.family);
   });
 });
+
+describe('model selection', () => {
+  it('keeps an app\'s model when a request does not name one', async () => {
+    const { z } = await import('zod');
+    const { MODEL_KEYS, DEFAULT_MODEL } = await import('../src/buildService.js');
+
+    // Zod applies .default() before .optional(), so this still yields the
+    // default for a missing key — which reset an app's model on every edit,
+    // rename, pin and archive.
+    const trap = z.object({ model: z.enum(MODEL_KEYS).default(DEFAULT_MODEL).optional() });
+    expect(trap.parse({}).model).toBe(DEFAULT_MODEL);
+
+    const correct = z.object({ model: z.enum(MODEL_KEYS).optional() });
+    expect(correct.parse({})).toEqual({});
+    expect(correct.parse({ model: 'opus-5-high' }).model).toBe('opus-5-high');
+  });
+
+  it('edits fall back to the app\'s own model, not the global default', async () => {
+    const { BuildService } = await import('../src/buildService.js');
+    const { writeManifest, readManifest } = await import('../src/workshopStorage.js');
+    const fsp = await import('node:fs/promises');
+    const nodePath = await import('node:path');
+    const { config } = await import('../src/config.js');
+    const { EventEmitter } = await import('node:events');
+
+    const id = 'model-memory-fixture';
+    const now = new Date().toISOString();
+    await writeManifest(id, { id, name: 'Fixture', createdAt: now, updatedAt: now, prompt: 'x', model: 'opus-5-high' });
+
+    const agent = Object.assign(new EventEmitter(), {
+      async startThread() { return 'thread-1'; }, async resumeThread(t) { return t; },
+      async startTurn() { return { turn: { id: 't' } }; }, async interrupt() {}, respond() {},
+    });
+    const builds = new BuildService({ codex: agent, claude: agent });
+    await builds.ready();
+    builds.push = () => {}; builds.persist = async () => {};
+
+    const kept = await builds.edit(id, 'tweak');
+    expect(kept.model).toBe('opus-5-high');
+    expect((await readManifest(id)).model).toBe('opus-5-high');
+
+    const changed = await builds.edit(id, 'tweak', 'sol-medium');
+    expect(changed.model).toBe('sol-medium');
+
+    await fsp.rm(nodePath.join(config.appsDir, id), { recursive: true, force: true });
+  });
+});

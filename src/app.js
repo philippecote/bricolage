@@ -21,23 +21,28 @@ import {
 import { assertSafeId, randomId, sha256 } from './utils.js';
 
 const modelSchema = z.enum(MODEL_KEYS).default(DEFAULT_MODEL);
+// Zod applies .default() before .optional(), so `modelSchema.optional()` still
+// yields the default for a missing key — which silently reset an app's model on
+// every edit, rename, pin and archive. A genuinely absent model needs this.
+const maybeModel = z.enum(MODEL_KEYS).optional();
 const createAppSchema = z.object({ prompt: z.string().trim().min(3).max(10_000), model: modelSchema });
-const messageSchema = z.object({ prompt: z.string().trim().min(1).max(10_000), model: modelSchema });
+// Optional on purpose: omitting it keeps the app's own model.
+const messageSchema = z.object({ prompt: z.string().trim().min(1).max(10_000), model: maybeModel });
 const answerSchema = z.object({ answers: z.record(z.string(), z.string().trim().min(1).max(120)) });
 const actionSchema = z.object({ payload: z.unknown().optional() });
-const patchAppSchema = z.object({ name: z.string().trim().min(1).max(64).optional(), pinned: z.boolean().optional(), archived: z.boolean().optional(), model: modelSchema.optional() });
+const patchAppSchema = z.object({ name: z.string().trim().min(1).max(64).optional(), pinned: z.boolean().optional(), archived: z.boolean().optional(), model: maybeModel });
 
 // The acts the conversation is allowed to propose, carried out only after the
 // person confirms. Everything here either spends money or changes the desktop.
-async function performAct(act, builds, desktop) {
+async function performAct(act, builds, desktop, model) {
   const { tool, args } = act;
   if (tool === 'build_app') {
-    const result = await builds.create(String(args.prompt || '').trim());
+    const result = await builds.create(String(args.prompt || '').trim(), model);
     return { result: { started: true, appId: result.app.id, name: result.app.name }, effect: { type: 'build', appId: result.app.id, buildId: result.build.id, app: result.app, build: result.build } };
   }
   if (tool === 'edit_app') {
     const app = await readManifest(String(args.appId));
-    const build = await builds.edit(app.id, String(args.prompt || '').trim(), app.model);
+    const build = await builds.edit(app.id, String(args.prompt || '').trim(), model || app.model);
     return { result: { started: true, appId: app.id }, effect: { type: 'edit', appId: app.id, buildId: build.id, build } };
   }
   if (tool === 'open_app') {
@@ -107,6 +112,8 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
     conversationId: z.string().max(64).optional(),
     message: z.string().trim().min(1).max(10_000).optional(),
     approve: z.object({ callId: z.string().max(128), tool: z.string().max(64), args: z.record(z.string(), z.unknown()).default({}) }).optional(),
+    // Whichever preset is selected in the composer when you hit send.
+    model: maybeModel,
   });
 
   app.post('/api/desktop/message', async (req, res, next) => {
@@ -119,7 +126,7 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
       if (input.approve) {
         // The person said yes; carry out the act, then hand the outcome back to
         // the conversation so it can react to what actually happened.
-        const outcome = await performAct(input.approve, builds, desktop);
+        const outcome = await performAct(input.approve, builds, desktop, input.model);
         approved = { callId: input.approve.callId, result: outcome.result };
         const reply = await desktop.send({ conversationId: input.conversationId, approved });
         console.log(JSON.stringify({ trace: 'desktop:act', tool: input.approve.tool, durationMs: Date.now() - started }));

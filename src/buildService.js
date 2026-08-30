@@ -58,12 +58,16 @@ export class BuildService extends EventEmitter {
     return { app, build: publicBuild(build), preset };
   }
 
-  async edit(appId, prompt, model = DEFAULT_MODEL) {
+  // No model means "keep using whatever this app was built with". Defaulting to
+  // the global preset here silently reset an app's remembered choice on any edit
+  // that did not happen to name one.
+  async edit(appId, prompt, model = null) {
     await this.ready();
-    requirePreset(model);
     const app = await readManifest(appId);
-    await writeManifest(appId, { status: 'building', error: null, model });
-    const build = this.newBuild(appId, prompt, app.threadId, model, 'edit', app.threadAgent);
+    const chosen = model || app.model || DEFAULT_MODEL;
+    requirePreset(chosen);
+    await writeManifest(appId, { status: 'building', error: null, model: chosen });
+    const build = this.newBuild(appId, prompt, app.threadId, chosen, 'edit', app.threadAgent);
     build.stage = 'build';
     build.plan = makePlan(true);
     this.push(build, 'planning', 'Making a thoughtful little plan', { plan: build.plan });

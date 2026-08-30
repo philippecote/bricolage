@@ -79,10 +79,11 @@ export const api = {
   apps: (archived = false) => request<{ apps: WorkshopApp[] }>(`/api/apps${archived ? '?archived=true' : ''}`),
   app: (id: string) => request<{ app: WorkshopApp; revisions: number[]; latestBuild: BuildSummary | null }>(`/api/apps/${id}`),
   // A conversational turn may read several apps before it answers.
-  say: (message: string, conversationId?: string) =>
-    request<DesktopReply>('/api/desktop/message', { method: 'POST', body: JSON.stringify({ message, conversationId }), timeoutMs: 120_000 }),
-  approve: (approve: PendingAct, conversationId: string) =>
-    request<DesktopReply>('/api/desktop/message', { method: 'POST', body: JSON.stringify({ approve, conversationId }), timeoutMs: 120_000 }),
+  say: (message: string, conversationId: string | undefined, model: ModelPreset) =>
+    request<DesktopReply>('/api/desktop/message', { method: 'POST', body: JSON.stringify({ message, conversationId, model }), timeoutMs: 120_000 }),
+  // The model travels with the approval too — that is the call that actually builds.
+  approve: (approve: PendingAct, conversationId: string, model: ModelPreset) =>
+    request<DesktopReply>('/api/desktop/message', { method: 'POST', body: JSON.stringify({ approve, conversationId, model }), timeoutMs: 120_000 }),
   // The form transport exists for an embedded browser that stalls programmatic
   // POSTs; the plain one is tried first and falls back to it.
   createDirect: (prompt: string, model: ModelPreset) =>

@@ -189,7 +189,7 @@ export function Workshop() {
     setTurns((current) => [...current, { id: `you-${Date.now()}`, from: 'you', text: message }]);
     setComposer('');
     setRouting(true);
-    try { receive(await api.say(message, conversationId.current)); }
+    try { receive(await api.say(message, conversationId.current, model)); }
     catch (error) { setTurns((current) => [...current, { id: `err-${Date.now()}`, from: 'workshop', text: error instanceof Error ? error.message : 'Something went wrong.' }]); }
     finally { setRouting(false); }
   }
@@ -197,7 +197,7 @@ export function Workshop() {
   async function approveAct(pending: PendingAct) {
     setTurns((current) => current.map((turn) => turn.pending?.callId === pending.callId ? { ...turn, pending: null } : turn));
     setRouting(true);
-    try { receive(await api.approve(pending, conversationId.current!)); }
+    try { receive(await api.approve(pending, conversationId.current!, model)); }
     catch (error) { setTurns((current) => [...current, { id: `err-${Date.now()}`, from: 'workshop', text: error instanceof Error ? error.message : 'Could not do that.' }]); }
     finally { setRouting(false); }
   }
@@ -261,7 +261,7 @@ export function Workshop() {
     const prompt = editing; setEditing('');
     try {
       setApps((items) => items.map((app) => app.id === inspectorApp.id ? { ...app, status: 'building', error: null } : app));
-      const result = await api.edit(inspectorApp.id, prompt, inspectorApp.model || 'luna-high');
+      const result = await api.edit(inspectorApp.id, prompt, inspectorApp.model);
       seedBuild(inspectorApp.id, result.buildId, result.build.events || []); watchBuild(inspectorApp.id, result.buildId);
     } catch (error) { showToast(error instanceof Error ? error.message : 'Edit failed'); }
   }
