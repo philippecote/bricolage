@@ -20,8 +20,7 @@ Within that model, three parties are treated differently:
 
 **The app runtime.** Apps get an iframe with `sandbox="allow-scripts allow-forms allow-popups"` — deliberately **without** `allow-same-origin`, so the document has an opaque origin and cannot reach Bricolage's cookies, storage, or DOM. The CSP sets `connect-src 'none'`, so an app cannot make network requests at all. Everything it does goes through the bridge, where the host decides.
 
-**Network egress from actions.** `safeFetch` requires HTTPS, resolves the hostname and rejects private, loopback, link-local and multicast addresses, blocks `localhost` and cloud metadata hosts, caps redirects and response size.
-*Known weakness:* it validates the resolved address and then fetches by hostname, so a DNS rebind inside that window can slip through. Pinning to the validated address would close it.
+**Network egress from actions.** `safeFetch` requires HTTPS, resolves the hostname and rejects private, loopback, link-local and multicast addresses, blocks `localhost` and cloud metadata hosts, caps redirects and response size. The connection is then **pinned to the address it validated** via its own `lookup`, so a DNS record that changes between the check and the request cannot redirect the socket — while URL, SNI and Host stay correct for the site.
 
 **Connection grants.** An app can only reach MCP connections listed in its `manifest.connections`. Anything else fails by name. Verified both ways in the test suite.
 

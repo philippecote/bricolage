@@ -45,8 +45,10 @@ export function Workshop() {
   const [spotlight, setSpotlight] = useState(false);
   const [library, setLibrary] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [store, setStore] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('workshop-theme') || 'light');
   const [sounds, setSounds] = useState(localStorage.getItem('workshop-sounds') === 'true');
+  const [dockHides, setDockHides] = useState(localStorage.getItem('workshop-dock-autohide') === 'true');
   const [toast, setToast] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -63,6 +65,8 @@ export function Workshop() {
   const maxZ = useRef(Math.max(2, ...windows.map((win) => win.z)));
   const streams = useRef(new Map<string, EventSource>());
   const detailsLoaded = useRef(new Set<string>());
+  // Read inside the keydown listener, which is bound once on mount.
+  const spotlightRef = useRef(false); const libraryRef = useRef(false); const settingsRef = useRef(false); const storeRef = useRef(false);
 
   const inspectorApp = apps.find((app) => app.id === inspectorAppId) || null;
   const currentEvents = inspectorAppId ? builds[inspectorAppId] || [] : [];
@@ -85,7 +89,11 @@ export function Workshop() {
     window.addEventListener('resize', onResize);
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSpotlight((value) => !value); }
-      if (event.key === 'Escape') { setSpotlight(false); setLibrary(false); setSettings(false); setActivityOpen(false); }
+      if (event.key === 'Escape') {
+        const overlayOpen = spotlightRef.current || libraryRef.current || settingsRef.current || storeRef.current;
+        setSpotlight(false); setLibrary(false); setSettings(false); setStore(false); setActivityOpen(false);
+        if (!overlayOpen) setWindows((current) => current.map((win) => (win.maximized ? { ...win, maximized: false } : win)));
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'w') { event.preventDefault(); setWindows((current) => { const top = [...current].filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]; return top ? current.filter((win) => win.id !== top.id) : current; }); }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'm') { event.preventDefault(); setWindows((current) => { const top = [...current].filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]; return top ? current.map((win) => win.id === top.id ? { ...win, minimized: true } : win) : current; }); }
     };
@@ -97,8 +105,11 @@ export function Workshop() {
     windows.forEach((win) => { if (!detailsLoaded.current.has(win.id)) loadDetails(win.id); });
   }, [windows]);
 
+  useEffect(() => { spotlightRef.current = spotlight; libraryRef.current = library; settingsRef.current = settings; storeRef.current = store; }, [spotlight, library, settings, store]);
+
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('workshop-theme', theme); }, [theme]);
   useEffect(() => { localStorage.setItem('workshop-sounds', String(sounds)); }, [sounds]);
+  useEffect(() => { localStorage.setItem('workshop-dock-autohide', String(dockHides)); }, [dockHides]);
   useEffect(() => { localStorage.setItem('workshop-model', model); }, [model]);
   useEffect(() => { localStorage.setItem('workshop-icon-positions', JSON.stringify(iconPositions)); }, [iconPositions]);
   useEffect(() => {
@@ -324,6 +335,8 @@ export function Workshop() {
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
 
+  function tidyIcons() { setIconPositions({}); showToast('Icons tidied'); }
+
   async function renameApp(id: string, name: string) { const result = await api.patch(id, { name }); setApps((items) => items.map((item) => item.id === id ? result.app : item)); }
   async function setAppModel(app: WorkshopApp, next: ModelPreset) { const result = await api.patch(app.id, { model: next }); setApps((items) => items.map((item) => item.id === app.id ? result.app : item)); }
   async function togglePin(app: WorkshopApp) { const result = await api.patch(app.id, { pinned: !app.pinned }); setApps((items) => items.map((item) => item.id === app.id ? result.app : item)); }
@@ -367,7 +380,7 @@ export function Workshop() {
   return <main className="desktop" aria-label="Workshop desktop">
     <div className="wallpaper-orb orb-one" /><div className="wallpaper-orb orb-two" />
     <header className="menu-bar">
-      <div className="menu-left"><button className="wordmark" onClick={() => setLibrary(false)} aria-label="Bricolage home"><span>B</span> Bricolage</button><button onClick={() => setLibrary(true)}>Library</button><button onClick={() => setSpotlight(true)}>Create</button></div>
+      <div className="menu-left"><button className="wordmark" onClick={() => setLibrary(false)} aria-label="Bricolage home"><span>B</span> Bricolage</button><button onClick={() => setLibrary(true)}>Library</button><button onClick={() => setStore(true)}>Connections</button><button onClick={() => setSpotlight(true)}>Create</button></div>
       <div className="menu-right">{activity.length > 0 && <button className={`working-chip ${activity.some((item) => item.waiting) ? 'waiting' : ''}`} onClick={() => setActivityOpen((value) => !value)} aria-label="Show desktop activity"><i />{activity.some((item) => item.waiting) ? 'Needs you' : `${activity.length} working`}</button>}<button className={`codex-state ${codexReady ? 'online' : ''}`} onClick={() => setSettings(true)}><i />{agentLabel}</button><button onClick={() => setSpotlight(true)} className="shortcut">⌘ K</button><time>{clock.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} &nbsp; {clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
     </header>
 
@@ -394,7 +407,7 @@ export function Workshop() {
       const app = apps.find((item) => item.id === win.id); if (!app || win.minimized) return null;
       const inspectorOpen = inspectorAppId === app.id;
       const building = activity.some((item) => item.app.id === app.id && item.working);
-      return <section key={win.id} className={`app-window ${win.maximized ? 'maximized' : ''} ${building ? 'building' : ''} ${activeWindowId === win.id ? 'active' : 'inactive'}`} style={win.maximized ? { zIndex: win.z } : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.z }} onPointerDown={() => focusWindow(win.id)} aria-label={`${app.name} window`}>
+      return <section key={win.id} className={`app-window ${win.maximized ? 'maximized fullscreen' : ''} ${building ? 'building' : ''} ${activeWindowId === win.id ? 'active' : 'inactive'}`} style={win.maximized ? { zIndex: win.z } : { left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.z }} onPointerDown={() => focusWindow(win.id)} aria-label={`${app.name} window`}>
         <header className="window-bar" onPointerDown={(event) => startWindowDrag(event, win)} onDoubleClick={() => windowPatch(win.id, { maximized: !win.maximized })}>
           <div className="traffic"><button className="close" onClick={() => closeWindow(win.id)} aria-label="Close" /><button className="min" onClick={() => minimizeWindow(win.id)} aria-label="Minimize" /><button className="max" onClick={() => windowPatch(win.id, { maximized: !win.maximized })} aria-label="Maximize" /></div>
           <span className="window-title"><AppIcon app={app} compact />{app.name}</span>
@@ -404,7 +417,7 @@ export function Workshop() {
       </section>;
     })}
 
-    <nav className="dock" aria-label="Dock">
+    <nav className={`dock ${dockHides ? 'autohide' : ''}`} aria-label="Dock">
       <button className="dock-item creator" onClick={() => setSpotlight(true)} aria-label="Create app"><span>✦</span><em>Create</em></button>
       <i className="dock-separator" />
       {docked.map((app) => <button key={app.id} className={`dock-item ${activity.some((item) => item.app.id === app.id) ? 'working' : ''}`} onClick={() => (windows.some((win) => win.id === app.id) ? focusWindow(app.id) : openApp(app))} aria-label={`Open ${app.name}`}><AppIcon app={app} /><em>{app.name}</em>{windows.some((win) => win.id === app.id && !win.minimized) && <b />}</button>)}
@@ -416,12 +429,14 @@ export function Workshop() {
       })}
       <i className="dock-separator" />
       <button className="dock-item" onClick={() => setLibrary(true)} aria-label="App library"><span className="library-icon">⌘</span><em>Library</em></button>
+      <button className="dock-item" onClick={() => setStore(true)} aria-label="Connections"><span className="store-icon">⇄</span><em>Connections</em></button>
       <button className="dock-item" onClick={() => setSettings(true)} aria-label="Settings"><span className="settings-icon">⚙</span><em>Settings</em></button>
     </nav>
     {activityOpen && <ActivityRail items={activity} onClose={() => setActivityOpen(false)} onOpen={(app) => { openApp(app, true); setActivityOpen(false); }} onApprove={resolveApproval} />}
     {spotlight && <Spotlight apps={visibleApps} onClose={() => setSpotlight(false)} onCreate={(prompt) => { setSpotlight(false); sayToDesktop(prompt); }} onOpen={(app) => { openApp(app); setSpotlight(false); }} />}
-    {library && <Library apps={apps} onClose={() => setLibrary(false)} onOpen={openApp} onRestore={async (app) => { await api.patch(app.id, { archived: false }); refresh(); }} />}
-    {settings && <Settings status={status} theme={theme} setTheme={setTheme} sounds={sounds} setSounds={setSounds} onClose={() => setSettings(false)} />}
+    {library && <Library apps={apps} onClose={() => setLibrary(false)} onTidy={tidyIcons} onOpen={openApp} onRestore={async (app) => { await api.patch(app.id, { archived: false }); refresh(); }} />}
+    {store && <McpStore onClose={() => setStore(false)} />}
+    {settings && <Settings status={status} theme={theme} setTheme={setTheme} sounds={sounds} setSounds={setSounds} dockHides={dockHides} setDockHides={setDockHides} onClose={() => setSettings(false)} onOpenStore={() => { setSettings(false); setStore(true); }} />}
     {toast && <div className="toast" role="status">{toast}</div>}
     {creating && <div className="creation-status" role="status" aria-live="polite"><div className="build-creature working"><i /><i /><span>⌁</span></div><div><strong>Making a cozy spot for your app</strong><span>Just a moment…</span></div></div>}
   </main>;
@@ -543,39 +558,73 @@ function ActivityRail({ items, onClose, onOpen, onApprove }: { items: ActivityIt
 function formatElapsed(ms: number) { const seconds = Math.floor(ms / 1000); return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`; }
 
 function Spotlight({ apps, onClose, onCreate, onOpen }: { apps: WorkshopApp[]; onClose: () => void; onCreate: (prompt: string) => void; onOpen: (app: WorkshopApp) => void }) {
-  const [query, setQuery] = useState(''); const matches = apps.filter((app) => app.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5);
-  return <div className="overlay" onMouseDown={onClose}><section className="spotlight" onMouseDown={(e) => e.stopPropagation()}><div className="spotlight-input"><span>✦</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && query.trim()) onCreate(query); }} placeholder="Create or open anything" /><kbd>esc</kbd></div><div className="spotlight-results">{query && <button onClick={() => onCreate(query)}><span className="result-symbol">＋</span><div><strong>Build “{query}”</strong><small>Create a new app with Codex</small></div><b>↵</b></button>}{matches.map((app) => <button key={app.id} onClick={() => onOpen(app)}><AppIcon app={app} compact /><div><strong>{app.name}</strong><small>{app.description}</small></div><b>Open</b></button>)}</div></section></div>;
+  const [query, setQuery] = useState('');
+  const [cursor, setCursor] = useState(0);
+  const matches = useMemo(() => apps.filter((app) => app.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6), [apps, query]);
+
+  // One flat list, so the arrow keys move through exactly what you can see.
+  const rows: Array<{ key: string; run: () => void }> = [
+    ...matches.map((app) => ({ key: `app-${app.id}`, run: () => onOpen(app) })),
+    ...(query.trim() ? [{ key: 'make', run: () => onCreate(query) }] : []),
+  ];
+  const active = Math.min(cursor, Math.max(0, rows.length - 1));
+  useEffect(() => { setCursor(0); }, [query]);
+
+  function onKeyDown(event: React.KeyboardEvent) {
+    if (event.key === 'ArrowDown') { event.preventDefault(); setCursor((c) => (rows.length ? (c + 1) % rows.length : 0)); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); setCursor((c) => (rows.length ? (c - 1 + rows.length) % rows.length : 0)); }
+    else if (event.key === 'Enter') { event.preventDefault(); rows[active]?.run(); }
+  }
+
+  return <div className="overlay" onMouseDown={onClose}><section className="spotlight" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="spotlight-input">
+      <span>✦</span>
+      <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKeyDown} placeholder="Open an app, or describe a new one" aria-label="Search or create" />
+      <kbd>esc</kbd>
+    </div>
+    <div className="spotlight-results" role="listbox">
+      {matches.map((app, index) => <button key={app.id} role="option" aria-selected={rows[active]?.key === `app-${app.id}`} className={rows[active]?.key === `app-${app.id}` ? 'cursor' : ''} onMouseEnter={() => setCursor(index)} onClick={() => onOpen(app)}>
+        <AppIcon app={app} compact /><div><strong>{app.name}</strong><small>{app.description}</small></div><b>Open</b>
+      </button>)}
+      {query.trim() && <button role="option" aria-selected={rows[active]?.key === 'make'} className={rows[active]?.key === 'make' ? 'cursor' : ''} onMouseEnter={() => setCursor(matches.length)} onClick={() => onCreate(query)}>
+        <span className="result-symbol">＋</span><div><strong>Ask for “{query}”</strong><small>Talk to Bricolage about making it</small></div><b>↵</b>
+      </button>}
+      {!query.trim() && !matches.length && <p className="spotlight-hint">Type to find an app, or describe something new.</p>}
+    </div>
+  </section></div>;
 }
 
-function Library({ apps, onClose, onOpen, onRestore }: { apps: WorkshopApp[]; onClose: () => void; onOpen: (app: WorkshopApp) => void; onRestore: (app: WorkshopApp) => void }) {
-  const [query, setQuery] = useState(''); const [archived, setArchived] = useState(false); const shown = apps.filter((app) => app.archived === archived && app.name.toLowerCase().includes(query.toLowerCase()));
-  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="library-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">BRICOLAGE</span><h2>App Library</h2></div><button onClick={onClose}>Done</button></header><div className="library-tools"><input placeholder="Search apps" value={query} onChange={(e) => setQuery(e.target.value)} /><div><button className={!archived ? 'active' : ''} onClick={() => setArchived(false)}>Apps</button><button className={archived ? 'active' : ''} onClick={() => setArchived(true)}>Archive</button></div></div><div className="library-grid">{shown.map((app) => <button key={app.id} onClick={() => archived ? onRestore(app) : onOpen(app)}><AppIcon app={app} /><div><strong>{app.name}</strong><small>{app.description}</small></div><span>{archived ? 'Restore' : 'Open'}</span></button>)}</div>{!shown.length && <div className="library-empty">Nothing here yet.</div>}</section></div>;
+function Library({ apps, onClose, onOpen, onRestore, onTidy }: { apps: WorkshopApp[]; onClose: () => void; onOpen: (app: WorkshopApp) => void; onRestore: (app: WorkshopApp) => void; onTidy: () => void }) {
+  const [query, setQuery] = useState(''); const [archived, setArchived] = useState(false); const [sort, setSort] = useState<'recent' | 'name'>('recent');
+  const shown = apps
+    .filter((app) => app.archived === archived && app.name.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => (sort === 'name' ? a.name.localeCompare(b.name) : b.updatedAt.localeCompare(a.updatedAt)));
+  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="library-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">BRICOLAGE</span><h2>App Library</h2></div><button onClick={onClose}>Done</button></header><div className="library-tools"><input placeholder="Search apps" value={query} onChange={(e) => setQuery(e.target.value)} /><div className="segmented"><button className={!archived ? 'active' : ''} onClick={() => setArchived(false)}>Apps</button><button className={archived ? 'active' : ''} onClick={() => setArchived(true)}>Archive</button></div><div className="segmented"><button className={sort === 'recent' ? 'active' : ''} onClick={() => setSort('recent')}>Recent</button><button className={sort === 'name' ? 'active' : ''} onClick={() => setSort('name')}>A–Z</button></div><button className="library-tidy" onClick={onTidy}>Tidy icons</button></div><div className="library-grid">{shown.map((app) => <button key={app.id} onClick={() => archived ? onRestore(app) : onOpen(app)}><AppIcon app={app} /><div><strong>{app.name}</strong><small>{app.description}</small></div><span>{archived ? 'Restore' : 'Open'}</span></button>)}</div>{!shown.length && <div className="library-empty">Nothing here yet.</div>}</section></div>;
 }
 
-function Settings({ status, theme, setTheme, sounds, setSounds, onClose }: { status: SystemStatus | null; theme: string; setTheme: (v: string) => void; sounds: boolean; setSounds: (v: boolean) => void; onClose: () => void }) {
+function Settings({ status, theme, setTheme, sounds, setSounds, dockHides, setDockHides, onClose, onOpenStore }: { status: SystemStatus | null; theme: string; setTheme: (v: string) => void; sounds: boolean; setSounds: (v: boolean) => void; dockHides: boolean; setDockHides: (v: boolean) => void; onClose: () => void; onOpenStore: () => void }) {
   const agents: Array<[string, string, AgentState | undefined]> = [
     ['Codex', 'npm install -g @openai/codex', status?.agents?.codex ?? status?.codex],
     ['Claude Code', 'npm install -g @anthropic-ai/claude-code', status?.agents?.claude],
   ];
-  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="settings-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">BRICOLAGE</span><h2>Settings</h2></div><button onClick={onClose}>Done</button></header><div className="setting-row"><div><strong>Appearance</strong><small>Choose the desktop surface.</small></div><div className="segmented"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}>Light</button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}>Dark</button></div></div><div className="setting-row"><div><strong>Completion sounds</strong><small>Play a quiet chime when work finishes.</small></div><button className={`switch ${sounds ? 'on' : ''}`} onClick={() => setSounds(!sounds)} aria-label="Toggle sounds"><i /></button></div><div className="agent-panels">{agents.map(([name, install, state]) => {
+  return <div className="overlay sheet-overlay" onMouseDown={onClose}><section className="settings-sheet" onMouseDown={(e) => e.stopPropagation()}><header><div><span className="eyebrow">BRICOLAGE</span><h2>Settings</h2></div><button onClick={onClose}>Done</button></header><div className="setting-row"><div><strong>Appearance</strong><small>Choose the desktop surface.</small></div><div className="segmented"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}>Light</button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}>Dark</button></div></div><div className="setting-row"><div><strong>Hide the Dock</strong><small>Slides away until you reach the bottom of the screen.</small></div><button className={`switch ${dockHides ? 'on' : ''}`} onClick={() => setDockHides(!dockHides)} aria-label="Toggle dock auto-hide"><i /></button></div><div className="setting-row"><div><strong>Completion sounds</strong><small>Play a quiet chime when work finishes.</small></div><button className={`switch ${sounds ? 'on' : ''}`} onClick={() => setSounds(!sounds)} aria-label="Toggle sounds"><i /></button></div><div className="agent-panels">{agents.map(([name, install, state]) => {
     const ready = Boolean(state?.available && state?.authenticated);
     return <div key={name} className="codex-panel">
       <div className={`large-state ${ready ? 'ok' : ''}`}><i />{name}{ready && state?.accountType ? <em>{state.accountType}</em> : null}</div>
       <p>{ready ? `Bricolage can build with ${name}.` : state?.error || `Install and sign in to ${name} to build with it.`}</p>
       {state && !state.available && <code>{install}</code>}
     </div>;
-  })}</div><Connections /></section></div>;
+  })}</div><Connections onOpenStore={onOpenStore} /></section></div>;
 }
 
 // Outside services the desktop can reach. Workshop holds whatever the server
 // needs; an app gets a scoped caller and only for connections it declares.
-function Connections() {
+function Connections({ onOpenStore }: { onOpenStore: () => void }) {
   const [items, setItems] = useState<Connection[]>([]);
   const [adding, setAdding] = useState(false);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [picked, setPicked] = useState<CatalogEntry | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [storeOpen, setStoreOpen] = useState(false);
   const [draft, setDraft] = useState({ id: '', label: '', command: '', args: '', env: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -623,7 +672,7 @@ function Connections() {
   }
 
   return <section className="connections">
-    <header><div><strong>Connections</strong><small>Services your apps can reach. Added once here, granted per app.</small></div><button onClick={() => { setAdding((value) => !value); setPicked(null); setError(''); }}>{adding ? 'Cancel' : 'Add'}</button></header>
+    <header><div><strong>Connections</strong><small>Services your apps can reach. Added once here, granted per app.</small></div><button className="primary" onClick={onOpenStore}>Browse catalog</button></header>
     {items.map((item) => <div key={item.id} className="connection-row">
       <div><strong>{item.label}</strong><small>{item.tools.length ? `${item.tools.length} tools · ${item.tools.slice(0, 3).join(', ')}${item.tools.length > 3 ? '…' : ''}` : item.error || 'Not started yet'}</small>
       {item.secrets?.length ? <small className="connection-secrets">{item.secrets.map((secret) => <span key={secret.key} className={secret.missing ? 'missing' : ''}>{secret.key} · {secret.missing ? `${secret.from} not set` : secret.from}</span>)}</small> : null}</div>
@@ -631,11 +680,8 @@ function Connections() {
       <button className="danger" onClick={() => remove(item.id)}>Remove</button>
     </div>)}
     {!items.length && !adding && <p className="connections-empty">No connections yet. Apps can still use the web and the model.</p>}
+    <button type="button" className="catalog-manual" onClick={() => { setAdding((value) => !value); setPicked(null); setError(''); }}>{adding ? 'Never mind' : 'Or add one manually…'}</button>
     {adding && !picked && <div className="catalog">
-      <button type="button" className="catalog-entry store-open" onClick={() => setStoreOpen(true)}>
-        <div><strong>Browse the Docker catalog</strong><small>Hundreds of servers, each sandboxed in its own container</small></div>
-        <code>docker</code>
-      </button>
       {catalog.filter((entry) => !items.some((item) => item.id === entry.id)).map((entry) => <button key={entry.id} type="button" className="catalog-entry" onClick={() => { setPicked(entry); setAnswers({}); setError(''); }}>
         <div><strong>{entry.label}</strong><small>{entry.summary}</small></div>
         <code title="Published under an npm scope only this vendor can publish to">{entry.publisher}</code>
@@ -662,12 +708,11 @@ function Connections() {
       <button disabled={busy || !draft.id.trim() || !draft.command.trim()}>{busy ? 'Connecting…' : 'Connect'}</button>
     </form>}
     {error && <p className="connection-error">{error}</p>}
-    {storeOpen && <McpStore onClose={() => setStoreOpen(false)} onChanged={async () => setItems((await api.connections()).connections)} />}
   </section>;
 }
 
 // The Docker MCP Catalog as a grid you browse, not a command you type.
-function McpStore({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+function McpStore({ onClose }: { onClose: () => void }) {
   const [store, setStore] = useState<Store | null>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
@@ -697,14 +742,13 @@ function McpStore({ onClose, onChanged }: { onClose: () => void; onChanged: () =
       if (result.error) setError(result.error);
       setStore(await api.store());
       setOpened(null); setSecrets({});
-      onChanged();
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not install that.'); }
     finally { setBusy(''); }
   }
 
   async function remove(server: StoreServer) {
     setBusy(server.name);
-    try { await api.uninstall(server.name); setStore(await api.store()); onChanged(); }
+    try { await api.uninstall(server.name); setStore(await api.store()); }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not remove that.'); }
     finally { setBusy(''); }
   }
