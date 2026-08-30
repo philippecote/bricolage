@@ -342,10 +342,11 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
           return result;
         },
         'mcp.call': async ({ id, tool, args }) => {
+          // Reading a granted connection does not taint: it is the person's own
+          // data source, trusted the same way ctx.storage is. What taints is
+          // content from somewhere nobody vouched for — see host.fetch above.
           await taint.assertMayCall(mcp, id, tool);
-          const result = await mcpFor(id).call(tool, args);
-          taint.taint(`the ${id} connection`);
-          return result;
+          return mcpFor(id).call(tool, args);
         },
         'mcp.tools': ({ id }) => mcpFor(id).tools(),
       };

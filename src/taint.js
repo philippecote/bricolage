@@ -5,11 +5,16 @@
  * content, and the ability to act. The contract has always told agents to split
  * those apart; nothing stopped a generated action from combining them.
  *
- * So the run itself is tracked. The moment an action ingests something a
- * stranger could have written — a fetched page, a web search, a tool result from
- * an outside service — it loses the ability to act on the outside world for the
- * rest of that run. It can still read, and it can still return a proposal for a
- * person to confirm, which is the pattern the contract asks for anyway.
+ * So the run itself is tracked. The moment an action ingests something nobody
+ * vouched for — a fetched page, a web-search-backed answer — it loses the
+ * ability to write to the outside world for the rest of that run. It can still
+ * read, and it can still return a proposal for a person to confirm, which is the
+ * pattern the contract asks for anyway.
+ *
+ * Reading a granted connection is deliberately NOT tainting. A connection the
+ * person added, pointed at their own files, is a trusted source in the same way
+ * ctx.storage is; treating it as hostile only stopped legitimate work — a file
+ * browser could list a folder, then not create one in it.
  */
 export function createTaintGuard() {
   let source = null;
