@@ -230,8 +230,11 @@ export class BuildService extends EventEmitter {
       }
       return;
     }
-    if (message.method === 'item/started') this.push(build, phaseForItem(params.item), itemLabel(params.item, false));
-    if (message.method === 'item/completed') this.push(build, phaseForItem(params.item, true), itemLabel(params.item, true));
+    if (message.method === 'item/started' || message.method === 'item/completed') {
+      const completed = message.method === 'item/completed';
+      const label = itemLabel(params.item, completed);
+      if (label) this.push(build, phaseForItem(params.item, completed), label);
+    }
     if (message.method === 'turn/completed') {
       const status = params.turn?.status;
       this.stopWatchingPreview(build.id);
@@ -248,6 +251,8 @@ export class BuildService extends EventEmitter {
   }
 
   push(build, phase, message, extra = {}) {
+    const previous = build.events.at(-1);
+    if (previous && previous.phase === phase && previous.message === message && !Object.keys(extra).length) return;
     const event = { id: randomId(), buildId: build.id, appId: build.appId, phase, message, at: new Date().toISOString(), ...extra };
     build.events.push(event); build.updatedAt = event.at;
     this.emit(`build:${build.id}`, event);
@@ -319,13 +324,48 @@ export class BuildService extends EventEmitter {
 
 export function publicBuild(build) { return { id: build.id, appId: build.appId, status: build.status, kind: build.kind, stage: build.stage, model: build.model, createdAt: build.createdAt, updatedAt: build.updatedAt, events: build.events, questions: build.events.find((event) => event.questions)?.questions || null, plan: build.plan }; }
 function requirePreset(key) { const preset = MODEL_PRESETS[key]; if (!preset) throw new Error('Unknown Workshop model preset.'); return preset; }
-function phaseForItem(item = {}, completed = false) { const type = item.type || ''; if (/command|test/i.test(type)) return 'checking'; if (/file|edit/i.test(type)) return 'editing'; return completed ? 'checking' : 'editing'; }
+function phaseForItem(item = {}, completed = false) { const type = item.type || ''; if (/command|test/i.test(type)) return 'checking'; if (/file|edit|message|reasoning/i.test(type)) return 'editing'; return completed ? 'checking' : 'editing'; }
+// Returns null for anything not worth announcing, so the feed carries substance
+// instead of a canned phrase per model token.
 function itemLabel(item = {}, completed = false) {
   const type = item.type || '';
   const [file] = itemPaths(item);
-  if (/command|test/i.test(type)) return completed ? 'Local check passed' : 'Running a local check';
+
+  // The agent narrating its own work is the most informative thing in the
+  // stream, and it was being collected and then discarded.
+  if (/message/i.test(type)) {
+    const text = firstSentence(item.text);
+    return completed && text ? text : null;
+  }
+  if (/command|test/i.test(type)) {
+    const command = shorten(Array.isArray(item.command) ? item.command.join(' ') : item.command);
+    if (command) return `${completed ? 'Ran' : 'Running'} ${command}`;
+    return completed ? 'Local check passed' : 'Running a local check';
+  }
   if (/file|edit/i.test(type)) return file ? `${completed ? 'Finished' : 'Editing'} ${path.basename(file)}` : (completed ? 'Interface detail finished' : 'Shaping an interface detail');
-  return completed ? 'One detail polished' : 'Polishing the experience';
+  if (/reasoning/i.test(type)) return completed ? null : 'Thinking it through';
+  return completed ? null : 'Working on it';
+}
+
+function firstSentence(text) {
+  const clean = String(text || '')
+    // Markdown links to absolute paths are the agent talking to a developer.
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/(^|\s)\/[^\s)]{12,}/g, '$1a file')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return '';
+  const stop = clean.search(/[.!?](\s|$)/);
+  const sentence = stop > 20 ? clean.slice(0, stop + 1) : clean;
+  return sentence.length > 130 ? `${sentence.slice(0, 127)}…` : sentence;
+}
+
+function shorten(value) {
+  let clean = String(value || '').replace(/\s+/g, ' ').trim();
+  const shell = /^\S*\/?(?:ba|z|d)?sh\s+-[a-z]*c\s+(.*)$/.exec(clean);
+  if (shell) clean = shell[1].replace(/^["']|["']$/g, '').trim();
+  return clean.length > 62 ? `${clean.slice(0, 59)}…` : clean;
 }
 
 // Codex reports a file edit as changes[].path while Claude Code reports item.path.

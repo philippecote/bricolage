@@ -103,7 +103,11 @@ export class ClaudeAgent extends EventEmitter {
           this.emit('notification', { method: 'item/started', params: { threadId, turnId, item: toItem(part) } });
         }
         // Keep the newest assistant prose; the shaping turn's JSON brief is in it.
-        if (part.type === 'text' && part.text?.trim()) state.text = part.text;
+        // It is also the narration the build feed shows, so emit it as an item.
+        if (part.type === 'text' && part.text?.trim()) {
+          state.text = part.text;
+          this.emit('notification', { method: 'item/completed', params: { threadId, turnId, item: { type: 'agentMessage', text: part.text } } });
+        }
       }
       return;
     }

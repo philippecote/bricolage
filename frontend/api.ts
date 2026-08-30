@@ -1,4 +1,4 @@
-import type { BuildSummary, Connection, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { BuildSummary, Connection, DesktopRoute, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
 async function request<T>(path: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -78,6 +78,11 @@ export const api = {
   status: () => request<SystemStatus>('/api/system/status'),
   apps: (archived = false) => request<{ apps: WorkshopApp[] }>(`/api/apps${archived ? '?archived=true' : ''}`),
   app: (id: string) => request<{ app: WorkshopApp; revisions: number[]; latestBuild: BuildSummary | null }>(`/api/apps/${id}`),
+  route: (prompt: string) => request<{ route: DesktopRoute }>('/api/desktop/route', { method: 'POST', body: JSON.stringify({ prompt }), timeoutMs: 30_000 }),
+  // The form transport exists for an embedded browser that stalls programmatic
+  // POSTs; the plain one is tried first and falls back to it.
+  createDirect: (prompt: string, model: ModelPreset) =>
+    request<{ appId: string; buildId: string; app: WorkshopApp; build: BuildSummary }>('/api/apps', { method: 'POST', body: JSON.stringify({ prompt, model }), timeoutMs: 30_000 }),
   create: (prompt: string, model: ModelPreset) => {
     console.info('[Workshop trace] create:submit', { model, promptChars: prompt.length, at: Date.now() });
     return requestViaForm<{ appId: string; buildId: string; app: WorkshopApp; build: BuildSummary }>('/workshop/build', { prompt, model });
@@ -92,7 +97,7 @@ export const api = {
   connections: () => request<{ connections: Connection[] }>('/api/connections'),
   // Starting a server can mean npx downloading a package first, which is far
   // past the default budget.
-  addConnection: (definition: { id: string; label: string; command: string; args: string[] }) =>
+  addConnection: (definition: { id: string; label: string; command: string; args: string[]; env?: Record<string, string> }) =>
     request<{ connection: Connection; tools: string[]; error: string | null }>('/api/connections', { method: 'POST', body: JSON.stringify(definition), timeoutMs: 120_000 }),
   removeConnection: (id: string) => request(`/api/connections/${id}`, { method: 'DELETE', body: '{}' }),
   action: (id: string, name: string, payload: unknown) => request(`/api/apps/${id}/actions/${name}`, { method: 'POST', body: JSON.stringify({ payload }) }),

@@ -8,6 +8,16 @@ export type ModelPreset = 'luna-high' | 'luna-max' | 'sol-medium' | 'opus-5-high
 export interface BuildQuestion { id: string; prompt: string; options: string[] }
 export interface BuildEvent { id: string; buildId: string; appId: string; phase: string; message: string; at: string; questions?: BuildQuestion[]; plan?: string[]; approval?: { id: string; summary: string }; preview?: boolean }
 export interface BuildSummary { id: string; appId: string; status: string; model: ModelPreset; createdAt: string; updatedAt: string; events: BuildEvent[]; questions?: BuildQuestion[]; plan?: string[] }
-export interface Connection { id: string; label: string; enabled: boolean; command: string; connected: boolean; tools: string[]; error: string | null }
+export interface ConnectionSecret { key: string; from: string; missing: boolean }
+export interface Connection { id: string; label: string; enabled: boolean; command: string; connected: boolean; tools: string[]; secrets?: ConnectionSecret[]; error: string | null }
 export interface AgentState { available: boolean; authenticated: boolean; accountType?: string | null; error: string | null }
 export interface SystemStatus { name: string; version: string; codex: AgentState; agents?: { codex: AgentState; claude: AgentState }; connections?: Connection[]; activeBuilds: BuildSummary[] }
+
+export interface DesktopRoute {
+  intent: 'create' | 'edit' | 'answer';
+  appId: string | null;
+  prompt: string;
+  reply: string;
+  reason: string;
+  confirm: boolean;
+}

@@ -1,6 +1,6 @@
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import type { AgentState, BuildEvent, BuildQuestion, Connection, ModelPreset, SystemStatus, WorkshopApp } from './types';
+import type { AgentState, BuildEvent, BuildQuestion, Connection, DesktopRoute, ModelPreset, SystemStatus, WorkshopApp } from './types';
 
 const STARTERS = [
   ['Daily pulse', 'Build a daily habit tracker with streaks and a calm weekly view'],
@@ -57,12 +57,10 @@ export function Workshop() {
   // Bumped every time the agent finishes writing a runtime file, so the preview
   // reloads mid-build and you watch the app appear.
   const [previewNonce, setPreviewNonce] = useState<Record<string, number>>({});
+  const [routing, setRouting] = useState(false);
+  const [proposal, setProposal] = useState<DesktopRoute | null>(null);
   const maxZ = useRef(Math.max(2, ...windows.map((win) => win.z)));
   const streams = useRef(new Map<string, EventSource>());
-  const nativeCreatePending = useRef(false);
-  const nativeCreateFrame = useRef<HTMLIFrameElement>(null);
-  const nativeCreateTimer = useRef<number | null>(null);
-  const nativeCreatePoller = useRef<number | null>(null);
 
   const inspectorApp = apps.find((app) => app.id === inspectorAppId) || null;
   const currentEvents = inspectorAppId ? builds[inspectorAppId] || [] : [];
@@ -90,7 +88,7 @@ export function Workshop() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'm') { event.preventDefault(); setWindows((current) => { const top = [...current].filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]; return top ? current.map((win) => win.id === top.id ? { ...win, minimized: true } : win) : current; }); }
     };
     window.addEventListener('keydown', onKey);
-    return () => { mounted = false; clearInterval(timer); clearInterval(reconciler); if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); streams.current.forEach((stream) => stream.close()); };
+    return () => { mounted = false; clearInterval(timer); clearInterval(reconciler); window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize); streams.current.forEach((stream) => stream.close()); };
   }, []);
 
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('workshop-theme', theme); }, [theme]);
@@ -138,7 +136,9 @@ export function Workshop() {
     console.info('[Workshop trace] create:handler', { model, promptChars: clean.length, at: Date.now() });
     setCreating(true); setCreateError(''); setSpotlight(false);
     try {
-      const result = await api.create(clean, model);
+      let result;
+      try { result = await api.createDirect(clean, model); }
+      catch { result = await api.create(clean, model); }
       console.info('[Workshop trace] create:success', { appId: result.appId, buildId: result.buildId, at: Date.now() });
       adoptCreated(result);
     } catch (error) {
@@ -148,38 +148,35 @@ export function Workshop() {
     finally { setCreating(false); }
   }
 
-  function submitComposer(event: FormEvent<HTMLFormElement>) {
-    const clean = composer.trim();
-    if (!clean || creating) { event.preventDefault(); return; }
-    console.info('[Workshop trace] create:native-submit', { model, promptChars: clean.length, at: Date.now() });
-    nativeCreatePending.current = true; setCreating(true); setCreateError(''); setSpotlight(false); setComposer(clean);
-    if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current);
-    if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current);
-    nativeCreatePoller.current = window.setInterval(receiveNativeCreate, 120);
-    nativeCreateTimer.current = window.setTimeout(() => {
-      if (!nativeCreatePending.current) return;
-      nativeCreatePending.current = false; setCreating(false); setCreateError(builderMessage('Workshop did not receive the create response in time.'));
-      if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current);
-      console.info('[Workshop trace] create:native-timeout', { at: Date.now() });
-    }, 10_000);
+  async function runRoute(route: DesktopRoute) {
+    setProposal(null);
+    if (route.intent === 'edit' && route.appId) {
+      const app = apps.find((item) => item.id === route.appId);
+      if (app) {
+        setComposer('');
+        openApp(app, true);
+        try {
+          const result = await api.edit(app.id, route.prompt, app.model || model);
+          setApps((items) => items.map((item) => item.id === app.id ? { ...item, status: 'building', error: null } : item));
+          seedBuild(app.id, result.buildId, result.build.events || []);
+          watchBuild(app.id, result.buildId);
+        } catch (error) { showToast(error instanceof Error ? error.message : 'Could not start that change'); }
+        return;
+      }
+    }
+    create(route.prompt || composer);
   }
 
-  function receiveNativeCreate() {
-    const frame = nativeCreateFrame.current;
-    let frameUrl = '';
-    try { frameUrl = frame?.contentWindow?.location.href || ''; } catch { frameUrl = 'unreadable'; }
-    const text = frame?.contentDocument?.body?.textContent || frame?.contentWindow?.document?.body?.textContent || '';
-    console.info('[Workshop trace] create:native-frame-load', { pending: nativeCreatePending.current, frameUrl, textChars: text.length, at: Date.now() });
-    if (!nativeCreatePending.current || frameUrl === 'about:blank' || !text.trim()) return;
-    try {
-      const result = JSON.parse(text) as { appId?: string; buildId?: string; app?: WorkshopApp; build?: { events?: BuildEvent[] }; error?: string };
-      if (result.error || !result.appId || !result.buildId || !result.app) throw new Error(result.error || 'Workshop returned an incomplete response.');
-      nativeCreatePending.current = false; if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); console.info('[Workshop trace] create:native-success', { appId: result.appId, buildId: result.buildId, at: Date.now() });
-      adoptCreated(result as { appId: string; buildId: string; app: WorkshopApp; build: { events?: BuildEvent[] } }); setCreating(false);
-    } catch (error) {
-      nativeCreatePending.current = false; if (nativeCreateTimer.current) window.clearTimeout(nativeCreateTimer.current); if (nativeCreatePoller.current) window.clearInterval(nativeCreatePoller.current); console.info('[Workshop trace] create:native-error', { message: error instanceof Error ? error.message : String(error), at: Date.now() });
-      setCreateError(builderMessage(error instanceof Error ? error.message : 'Could not create app')); setCreating(false);
-    }
+  function submitComposer(event: FormEvent<HTMLFormElement>) {
+    const clean = composer.trim();
+    event.preventDefault();
+    if (!clean || creating || routing) return;
+    setCreateError('');
+    setRouting(true);
+    api.route(clean)
+      .then(({ route }) => { if (route.intent === 'answer' || route.confirm) setProposal(route); else runRoute(route); })
+      .catch(() => create(clean))
+      .finally(() => setRouting(false));
   }
 
   function watchBuild(appId: string, buildId: string) {
@@ -340,12 +337,12 @@ export function Workshop() {
     <section className="desktop-content">
       <div className="welcome">
         <span className="eyebrow">YOUR WORKBENCH</span><h1>What should we make?</h1>
-        <form className="hero-composer" action="/workshop/build" method="post" target="workshop-create-result" onSubmit={submitComposer}>
+        <form className="hero-composer" onSubmit={submitComposer}>
           <textarea name="prompt" value={composer} readOnly={creating} onChange={(event) => setComposer(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder={creating ? 'Starting your app…' : 'Ask for an app…'} aria-label="Describe an app" />
           <input type="hidden" name="model" value={model} />
-          <div className="composer-foot"><ModelPicker value={model} onChange={setModel} compact /><button className={`build-arrow ${creating ? 'creating' : ''}`} aria-label={creating ? 'Creating app' : 'Build app'} disabled={!composer.trim()}>{creating ? '✦' : '↑'}</button></div>
+          <div className="composer-foot"><ModelPicker value={model} onChange={setModel} compact /><button className={`build-arrow ${creating || routing ? 'creating' : ''}`} aria-label={creating ? 'Creating app' : routing ? 'Thinking' : 'Build app'} disabled={!composer.trim() || creating || routing}>{creating || routing ? '✦' : '↑'}</button></div>
         </form>
-        <iframe ref={nativeCreateFrame} name="workshop-create-result" title="Workshop create response" onLoad={receiveNativeCreate} hidden />
+        {proposal && <Proposal route={proposal} app={apps.find((item) => item.id === proposal.appId) || null} onAccept={() => runRoute(proposal)} onCreateInstead={() => { setProposal(null); create(composer); }} onDismiss={() => setProposal(null)} />}
         {createError && <div className="create-error" role="alert"><div><strong>Couldn’t start that app</strong><span>{createError} Start Workshop with <code>npm start</code>, then try again.</span></div><button onClick={() => { setCreateError(''); create(); }}>Try again</button></div>}
         <div className="starter-list">{STARTERS.map(([name, prompt]) => <button key={name} onClick={() => create(prompt)}><span>{name}</span><small>{prompt}</small><b>↗</b></button>)}</div>
       </div>
@@ -393,6 +390,29 @@ export function Workshop() {
   </main>;
 }
 
+// The desktop agent speaks only when it has something to add: an app that already
+// covers this, or an answer instead of a build.
+function Proposal({ route, app, onAccept, onCreateInstead, onDismiss }: { route: DesktopRoute; app: WorkshopApp | null; onAccept: () => void; onCreateInstead: () => void; onDismiss: () => void }) {
+  if (route.intent === 'answer') {
+    return <div className="proposal answer" role="status">
+      <p>{route.reply}</p>
+      <div><button className="primary" onClick={onDismiss}>Got it</button></div>
+    </div>;
+  }
+  return <div className="proposal" role="status">
+    {app && <AppIcon app={app} compact />}
+    <div className="proposal-body">
+      <p>{route.reason || route.reply}</p>
+      {route.reason && route.reply && <small>{route.reply}</small>}
+    </div>
+    <div className="proposal-actions">
+      <button className="primary" onClick={onAccept}>{app ? `Extend ${app.name}` : 'Go ahead'}</button>
+      <button onClick={onCreateInstead}>Build new</button>
+      <button className="quiet" onClick={onDismiss} aria-label="Dismiss">✕</button>
+    </div>
+  </div>;
+}
+
 function AppIcon({ app, compact = false }: { app: WorkshopApp; compact?: boolean }) { return <span className={`app-icon ${compact ? 'compact' : ''}`} style={{ '--accent': app.accent } as React.CSSProperties}><i>{app.icon}</i></span>; }
 
 function ModelPicker({ value, onChange, compact = false }: { value: ModelPreset; onChange: (value: ModelPreset) => void; compact?: boolean }) {
@@ -418,7 +438,7 @@ function Inspector({ app, events, buildId, revisions, editing, setEditing, impro
     {(events.length > 0 || app.status === 'building') && <div className="journey" aria-label="Build progress">{JOURNEY.map(([phase, label], index) => <div key={phase} className={`${index < currentIndex ? 'done' : ''} ${index === currentIndex ? 'current' : ''}`}><i>{index < currentIndex || latest?.phase === 'complete' ? '✓' : index + 1}</i><span>{label}</span></div>)}</div>}
     {awaitingAnswers && <QuestionDeck questions={questions} onSubmit={answer} />}
     {!awaitingAnswers && plan.length > 0 && <section className="build-plan"><header><span>Our little plan</span><b>{plan.length} steps</b></header>{plan.map((step, index) => <div key={step} className={index < Math.max(0, currentIndex - 1) ? 'done' : index === Math.max(0, currentIndex - 1) && busy ? 'active' : ''}><i>{index < Math.max(0, currentIndex - 1) ? '✓' : index + 1}</i><span>{step}</span></div>)}</section>}
-    {!awaitingAnswers && events.length > 0 && <div className="activity-peek"><span className="eyebrow">RIGHT NOW</span>{events.slice(-3).reverse().map((event, index) => <p key={event.id} className={index === 0 ? 'latest' : ''}><i />{event.message}<time>{new Date(event.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time>{event.approval && <span className="approval"><button onClick={() => approve(event.approval!.id, false)}>Not now</button><button onClick={() => approve(event.approval!.id, true)}>Allow</button></span>}</p>)}</div>}
+    {!awaitingAnswers && events.length > 0 && <div className="activity-peek"><span className="eyebrow">RIGHT NOW</span>{events.slice(-8).reverse().map((event, index) => <p key={event.id} className={index === 0 ? 'latest' : ''}><i />{event.message}<time>{new Date(event.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time>{event.approval && <span className="approval"><button onClick={() => approve(event.approval!.id, false)}>Not now</button><button onClick={() => approve(event.approval!.id, true)}>Allow</button></span>}</p>)}</div>}
     {app.error && <div className="error-note">{app.error}</div>}
     {!awaitingAnswers && <form className="edit-composer" onSubmit={improve}><textarea placeholder="What should we change?" value={editing} onChange={(event) => setEditing(event.target.value)} disabled={busy} /><div><span>{busy ? 'Codex is in the zone' : 'Keeps this app’s context'}</span><button disabled={!editing.trim() || busy}>Send</button></div></form>}
     {busy && !awaitingAnswers && buildId && <button className="stop-build" onClick={cancel}>Stop for now</button>}
@@ -489,7 +509,7 @@ function Settings({ status, theme, setTheme, sounds, setSounds, onClose }: { sta
 function Connections() {
   const [items, setItems] = useState<Connection[]>([]);
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({ id: '', label: '', command: '', args: '' });
+  const [draft, setDraft] = useState({ id: '', label: '', command: '', args: '', env: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -499,10 +519,14 @@ function Connections() {
     event.preventDefault();
     setBusy(true); setError('');
     try {
-      const result = await api.addConnection({ id: draft.id.trim(), label: draft.label.trim() || draft.id.trim(), command: draft.command.trim(), args: draft.args.split(' ').map((part) => part.trim()).filter(Boolean) });
+      const env = Object.fromEntries(draft.env.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+        const at = line.indexOf('=');
+        return at > 0 ? [line.slice(0, at).trim(), line.slice(at + 1).trim()] : [line, ''];
+      }));
+      const result = await api.addConnection({ id: draft.id.trim(), label: draft.label.trim() || draft.id.trim(), command: draft.command.trim(), args: draft.args.split(' ').map((part) => part.trim()).filter(Boolean), env });
       if (result.error) setError(result.error);
       setItems((await api.connections()).connections);
-      setDraft({ id: '', label: '', command: '', args: '' });
+      setDraft({ id: '', label: '', command: '', args: '', env: '' });
       setAdding(false);
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not add that connection.'); }
     finally { setBusy(false); }
@@ -516,7 +540,8 @@ function Connections() {
   return <section className="connections">
     <header><div><strong>Connections</strong><small>Services your apps can reach. Added once here, granted per app.</small></div><button onClick={() => setAdding((value) => !value)}>{adding ? 'Cancel' : 'Add'}</button></header>
     {items.map((item) => <div key={item.id} className="connection-row">
-      <div><strong>{item.label}</strong><small>{item.tools.length ? `${item.tools.length} tools · ${item.tools.slice(0, 3).join(', ')}${item.tools.length > 3 ? '…' : ''}` : item.error || 'Not started yet'}</small></div>
+      <div><strong>{item.label}</strong><small>{item.tools.length ? `${item.tools.length} tools · ${item.tools.slice(0, 3).join(', ')}${item.tools.length > 3 ? '…' : ''}` : item.error || 'Not started yet'}</small>
+      {item.secrets?.length ? <small className="connection-secrets">{item.secrets.map((secret) => <span key={secret.key} className={secret.missing ? 'missing' : ''}>{secret.key} · {secret.missing ? `${secret.from} not set` : secret.from}</span>)}</small> : null}</div>
       <code>{item.id}</code>
       <button className="danger" onClick={() => remove(item.id)}>Remove</button>
     </div>)}
@@ -526,6 +551,8 @@ function Connections() {
       <input placeholder="Name (e.g. Local Files)" value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} />
       <input placeholder="command (e.g. npx)" value={draft.command} onChange={(event) => setDraft({ ...draft, command: event.target.value })} required />
       <input placeholder="arguments, space separated" value={draft.args} onChange={(event) => setDraft({ ...draft, args: event.target.value })} />
+      <textarea placeholder={'Secrets, one per line:\nGITHUB_TOKEN=$GITHUB_TOKEN'} value={draft.env} onChange={(event) => setDraft({ ...draft, env: event.target.value })} />
+      <small className="connection-hint">A value like <code>$GITHUB_TOKEN</code> is read from Workshop's own environment, so the secret stays in your <code>.env</code>. A literal value is stored in <code>.workshop/connections.json</code> instead.</small>
       <button disabled={busy || !draft.id.trim() || !draft.command.trim()}>{busy ? 'Connecting…' : 'Connect'}</button>
     </form>}
     {error && <p className="connection-error">{error}</p>}

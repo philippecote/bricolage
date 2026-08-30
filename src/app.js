@@ -7,6 +7,7 @@ import { AppLlmService, OpenAiLlmService } from './llmService.js';
 import { CodexAppServer } from './codexAppServer.js';
 import { ClaudeAgent } from './claudeAgent.js';
 import { McpHost, connectionSchema, createActionMcp } from './mcpHost.js';
+import { optionalDesktopAgent } from './desktopAgent.js';
 import { BuildService, DEFAULT_MODEL, MODEL_KEYS, publicBuild } from './buildService.js';
 import { executeAction } from './sandbox.js';
 import { safeFetch } from './network.js';
@@ -37,7 +38,7 @@ function sendFormPayload(res, status, payload) { res.status(status).type('html')
 function optionalLlm() { if (!config.openaiApiKey) return null; try { return new OpenAiLlmService(); } catch { return null; } }
 function optionalAppLlm() { if (!config.openaiApiKey) return null; try { return new AppLlmService(); } catch { return null; } }
 
-export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), buildService = null } = {}) {
+export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(), codex = new CodexAppServer(), claude = new ClaudeAgent(), mcp = new McpHost(), desktop = optionalDesktopAgent(appLlm), buildService = null } = {}) {
   const builds = buildService || new BuildService({ codex, claude, mcp });
   const app = express();
   app.disable('x-powered-by');
@@ -73,6 +74,22 @@ export function createApp({ llmService = optionalLlm(), appLlm = optionalAppLlm(
     ]);
     // `codex` stays for the existing clients; `agents` is the shape that scales.
     res.json({ name: 'Workshop', version: '1.0.0', codex: codexState, agents: { codex: codexState, claude: claudeState }, connections: await mcp.list().catch(() => []), activeBuilds: builds.listActive() });
+  });
+  // The composer routes before it builds: a cheap model call decides what should
+  // happen, and only then does an agent turn start.
+  app.post('/api/desktop/route', async (req, res, next) => {
+    try {
+      const { prompt } = parse(z.object({ prompt: z.string().trim().min(2).max(10_000) }), req.body);
+      if (!desktop) return res.json({ route: { intent: 'create', prompt, reply: '', reason: '', appId: null, confirm: false } });
+      const started = Date.now();
+      const route = await desktop.route(prompt);
+      console.log(JSON.stringify({ trace: 'desktop:route', intent: route.intent, appId: route.appId, confirm: route.confirm, durationMs: Date.now() - started }));
+      res.json({ route });
+    } catch (e) {
+      // Routing is an optimisation, never a gate: fall back to a plain create.
+      console.log(JSON.stringify({ trace: 'desktop:route:failed', error: normalizeError(e).message }));
+      res.json({ route: { intent: 'create', prompt: req.body?.prompt || '', reply: '', reason: '', appId: null, confirm: false } });
+    }
   });
   app.get('/api/connections', async (_req, res, next) => { try { res.json({ connections: await mcp.list() }); } catch (e) { next(e); } });
   app.post('/api/connections', async (req, res, next) => {

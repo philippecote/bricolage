@@ -18,6 +18,17 @@ export const connectionSchema = z.object({
 
 const PROTOCOL_VERSION = '2025-06-18';
 
+// A value of $NAME reads from Workshop's own environment, so a token can live in
+// .env instead of connections.json. Anything else is used literally.
+function resolveEnv(env = {}) {
+  const resolved = {};
+  for (const [key, value] of Object.entries(env)) {
+    const reference = /^\$([A-Za-z_][A-Za-z0-9_]*)$/.exec(String(value));
+    resolved[key] = reference ? (process.env[reference[1]] ?? '') : String(value);
+  }
+  return resolved;
+}
+
 /**
  * A minimal MCP client over stdio. Workshop is the host: it owns the process and
  * whatever credential the server needs, and hands apps a scoped caller instead of
@@ -39,8 +50,8 @@ class McpConnection {
   async start() {
     if (this.ready) return this.ready;
     this.ready = (async () => {
-      const { command, args, env } = this.definition;
-      const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...env } });
+      const { command, args } = this.definition;
+      const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...resolveEnv(this.definition.env) } });
       this.process = child;
       child.once('error', (error) => { this.lastError = error.message; this.process = null; this.ready = null; this.rejectAll(error); });
       child.stderr.on('data', (chunk) => { this.lastError = String(chunk).trim().slice(0, 400) || this.lastError; });
@@ -138,6 +149,11 @@ export class McpHost {
       command: connection.definition.command,
       connected: Boolean(connection.process),
       tools: connection.tools.map((tool) => tool.name),
+      // Names only. A secret Workshop holds is never read back out over the API.
+      secrets: Object.entries(connection.definition.env || {}).map(([key, value]) => {
+        const reference = /^\$([A-Za-z_][A-Za-z0-9_]*)$/.exec(String(value));
+        return { key, from: reference ? `$${reference[1]}` : 'stored', missing: reference ? !process.env[reference[1]] : false };
+      }),
       error: connection.lastError,
     }));
   }

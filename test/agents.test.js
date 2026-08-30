@@ -204,3 +204,46 @@ describe('streaming preview', () => {
     await fsp.rm(getAppDir(id), { recursive: true, force: true });
   });
 });
+
+describe('build feed labels', () => {
+  it('shows the agent\'s own words, real commands, and file names', async () => {
+    const { BuildService: Service } = await import('../src/buildService.js');
+    const svc = new Service({ codex: new EventEmitter() });
+    await svc.ready();
+    const build = { id: 'f1', appId: 'x', status: 'running', threadId: 'th', events: [], stage: 'build' };
+    svc.builds.set('f1', build);
+    svc.persist = async () => {};
+
+    const items = [
+      // A login-shell wrapper is not the command the person cares about.
+      { type: 'commandExecution', command: '/bin/zsh -lc "node --check runtime/index.html"' },
+      // Markdown links to absolute paths are the agent talking to a developer.
+      { type: 'agentMessage', text: 'Added the divider in [runtime/index.html](/Users/phil/dev/apps/x/runtime/index.html). It works.' },
+      { type: 'fileChange', changes: [{ path: '/abs/apps/x/runtime/index.html' }] },
+    ];
+    for (const item of items) svc.onCodexNotification({ method: 'item/completed', params: { threadId: 'th', item } });
+
+    expect(build.events.map((event) => [event.phase, event.message])).toEqual([
+      ['checking', 'Ran node --check runtime/index.html'],
+      ['editing', 'Added the divider in runtime/index.html.'],
+      ['editing', 'Finished index.html'],
+    ]);
+  });
+
+  it('drops empty narration and never repeats itself', async () => {
+    const { BuildService: Service } = await import('../src/buildService.js');
+    const svc = new Service({ codex: new EventEmitter() });
+    await svc.ready();
+    const build = { id: 'f2', appId: 'x', status: 'running', threadId: 'th', events: [], stage: 'build' };
+    svc.builds.set('f2', build);
+    svc.persist = async () => {};
+
+    // An agentMessage arrives empty on start and filled on completion.
+    svc.onCodexNotification({ method: 'item/started', params: { threadId: 'th', item: { type: 'agentMessage', text: '' } } });
+    expect(build.events).toHaveLength(0);
+
+    svc.onCodexNotification({ method: 'item/completed', params: { threadId: 'th', item: { type: 'agentMessage', text: 'Same thing.' } } });
+    svc.onCodexNotification({ method: 'item/completed', params: { threadId: 'th', item: { type: 'agentMessage', text: 'Same thing.' } } });
+    expect(build.events.map((event) => event.message)).toEqual(['Same thing.']);
+  });
+});
