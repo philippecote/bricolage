@@ -292,7 +292,10 @@ export function Workshop() {
     try {
       setApps((items) => items.map((app) => app.id === inspectorApp.id ? { ...app, status: 'building', error: null } : app));
       const result = await api.edit(inspectorApp.id, prompt, inspectorApp.model);
-      seedBuild(inspectorApp.id, result.buildId, result.build.events || []); watchBuild(inspectorApp.id, result.buildId);
+      // A follow-up sent mid-turn comes back as the running build; its events
+      // already include everything, so seeding is safe either way.
+      seedBuild(inspectorApp.id, result.buildId, result.build.events || []);
+      watchBuild(inspectorApp.id, result.buildId);
     } catch (error) { showToast(error instanceof Error ? error.message : 'Edit failed'); }
   }
 
@@ -544,24 +547,84 @@ function ModelPicker({ value, onChange, compact = false }: { value: ModelPreset;
   return <div className={`model-picker ${compact ? 'compact' : ''}`} aria-label="Builder model">{options.map(([key, family, tier, hint]) => <button type="button" key={key} aria-pressed={value === key} className={value === key ? 'active' : ''} onClick={() => onChange(key)} title={hint}>{family} <b>{tier}</b></button>)}</div>;
 }
 
+// Activity lines the agent generates in bulk; they belong in the transcript but
+// not at the same weight as something it actually said.
+const CHATTER = /^(Thinking it through|Working on it|Polishing the experience|One detail polished|Interface detail finished|Shaping an interface detail|Local check passed|Running a local check|Crafting the app|Added to your workbench|Reading your idea|Understanding your change|Shaping the experience|Checking every important path|Polishing the live preview)$/;
+
 function Inspector({ app, events, buildId, revisions, editing, setEditing, improve, answer, cancel, setModel, pin, duplicate, archive, restore, approve }: { app: WorkshopApp; events: BuildEvent[]; buildId?: string; revisions: number[]; editing: string; setEditing: (v: string) => void; improve: (e: FormEvent) => void; answer: (answers: Record<string, string>) => void; cancel: () => void; setModel: (model: ModelPreset) => void; pin: () => void; duplicate: () => void; archive: () => void; restore: (r: number) => void; approve: (id: string, accepted: boolean) => void }) {
-  const latest = events.at(-1); const questions = events.find((event) => event.questions)?.questions || []; const plan = [...events].reverse().find((event) => event.plan)?.plan || [];
-  const shaping = latest?.phase === 'discovering';
-  const awaitingAnswers = latest?.phase === 'questions' && questions.length > 0; const busy = app.status === 'building' && !['complete', 'failed', 'cancelled'].includes(latest?.phase || '');
-  const currentIndex = Math.max(0, ...events.map((event) => JOURNEY.findIndex(([phase]) => phase === event.phase)).filter((index) => index >= 0));
-  const statusLabel = awaitingAnswers ? 'Let’s shape it' : shaping ? 'Thinking about your idea' : latest?.phase === 'complete' ? 'Ready to play' : latest?.phase === 'failed' ? 'Needs a little help' : latest?.phase === 'cancelled' ? 'Paused' : busy ? latest?.message || 'Making your app' : 'Ready';
-  const elapsed = events.length ? Math.max(0, Date.now() - new Date(events[0].at).getTime()) : 0;
+  const [showMore, setShowMore] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const foot = useRef<HTMLDivElement>(null);
+
+  const latest = events.at(-1);
+  const phase = latest?.phase || '';
+  const questions = events.find((event) => event.questions)?.questions || [];
+  const awaitingAnswers = phase === 'questions' && questions.length > 0;
+  const busy = app.status === 'building' && !['complete', 'failed', 'cancelled'].includes(phase);
+  const queuedCount = events.filter((event) => event.queued).length - events.filter((event) => event.from === 'you' && !event.queued).length;
+
+  useEffect(() => { if (!busy) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, [busy]);
+  useEffect(() => { foot.current?.scrollIntoView({ block: 'end' }); }, [events.length, awaitingAnswers]);
+
+  // Elapsed for the turn in progress, not since the app was born.
+  const turnStart = [...events].reverse().find((event) => event.from === 'you')?.at || events[0]?.at;
+  const elapsed = busy && turnStart ? Math.max(0, now - new Date(turnStart).getTime()) : 0;
+
+  const files = [...new Set(events.map((event) => /^(?:Editing|Finished) (.+)$/.exec(event.message)?.[1]).filter(Boolean))] as string[];
+  const status = awaitingAnswers ? 'Needs your answers'
+    : phase === 'discovering' ? 'Reading your idea'
+    : phase === 'complete' ? `Version ${app.revision}`
+    : phase === 'failed' ? 'Failed'
+    : phase === 'cancelled' ? 'Stopped'
+    : busy ? 'Working' : `Version ${app.revision || 1}`;
+
   return <aside className="inspector build-studio">
-    <div className="studio-heading"><div className={`build-creature ${busy ? 'working' : latest?.phase === 'complete' ? 'happy' : ''}`}><i /><i /><span>⌁</span></div><div><span className="eyebrow">BUILD STUDIO</span><h2>{statusLabel}</h2><p>{busy && !awaitingAnswers ? `${formatElapsed(elapsed)} · still happily working` : `Version ${app.revision || 1}`}</p></div></div>
-    <ModelPicker value={app.model || 'luna-high'} onChange={setModel} />
-    {(events.length > 0 || app.status === 'building') && <div className="journey" aria-label="Build progress">{JOURNEY.map(([phase, label], index) => <div key={phase} className={`${index < currentIndex ? 'done' : ''} ${index === currentIndex ? 'current' : ''}`}><i>{index < currentIndex || latest?.phase === 'complete' ? '✓' : index + 1}</i><span>{label}</span></div>)}</div>}
-    {awaitingAnswers && <QuestionDeck questions={questions} onSubmit={answer} />}
-    {!awaitingAnswers && plan.length > 0 && <section className="build-plan"><header><span>Our little plan</span><b>{plan.length} steps</b></header>{plan.map((step, index) => <div key={step} className={index < Math.max(0, currentIndex - 1) ? 'done' : index === Math.max(0, currentIndex - 1) && busy ? 'active' : ''}><i>{index < Math.max(0, currentIndex - 1) ? '✓' : index + 1}</i><span>{step}</span></div>)}</section>}
-    {!awaitingAnswers && events.length > 0 && <div className="activity-peek"><span className="eyebrow">RIGHT NOW</span>{events.slice(-8).reverse().map((event, index) => <p key={event.id} className={index === 0 ? 'latest' : ''}><i />{event.message}<time>{new Date(event.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time>{event.approval && <span className="approval"><button onClick={() => approve(event.approval!.id, false)}>Not now</button><button onClick={() => approve(event.approval!.id, true)}>Allow</button></span>}</p>)}</div>}
-    {app.error && <div className="error-note">{app.error}</div>}
-    {!awaitingAnswers && <form className="edit-composer" onSubmit={improve}><textarea placeholder="What should we change?" value={editing} onChange={(event) => setEditing(event.target.value)} disabled={busy} /><div><span>{busy ? 'Codex is in the zone' : 'Keeps this app’s context'}</span><button disabled={!editing.trim() || busy}>Send</button></div></form>}
-    {busy && !awaitingAnswers && buildId && <button className="stop-build" onClick={cancel}>Stop for now</button>}
-    {!busy && !awaitingAnswers && <><div className="revision-list"><h3>Versions</h3>{revisions.slice(0, 4).map((revision, index) => <button key={revision} disabled={index === 0} onClick={() => restore(revision)}><span>Version {revision}</span><small>{index === 0 ? 'Current' : 'Restore'}</small></button>)}</div><div className="app-actions"><button onClick={pin}>{app.pinned ? 'Unpin' : 'Pin to Dock'}</button><button onClick={duplicate}>Duplicate</button><button className="danger" onClick={archive}>Archive</button></div></>}
+    <header className="studio-head">
+      <div className="studio-what">
+        <span className={`studio-dot ${busy ? 'busy' : phase === 'failed' ? 'bad' : ''}`} />
+        <div>
+          <strong>{status}</strong>
+          <small>{busy ? `${formatElapsed(elapsed)}${files.length ? ` · ${files.length} file${files.length === 1 ? '' : 's'}` : ''}` : `${app.category || 'other'} · ${revisions.length || 1} version${revisions.length === 1 ? '' : 's'}`}</small>
+        </div>
+      </div>
+      {busy && buildId ? <button className="studio-stop" onClick={cancel}>Stop</button>
+        : <button className="studio-more" onClick={() => setShowMore((value) => !value)} aria-expanded={showMore}>{showMore ? 'Done' : 'Manage'}</button>}
+    </header>
+
+    {showMore && !busy && <div className="studio-manage">
+      <ModelPicker value={app.model || 'luna-high'} onChange={setModel} />
+      {revisions.length > 1 && <div className="revision-list"><h3>Versions</h3>{revisions.slice(0, 5).map((revision, index) => <button key={revision} disabled={index === 0} onClick={() => restore(revision)}><span>Version {revision}</span><small>{index === 0 ? 'Current' : 'Restore'}</small></button>)}</div>}
+      <div className="app-actions"><button onClick={pin}>{app.pinned ? 'Unpin' : 'Pin to Dock'}</button><button onClick={duplicate}>Duplicate</button><button className="danger" onClick={archive}>Archive</button></div>
+    </div>}
+
+    <div className="studio-log">
+      {events.length === 0 && <p className="studio-empty">Ask for a change and it happens here.</p>}
+      {events.map((event) => {
+        if (event.from === 'you') return <p key={event.id} className="log-you">{event.message}{event.queued && <em>queued</em>}</p>;
+        if (event.questions) return null;
+        if (event.approval) return <div key={event.id} className="log-approval"><p>{event.message}</p><div><button onClick={() => approve(event.approval!.id, false)}>Not now</button><button className="primary" onClick={() => approve(event.approval!.id, true)}>Allow</button></div></div>;
+        if (event.phase === 'failed') return <p key={event.id} className="log-bad">{event.message}</p>;
+        // The agent's own words read as speech; its bookkeeping reads as a trace.
+        const chatter = CHATTER.test(event.message) || /^(Ran|Running) /.test(event.message) || /^(Editing|Finished) /.test(event.message);
+        return <p key={event.id} className={chatter ? 'log-step' : 'log-said'}>{event.message}</p>;
+      })}
+      {awaitingAnswers && <QuestionDeck questions={questions} onSubmit={answer} />}
+      {app.error && !busy && <p className="log-bad">{app.error}</p>}
+      <div ref={foot} />
+    </div>
+
+    <form className="studio-composer" onSubmit={improve}>
+      <textarea
+        placeholder={busy ? 'Send a follow-up — it goes next' : 'What should we change?'}
+        value={editing}
+        onChange={(event) => setEditing(event.target.value)}
+        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}
+      />
+      <div>
+        <span>{queuedCount > 0 ? `${queuedCount} waiting` : busy ? 'Sends after this turn' : app.model || 'luna-high'}</span>
+        <button disabled={!editing.trim()}>Send</button>
+      </div>
+    </form>
   </aside>;
 }
 

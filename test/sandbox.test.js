@@ -146,6 +146,12 @@ describe('model selection', () => {
     expect(kept.model).toBe('opus-5-high');
     expect((await readManifest(id)).model).toBe('opus-5-high');
 
+    // A second edit while the first is still running is queued, not started.
+    const queued = await builds.edit(id, 'and this too');
+    expect(queued.id).toBe(kept.id);
+
+    // Once the turn is finished, an explicit model is honoured.
+    builds.get(kept.id).status = 'completed';
     const changed = await builds.edit(id, 'tweak', 'sol-medium');
     expect(changed.model).toBe('sol-medium');
 

@@ -390,3 +390,74 @@ describe('recovering a thread that will not resume', () => {
     await fsp.rm(nodePath.join(config.appsDir, id), { recursive: true, force: true });
   });
 });
+
+describe('talking to the builder mid-turn', () => {
+  const fixture = async () => {
+    const { BuildService } = await import('../src/buildService.js');
+    const { writeManifest } = await import('../src/workshopStorage.js');
+    const id = `chat-fixture-${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+    await writeManifest(id, { id, name: 'Fixture', createdAt: now, updatedAt: now, prompt: 'x', model: 'luna-high', threadId: 'th', threadAgent: 'codex' });
+    const prompts = [];
+    const agent = Object.assign(new EventEmitter(), {
+      async startThread() { return 'th'; }, async resumeThread(t) { return t; },
+      async startTurn(_t, prompt) { prompts.push(prompt); return { turn: { id: 't' } }; },
+      async interrupt() {}, respond() {},
+    });
+    const builds = new BuildService({ codex: agent });
+    await builds.ready();
+    builds.persist = async () => {};
+    return { id, builds, agent, prompts };
+  };
+
+  const cleanup = async (id) => {
+    const { config } = await import('../src/config.js');
+    const fsp = await import('node:fs/promises');
+    const nodePath = await import('node:path');
+    await fsp.rm(nodePath.join(config.appsDir, id), { recursive: true, force: true });
+  };
+
+  it('queues a follow-up and sends it as the next turn', async () => {
+    const { id, builds, prompts } = await fixture();
+    const first = await builds.edit(id, 'make it blue');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(prompts).toHaveLength(1);
+
+    // Sent while the turn runs: same build, recorded, not started.
+    const second = await builds.edit(id, 'and add a total');
+    expect(second.id).toBe(first.id);
+    expect(prompts).toHaveLength(1);
+    const live = builds.get(first.id);
+    expect(live.events.filter((event) => event.from === 'you').map((event) => event.message)).toEqual(['make it blue', 'and add a total']);
+    expect(live.events.at(-1).queued).toBe(true);
+
+    // It goes out once the running turn lands.
+    live.status = 'completed';
+    builds.drainQueue(id);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain('and add a total');
+    await cleanup(id);
+  });
+
+  it('does not send what was queued behind a turn that failed', async () => {
+    const { id, builds, prompts } = await fixture();
+    const build = await builds.edit(id, 'first');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await builds.edit(id, 'second');
+
+    await builds.fail(builds.get(build.id), new Error('turn died'));
+    builds.drainQueue(id);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(prompts).toHaveLength(1);
+    await cleanup(id);
+  });
+
+  it('puts your own words in the transcript', async () => {
+    const { id, builds } = await fixture();
+    const build = await builds.edit(id, 'make the header bigger');
+    const live = builds.get(build.id);
+    expect(live.events[1]).toMatchObject({ from: 'you', message: 'make the header bigger' });
+    await cleanup(id);
+  });
+});

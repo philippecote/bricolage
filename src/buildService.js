@@ -28,6 +28,8 @@ export class BuildService extends EventEmitter {
     this.builds = new Map();
     this.approvals = new Map();
     this.watchers = new Map();
+    // Messages sent while a turn is running, delivered as the next turn.
+    this.queued = new Map();
     this.initializing = this.hydrate();
     // Thread ids are minted per agent and never collide, so one handler can
     // route notifications from every backend by thread alone.
@@ -53,7 +55,8 @@ export class BuildService extends EventEmitter {
     const build = this.newBuild(app.id, prompt, null, model, 'create');
     build.stage = 'discovery';
     build.status = 'discovering';
-    this.push(build, 'discovering', 'Reading your idea and thinking about what to ask');
+    this.push(build, 'you', prompt, { from: 'you' });
+    this.push(build, 'discovering', 'Reading your idea');
     // Discovery is a real Codex turn, so it must not block the create response.
     queueMicrotask(() => this.runDiscovery(build).catch((error) => this.fail(build, error)));
     return { app, build: publicBuild(build), preset };
@@ -62,16 +65,32 @@ export class BuildService extends EventEmitter {
   // No model means "keep using whatever this app was built with". Defaulting to
   // the global preset here silently reset an app's remembered choice on any edit
   // that did not happen to name one.
+  activeFor(appId) {
+    return [...this.builds.values()].find((build) => build.appId === appId && !['completed', 'failed', 'cancelled'].includes(build.status)) || null;
+  }
+
   async edit(appId, prompt, model = null) {
     await this.ready();
+
+    // You can talk to the builder while it is working. A turn cannot be
+    // interrupted, so the message waits and goes out as the next one — which is
+    // how a conversation with either agent actually works.
+    const active = this.activeFor(appId);
+    if (active) {
+      const queue = this.queued.get(appId) || [];
+      queue.push({ prompt, model });
+      this.queued.set(appId, queue);
+      this.push(active, 'you', prompt, { from: 'you', queued: true });
+      return publicBuild(active);
+    }
+
     const app = await readManifest(appId);
     const chosen = model || app.model || DEFAULT_MODEL;
     requirePreset(chosen);
     await writeManifest(appId, { status: 'building', error: null, model: chosen });
     const build = this.newBuild(appId, prompt, app.threadId, chosen, 'edit', app.threadAgent);
     build.stage = 'build';
-    build.plan = makePlan(true);
-    this.push(build, 'planning', 'Making a thoughtful little plan', { plan: build.plan });
+    this.push(build, 'you', prompt, { from: 'you' });
     queueMicrotask(() => this.run(build).catch((error) => this.fail(build, error)));
     return publicBuild(build);
   }
@@ -269,7 +288,8 @@ export class BuildService extends EventEmitter {
         this.push(build, 'previewing', 'Polishing the live preview');
         const app = await createRevision(build.appId);
         build.status = 'completed'; build.updatedAt = new Date().toISOString();
-        this.push(build, 'complete', 'Ready to play with', { app });
+        this.push(build, 'complete', 'Done', { app });
+        this.drainQueue(build.appId);
       } catch (error) { await this.fail(build, error); }
     }
   }
@@ -318,10 +338,20 @@ export class BuildService extends EventEmitter {
     }
   }
 
+  // One at a time, in the order they were sent.
+  drainQueue(appId) {
+    const queue = this.queued.get(appId);
+    if (!queue?.length) return;
+    const next = queue.shift();
+    if (!queue.length) this.queued.delete(appId);
+    queueMicrotask(() => this.edit(appId, next.prompt, next.model).catch(() => {}));
+  }
+
   async fail(build, error) {
     this.stopWatchingPreview(build.id);
     build.status = 'failed'; build.updatedAt = new Date().toISOString();
     try { await writeManifest(build.appId, { status: 'failed', error: error.message }); } catch { /* workspace may be gone */ }
+    this.queued.delete(build.appId);
     this.push(build, 'failed', error.message);
   }
 
@@ -331,7 +361,8 @@ export class BuildService extends EventEmitter {
     if (!build || !BUILD_STATES.includes(build.status)) throw new Error('Build not found.');
     if (build.threadId && build.turnId) await this.agentFor(build.model).interrupt(build.threadId, build.turnId);
     this.stopWatchingPreview(buildId);
-    build.status = 'cancelled'; this.push(build, 'cancelled', 'Stopped for now');
+    this.queued.delete(build.appId);
+    build.status = 'cancelled'; this.push(build, 'cancelled', 'Stopped');
     await writeManifest(build.appId, { status: 'draft' });
     return publicBuild(build);
   }

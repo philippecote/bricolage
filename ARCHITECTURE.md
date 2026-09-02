@@ -135,6 +135,14 @@ An app that declares `handles` is served a widened CSP: its own origin is added 
 
 When nothing handles a type, that is not an error: the desktop agent is asked whether a viewer for it is worth building.
 
+## The build studio
+
+One panel, three fixed bands: a header that stays, a transcript that scrolls, a composer that never leaves. The whole panel used to scroll, which took the composer with it.
+
+The transcript is a conversation, not a progress bar. Your messages appear as messages; what the agent *said* reads as prose; what it *did* — files touched, commands run, thinking — sits underneath as a quiet monospaced trace. The six-step journey and the canned "little plan" are gone: both were decoration derived from whichever phase happened to arrive last, and the plan shown for an edit was boilerplate, not the agent's.
+
+**You can talk to the builder while it works.** A turn cannot be interrupted, so a message sent mid-turn is recorded in the transcript as queued and goes out as the next turn — which is how a conversation with either agent actually works. Messages queued behind a turn that fails or is stopped are dropped rather than fired at a broken thread.
+
 ## What the agent can see
 
 An agent that cannot run what it writes will invent a way to — a cancelled build was found hand-writing a 10.6KB fake DOM to simulate one. Each workspace carries two tools:

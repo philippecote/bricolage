@@ -6,7 +6,7 @@ export interface WorkshopApp {
 }
 export type ModelPreset = 'luna-high' | 'luna-max' | 'sol-medium' | 'opus-5-high';
 export interface BuildQuestion { id: string; prompt: string; options: string[] }
-export interface BuildEvent { id: string; buildId: string; appId: string; phase: string; message: string; at: string; questions?: BuildQuestion[]; plan?: string[]; approval?: { id: string; summary: string }; preview?: boolean }
+export interface BuildEvent { id: string; buildId: string; appId: string; phase: string; message: string; at: string; questions?: BuildQuestion[]; plan?: string[]; approval?: { id: string; summary: string }; preview?: boolean; from?: 'you'; queued?: boolean }
 export interface BuildSummary { id: string; appId: string; status: string; model: ModelPreset; createdAt: string; updatedAt: string; events: BuildEvent[]; questions?: BuildQuestion[]; plan?: string[] }
 export interface ConnectionSecret { key: string; from: string; missing: boolean }
 export interface Connection { id: string; label: string; enabled: boolean; command: string; connected: boolean; tools: string[]; secrets?: ConnectionSecret[]; error: string | null }

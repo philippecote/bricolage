@@ -509,17 +509,57 @@ button { cursor: pointer; }
    Build studio (inspector)
    ========================================================================= */
 
+/* Three bands: a header that stays, a log that scrolls, a composer that never
+   leaves. The whole panel used to scroll, which took the composer with it. */
 .inspector {
-  width: 344px;
-  flex: 0 0 344px;
+  width: 352px;
+  flex: 0 0 352px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s5);
-  padding: var(--s5) var(--s4);
-  overflow-y: auto;
-  background: color-mix(in srgb, var(--surface-solid) 88%, transparent);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
   border-left: 1px solid var(--line);
 }
+
+.studio-head { flex: none; display: flex; align-items: center; gap: var(--s3); padding: var(--s4); border-bottom: 1px solid var(--line-soft); }
+.studio-what { flex: 1; display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.studio-what > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.studio-what strong { font-size: var(--text-md); font-weight: var(--weight-semi); }
+.studio-what small { font-size: var(--text-2xs); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.studio-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--positive); }
+.studio-dot.busy { background: var(--caution); animation: pulse 1.4s var(--ease) infinite; }
+.studio-dot.bad { background: var(--critical); }
+.studio-stop, .studio-more { flex: none; padding: var(--s1) var(--s3); border: 1px solid var(--line); border-radius: var(--r-sm); background: transparent; color: var(--ink-muted); font-size: var(--text-2xs); }
+.studio-stop:hover { color: var(--critical); border-color: color-mix(in srgb, var(--critical) 45%, transparent); }
+.studio-more:hover { color: var(--ink); background: var(--surface-hover); }
+
+.studio-manage { flex: none; display: flex; flex-direction: column; gap: var(--s3); padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line-soft); background: var(--surface-sunken); }
+
+.studio-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s4); }
+.studio-log p { margin: 0; font-size: var(--text-sm); line-height: 1.5; }
+.studio-empty { color: var(--ink-faint); font-size: var(--text-xs) !important; }
+/* Your words, right-aligned like a message you sent. */
+.log-you { align-self: flex-end; max-width: 88%; padding: var(--s2) var(--s3); border-radius: var(--r-md) var(--r-md) var(--r-xs) var(--r-md); background: var(--accent-soft); color: var(--accent); }
+.log-you em { display: block; margin-top: 2px; font-style: normal; font-size: var(--text-2xs); opacity: .7; }
+/* What the agent said. */
+.log-said { color: var(--ink); }
+/* What it did. Present, but quiet and monospaced so it reads as a trace. */
+.log-step { font-family: var(--font-mono); font-size: var(--text-2xs) !important; line-height: 1.45; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; }
+.log-bad { padding: var(--s2) var(--s3); border-radius: var(--r-sm); background: var(--critical-soft); color: var(--critical-ink); font-size: var(--text-xs) !important; }
+.log-approval { padding: var(--s3); border-radius: var(--r-sm); background: var(--caution-soft); }
+.log-approval p { font-size: var(--text-xs) !important; margin-bottom: var(--s2) !important; word-break: break-word; }
+.log-approval > div { display: flex; gap: var(--s2); }
+.log-approval button { flex: 1; padding: var(--s1) var(--s2); border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--surface-raised); font-size: var(--text-2xs); }
+.log-approval .primary { background: var(--ground); color: var(--canvas); border-color: transparent; }
+
+.studio-composer { flex: none; display: flex; flex-direction: column; gap: var(--s1); margin: var(--s3); padding: var(--s2); background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--elev-1); }
+.studio-composer:focus-within { box-shadow: var(--focus); }
+.studio-composer textarea { height: 54px; border: 0; outline: 0; resize: none; background: transparent; font-size: var(--text-sm); }
+.studio-composer > div { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.studio-composer span { font-size: var(--text-2xs); color: var(--ink-faint); }
+.studio-composer button { border: 0; border-radius: var(--r-xs); padding: var(--s1) var(--s3); background: var(--ground); color: var(--canvas); font-size: var(--text-2xs); font-weight: var(--weight-semi); }
+.studio-composer button:disabled { opacity: .28; }
 .studio-heading { display: flex; align-items: center; gap: var(--s3); }
 .studio-heading > div:last-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .studio-heading h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-bold); letter-spacing: var(--track-title); }
